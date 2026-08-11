@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>piOca® Seguimiento</title>
+
+  <style>
+    body{
+      margin:0;
+      padding:20px;
+      font-family:Arial,sans-serif;
+      background:#fff;
+      box-sizing:border-box;
+    }
+
+    .panel{
+      max-width:520px;
+      margin:0 auto;
+      padding:22px;
+      border:1px solid #d9d9d9;
+      border-radius:14px;
+      box-sizing:border-box;
+      background:#fff;
+    }
+
+    .titulo{
+      text-align:center;
+      font-size:24px;
+      font-weight:700;
+      margin-bottom:7px;
+    }
+
+    .subtitulo{
+      text-align:center;
+      font-size:15px;
+      color:#444;
+      margin-bottom:20px;
+    }
+
+    #estado{
+      padding:14px 10px;
+      background:#eeeeee;
+      border-radius:8px;
+      text-align:center;
+      font-weight:700;
+      margin-bottom:18px;
+    }
+
+    .datos{
+      font-size:15px;
+      line-height:2;
+      color:#333;
+    }
+
+    #error{
+      display:none;
+      margin-top:15px;
+      padding:12px;
+      background:#fff1f1;
+      border:1px solid #e4aaaa;
+      border-radius:8px;
+      font-size:13px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="panel">
+
+  <div class="titulo">piOca®</div>
+
+  <div class="subtitulo">
+    SEGUIMIENTO DE SERVICE
+  </div>
+
+  <div id="estado">
+    Buscando ubicación...
+  </div>
+
+  <div class="datos">
+    <div>
+      <strong>Latitud:</strong>
+      <span id="lat">-</span>
+    </div>
+
+    <div>
+      <strong>Longitud:</strong>
+      <span id="lon">-</span>
+    </div>
+
+    <div>
+      <strong>Precisión:</strong>
+      <span id="acc">-</span>
+    </div>
+
+    <div>
+      <strong>Última actualización:</strong>
+      <span id="hora">-</span>
+    </div>
+  </div>
+
+  <div id="error"></div>
+
+</div>
+
+<script>
+(function(){
+
+  var SUPABASE_URL =
+    "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+  var SUPABASE_KEY =
+    "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  var estado = document.getElementById("estado");
+  var lat = document.getElementById("lat");
+  var lon = document.getElementById("lon");
+  var acc = document.getElementById("acc");
+  var hora = document.getElementById("hora");
+  var errorBox = document.getElementById("error");
+
+  function cargarUltimaPosicion(){
+
+    fetch(
+      SUPABASE_URL +
+      "/rest/v1/gps_test?select=latitude,longitude,accuracy,created_at&order=created_at.desc&limit=1",
+      {
+        method:"GET",
+        headers:{
+          "apikey":SUPABASE_KEY
+        }
+      }
+    )
+
+    .then(function(respuesta){
+
+      if(!respuesta.ok){
+        throw new Error(
+          "Supabase respondió " +
+          respuesta.status
+        );
+      }
+
+      return respuesta.json();
+
+    })
+
+    .then(function(datos){
+
+      if(!datos || datos.length === 0){
+
+        estado.innerHTML =
+          "Ubicación no disponible";
+
+        return;
+      }
+
+      var p = datos[0];
+
+      lat.innerHTML =
+        Number(p.latitude).toFixed(6);
+
+      lon.innerHTML =
+        Number(p.longitude).toFixed(6);
+
+      acc.innerHTML =
+        Math.round(p.accuracy) + " metros";
+
+      hora.innerHTML =
+        new Date(p.created_at)
+        .toLocaleTimeString("es-AR");
+
+      estado.innerHTML =
+        "🟢 Ubicación recibida";
+
+      estado.style.background =
+        "#dff5e1";
+
+      errorBox.style.display =
+        "none";
+
+    })
+
+    .catch(function(error){
+
+      estado.innerHTML =
+        "❌ Error de lectura";
+
+      estado.style.background =
+        "#ffe0e0";
+
+      errorBox.innerHTML =
+        error.message;
+
+      errorBox.style.display =
+        "block";
+
+    });
+
+  }
+
+  cargarUltimaPosicion();
+
+  setInterval(
+    cargarUltimaPosicion,
+    10000
+  );
+
+})();
+</script>
+
+</body>
+</html>
