@@ -4,37 +4,177 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>piOca GPS</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #ffffff;
+      box-sizing: border-box;
+    }
+
+    #pioca-gps {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 22px;
+      border: 1px solid #d9d9d9;
+      border-radius: 14px;
+      box-sizing: border-box;
+      background: #ffffff;
+    }
+
+    .titulo {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitulo {
+      text-align: center;
+      font-size: 15px;
+      color: #444;
+      margin-bottom: 20px;
+    }
+
+    #gpsEstado {
+      background: #eeeeee;
+      padding: 14px 10px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 18px;
+    }
+
+    #gpsIniciar {
+      width: 100%;
+      padding: 16px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: #1769aa;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 18px;
+    }
+
+    .datos {
+      font-size: 15px;
+      line-height: 2;
+      color: #333;
+    }
+
+    #gpsError {
+      display: none;
+      margin-top: 15px;
+      padding: 12px;
+      background: #fff1f1;
+      border: 1px solid #e4aaaa;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+  </style>
 </head>
 
-<body style="margin:0; font-family:Arial,sans-serif; background:#ffffff;">
+<body>
 
-  <div style="
-    max-width:520px;
-    margin:20px auto;
-    padding:30px;
-    border:1px solid #d9d9d9;
-    border-radius:14px;
-    text-align:center;
-    box-sizing:border-box;
-  ">
+<div id="pioca-gps">
 
-    <div style="
-      font-size:24px;
-      font-weight:700;
-      margin-bottom:15px;
-    ">
-      piOca®
-    </div>
+  <div class="titulo">piOca®</div>
 
-    <div style="
-      font-size:18px;
-      font-weight:700;
-      color:#2d7a38;
-    ">
-      ✅ IFRAME FUNCIONA
-    </div>
-
+  <div class="subtitulo">
+    PRUEBA DE RASTREO GPS
   </div>
+
+  <div id="gpsEstado">
+    GPS detenido
+  </div>
+
+  <button id="gpsIniciar" type="button">
+    INICIAR PRUEBA
+  </button>
+
+  <div class="datos">
+    <div><strong>Latitud:</strong> <span id="gpsLat">-</span></div>
+    <div><strong>Longitud:</strong> <span id="gpsLon">-</span></div>
+    <div><strong>Precisión:</strong> <span id="gpsAcc">-</span></div>
+    <div><strong>Última posición:</strong> <span id="gpsHora">-</span></div>
+  </div>
+
+  <div id="gpsError"></div>
+
+</div>
+
+<script>
+(function () {
+
+  var boton = document.getElementById("gpsIniciar");
+  var estado = document.getElementById("gpsEstado");
+  var lat = document.getElementById("gpsLat");
+  var lon = document.getElementById("gpsLon");
+  var acc = document.getElementById("gpsAcc");
+  var hora = document.getElementById("gpsHora");
+  var errorBox = document.getElementById("gpsError");
+
+  boton.addEventListener("click", function () {
+
+    estado.innerHTML = "Solicitando ubicación...";
+    estado.style.background = "#fff3cd";
+
+    errorBox.style.display = "none";
+
+    if (!navigator.geolocation) {
+      estado.innerHTML = "❌ GPS no disponible";
+      estado.style.background = "#ffe0e0";
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+
+      function (position) {
+
+        lat.innerHTML =
+          position.coords.latitude.toFixed(6);
+
+        lon.innerHTML =
+          position.coords.longitude.toFixed(6);
+
+        acc.innerHTML =
+          Math.round(position.coords.accuracy) + " metros";
+
+        hora.innerHTML =
+          new Date().toLocaleTimeString("es-AR");
+
+        estado.innerHTML = "✅ GPS FUNCIONANDO";
+        estado.style.background = "#dff5e1";
+      },
+
+      function (error) {
+
+        estado.innerHTML = "❌ ERROR GPS";
+        estado.style.background = "#ffe0e0";
+
+        errorBox.innerHTML =
+          "Error " + error.code + ": " + error.message;
+
+        errorBox.style.display = "block";
+      },
+
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+      }
+
+    );
+
+  });
+
+})();
+</script>
 
 </body>
 </html>
