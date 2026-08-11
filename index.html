@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>piOca GPS</title>
 
   <style>
@@ -92,9 +91,7 @@
 
 <div id="pioca-gps">
 
-  <div class="titulo">
-    piOca®
-  </div>
+  <div class="titulo">piOca®</div>
 
   <div class="subtitulo">
     PRUEBA GPS + SUPABASE
@@ -104,17 +101,11 @@
     GPS detenido
   </div>
 
-  <button
-    id="gpsIniciar"
-    class="boton"
-    type="button">
+  <button id="gpsIniciar" class="boton" type="button">
     INICIAR RASTREO
   </button>
 
-  <button
-    id="gpsDetener"
-    class="boton"
-    type="button">
+  <button id="gpsDetener" class="boton" type="button">
     DETENER RASTREO
   </button>
 
@@ -161,7 +152,6 @@
 
 </div>
 
-
 <script>
 (function(){
 
@@ -171,14 +161,16 @@
   var SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
-
   var watchId = null;
 
   var cantidad = 0;
   var envios = 0;
 
   var ultimoEnvio = 0;
+  var ultimaPosicion = null;
 
+  var enviando = false;
+  var detenidoManual = false;
 
   var iniciar =
     document.getElementById("gpsIniciar");
@@ -214,7 +206,37 @@
     document.getElementById("gpsError");
 
 
-  function enviarSupabase(position){
+  function mostrarError(texto){
+
+    errorBox.innerHTML = texto;
+    errorBox.style.display = "block";
+
+  }
+
+
+  function limpiarError(){
+
+    errorBox.innerHTML = "";
+    errorBox.style.display = "none";
+
+  }
+
+
+  function enviarSupabase(position, intento){
+
+    if(!position){
+      return;
+    }
+
+    if(typeof intento === "undefined"){
+      intento = 0;
+    }
+
+    if(enviando && intento === 0){
+      return;
+    }
+
+    enviando = true;
 
     var datos = {
 
@@ -259,6 +281,7 @@
 
       }
 
+      enviando = false;
 
       envios++;
 
@@ -269,21 +292,195 @@
         new Date()
         .toLocaleTimeString("es-AR");
 
+      limpiarError();
+
     })
 
     .catch(function(error){
 
-      errorBox.innerHTML =
-        "Error de envío: " +
-        error.message;
+      enviando = false;
 
-      errorBox.style.display =
-        "block";
+      if(
+        detenidoManual
+      ){
+        return;
+      }
+
+      if(
+        intento < 3
+      ){
+
+        var espera;
+
+        if(intento === 0){
+          espera = 2000;
+        }
+
+        if(intento === 1){
+          espera = 4000;
+        }
+
+        if(intento === 2){
+          espera = 8000;
+        }
+
+        mostrarError(
+          "Conexión interrumpida. Reintentando..."
+        );
+
+        setTimeout(
+          function(){
+
+            if(!detenidoManual){
+
+              enviarSupabase(
+                ultimaPosicion,
+                intento + 1
+              );
+
+            }
+
+          },
+          espera
+        );
+
+      }else{
+
+        mostrarError(
+          "Sin conexión. El rastreo sigue activo y volverá a intentar."
+        );
+
+      }
 
     });
 
   }
 
+
+  function iniciarGPS(){
+
+    if(watchId !== null){
+      return;
+    }
+
+    detenidoManual = false;
+
+    estado.innerHTML =
+      "Solicitando ubicación...";
+
+    estado.style.background =
+      "#fff3cd";
+
+
+    watchId =
+      navigator.geolocation.watchPosition(
+
+        function(position){
+
+          ultimaPosicion =
+            position;
+
+          cantidad++;
+
+          lat.innerHTML =
+            position.coords.latitude
+            .toFixed(6);
+
+          lon.innerHTML =
+            position.coords.longitude
+            .toFixed(6);
+
+          acc.innerHTML =
+            Math.round(
+              position.coords.accuracy
+            ) + " metros";
+
+          hora.innerHTML =
+            new Date()
+            .toLocaleTimeString("es-AR");
+
+          cantidadTxt.innerHTML =
+            cantidad;
+
+
+          estado.innerHTML =
+            "🟢 GPS ACTIVO";
+
+          estado.style.background =
+            "#dff5e1";
+
+
+          iniciar.style.display =
+            "none";
+
+          detener.style.display =
+            "block";
+
+
+          var ahora =
+            Date.now();
+
+
+          if(
+            ahora - ultimoEnvio
+            >= 5000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+            enviarSupabase(
+              position,
+              0
+            );
+
+          }
+
+        },
+
+
+        function(error){
+
+          if(detenidoManual){
+            return;
+          }
+
+          mostrarError(
+            "GPS momentáneamente sin posición. Reintentando..."
+          );
+
+          if(watchId !== null){
+
+            navigator.geolocation
+            .clearWatch(watchId);
+
+            watchId = null;
+
+          }
+
+          setTimeout(
+            function(){
+
+              if(!detenidoManual){
+                iniciarGPS();
+              }
+
+            },
+            3000
+          );
+
+        },
+
+
+        {
+          enableHighAccuracy:true,
+          maximumAge:1000,
+          timeout:10000
+        }
+
+      );
+
+  }
 
 
   iniciar.addEventListener(
@@ -305,117 +502,17 @@
 
       cantidad = 0;
       envios = 0;
-      ultimoEnvio = 0;
 
+      ultimoEnvio = 0;
+      ultimaPosicion = null;
 
       cantidadTxt.innerHTML = "0";
       enviosTxt.innerHTML = "0";
       envioTxt.innerHTML = "-";
 
+      limpiarError();
 
-      estado.innerHTML =
-        "Solicitando ubicación...";
-
-      estado.style.background =
-        "#fff3cd";
-
-
-      errorBox.style.display =
-        "none";
-
-
-      watchId =
-        navigator.geolocation.watchPosition(
-
-          function(position){
-
-            cantidad++;
-
-
-            lat.innerHTML =
-              position.coords.latitude
-              .toFixed(6);
-
-            lon.innerHTML =
-              position.coords.longitude
-              .toFixed(6);
-
-            acc.innerHTML =
-              Math.round(
-                position.coords.accuracy
-              ) + " metros";
-
-            hora.innerHTML =
-              new Date()
-              .toLocaleTimeString("es-AR");
-
-            cantidadTxt.innerHTML =
-              cantidad;
-
-
-            estado.innerHTML =
-              "🟢 GPS ACTIVO";
-
-            estado.style.background =
-              "#dff5e1";
-
-
-            iniciar.style.display =
-              "none";
-
-            detener.style.display =
-              "block";
-
-
-            var ahora =
-              Date.now();
-
-
-            if(
-              ahora - ultimoEnvio
-              >= 10000
-            ){
-
-              ultimoEnvio =
-                ahora;
-
-              enviarSupabase(
-                position
-              );
-
-            }
-
-          },
-
-
-          function(error){
-
-            estado.innerHTML =
-              "❌ ERROR GPS";
-
-            estado.style.background =
-              "#ffe0e0";
-
-
-            errorBox.innerHTML =
-              "Error " +
-              error.code +
-              ": " +
-              error.message;
-
-            errorBox.style.display =
-              "block";
-
-          },
-
-
-          {
-            enableHighAccuracy:true,
-            maximumAge:0,
-            timeout:20000
-          }
-
-        );
+      iniciarGPS();
 
     }
   );
@@ -424,6 +521,8 @@
   detener.addEventListener(
     "click",
     function(){
+
+      detenidoManual = true;
 
       if(watchId !== null){
 
@@ -447,6 +546,30 @@
 
       detener.style.display =
         "none";
+
+    }
+  );
+
+
+  window.addEventListener(
+    "online",
+    function(){
+
+      if(
+        !detenidoManual &&
+        ultimaPosicion
+      ){
+
+        mostrarError(
+          "Conexión recuperada. Reanudando envío..."
+        );
+
+        enviarSupabase(
+          ultimaPosicion,
+          0
+        );
+
+      }
 
     }
   );
