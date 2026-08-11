@@ -3,54 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>piOca® Seguimiento</title>
 
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
   <style>
-    body{
+    html, body{
       margin:0;
-      padding:20px;
+      padding:0;
       font-family:Arial,sans-serif;
       background:#fff;
+    }
+
+    body{
+      padding:18px;
       box-sizing:border-box;
     }
 
     .panel{
-      max-width:520px;
+      max-width:620px;
       margin:0 auto;
-      padding:22px;
-      border:1px solid #d9d9d9;
-      border-radius:14px;
-      box-sizing:border-box;
       background:#fff;
     }
 
     .titulo{
       text-align:center;
-      font-size:24px;
+      font-size:25px;
       font-weight:700;
-      margin-bottom:7px;
+      margin-bottom:5px;
     }
 
     .subtitulo{
       text-align:center;
-      font-size:15px;
+      font-size:16px;
       color:#444;
-      margin-bottom:20px;
-    }
-
-    #estado{
-      padding:14px 10px;
-      background:#eeeeee;
-      border-radius:8px;
-      text-align:center;
-      font-weight:700;
       margin-bottom:18px;
     }
 
-    .datos{
+    #estado{
+      padding:13px 10px;
+      background:#eee;
+      border-radius:9px;
+      text-align:center;
       font-size:15px;
-      line-height:2;
-      color:#333;
+      font-weight:700;
+      margin-bottom:14px;
+    }
+
+    #mapa{
+      width:100%;
+      height:420px;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid #d7d7d7;
+      box-sizing:border-box;
+    }
+
+    .ultima{
+      text-align:center;
+      margin-top:13px;
+      font-size:14px;
+      color:#555;
     }
 
     #error{
@@ -62,6 +79,16 @@
       border-radius:8px;
       font-size:13px;
     }
+
+    @media(max-width:600px){
+      body{
+        padding:10px;
+      }
+
+      #mapa{
+        height:430px;
+      }
+    }
   </style>
 </head>
 
@@ -69,41 +96,33 @@
 
 <div class="panel">
 
-  <div class="titulo">piOca®</div>
+  <div class="titulo">
+    piOca®
+  </div>
 
   <div class="subtitulo">
-    SEGUIMIENTO DE SERVICE
+    TU SERVICE ESTÁ EN CAMINO
   </div>
 
   <div id="estado">
     Buscando ubicación...
   </div>
 
-  <div class="datos">
-    <div>
-      <strong>Latitud:</strong>
-      <span id="lat">-</span>
-    </div>
+  <div id="mapa"></div>
 
-    <div>
-      <strong>Longitud:</strong>
-      <span id="lon">-</span>
-    </div>
-
-    <div>
-      <strong>Precisión:</strong>
-      <span id="acc">-</span>
-    </div>
-
-    <div>
-      <strong>Última actualización:</strong>
-      <span id="hora">-</span>
-    </div>
+  <div class="ultima">
+    Última actualización:
+    <strong id="hora">-</strong>
   </div>
 
   <div id="error"></div>
 
 </div>
+
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
 
 <script>
 (function(){
@@ -114,33 +133,68 @@
   var SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
-  var estado = document.getElementById("estado");
-  var lat = document.getElementById("lat");
-  var lon = document.getElementById("lon");
-  var acc = document.getElementById("acc");
-  var hora = document.getElementById("hora");
-  var errorBox = document.getElementById("error");
 
-  function cargarUltimaPosicion(){
+  var estado =
+    document.getElementById("estado");
+
+  var hora =
+    document.getElementById("hora");
+
+  var errorBox =
+    document.getElementById("error");
+
+
+  var mapa =
+    L.map("mapa", {
+      zoomControl:true
+    }).setView(
+      [-34.5146, -58.5796],
+      16
+    );
+
+
+  L.tileLayer(
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom:19,
+      attribution:
+        '&copy; OpenStreetMap contributors'
+    }
+  ).addTo(mapa);
+
+
+  var marcador = null;
+  var primeraPosicion = true;
+
+
+  function cargarPosicion(){
 
     fetch(
       SUPABASE_URL +
-      "/rest/v1/gps_test?select=latitude,longitude,accuracy,created_at&order=created_at.desc&limit=1",
+      "/rest/v1/gps_test" +
+      "?select=latitude,longitude,accuracy,created_at" +
+      "&order=created_at.desc" +
+      "&limit=1",
       {
+
         method:"GET",
+
         headers:{
           "apikey":SUPABASE_KEY
         }
+
       }
     )
 
     .then(function(respuesta){
 
       if(!respuesta.ok){
+
         throw new Error(
           "Supabase respondió " +
           respuesta.status
         );
+
       }
 
       return respuesta.json();
@@ -155,28 +209,65 @@
           "Ubicación no disponible";
 
         return;
+
       }
+
 
       var p = datos[0];
 
-      lat.innerHTML =
-        Number(p.latitude).toFixed(6);
+      var lat =
+        Number(p.latitude);
 
-      lon.innerHTML =
-        Number(p.longitude).toFixed(6);
+      var lon =
+        Number(p.longitude);
 
-      acc.innerHTML =
-        Math.round(p.accuracy) + " metros";
+
+      if(!marcador){
+
+        marcador =
+          L.marker([lat,lon])
+          .addTo(mapa)
+          .bindPopup(
+            "<strong>piOca®</strong><br>Service en camino"
+          );
+
+      }else{
+
+        marcador.setLatLng(
+          [lat,lon]
+        );
+
+      }
+
+
+      if(primeraPosicion){
+
+        mapa.setView(
+          [lat,lon],
+          16
+        );
+
+        marcador.openPopup();
+
+        primeraPosicion = false;
+
+      }
+
 
       hora.innerHTML =
-        new Date(p.created_at)
-        .toLocaleTimeString("es-AR");
+        new Date(
+          p.created_at
+        ).toLocaleTimeString(
+          "es-AR"
+        );
+
 
       estado.innerHTML =
-        "🟢 Ubicación recibida";
+        "🟢 Service en camino";
 
       estado.style.background =
         "#dff5e1";
+
 
       errorBox.style.display =
         "none";
@@ -186,10 +277,11 @@
     .catch(function(error){
 
       estado.innerHTML =
-        "❌ Error de lectura";
+        "Ubicación momentáneamente no disponible";
 
       estado.style.background =
         "#ffe0e0";
+
 
       errorBox.innerHTML =
         error.message;
@@ -201,12 +293,14 @@
 
   }
 
-  cargarUltimaPosicion();
+
+  cargarPosicion();
+
 
   setInterval(
-    cargarUltimaPosicion,
+    cargarPosicion,
     10000
-  ); 
+  );
 
 })();
 </script>
