@@ -85,7 +85,7 @@
     .estado{
       padding:12px;
       border-radius:8px;
-      margin-top:16px;
+      margin-top:12px;
       display:none;
       font-size:14px;
       line-height:1.5;
@@ -126,6 +126,13 @@
       padding:10px;
       border-radius:8px;
     }
+
+    .ayuda{
+      font-size:12px;
+      color:#666;
+      margin-top:6px;
+      line-height:1.4;
+    }
   </style>
 </head>
 
@@ -144,7 +151,7 @@
     <label>Contraseña</label>
     <input id="password" type="password" autocomplete="current-password">
 
-    <button id="btnLogin" class="btnAzul">
+    <button id="btnLogin" class="btnAzul" type="button">
       INGRESAR
     </button>
 
@@ -152,26 +159,49 @@
 
   </div>
 
+
   <div id="panelAdmin">
 
+    <button id="btnContacto" class="btnAzul" type="button">
+      👤 SELECCIONAR CONTACTO
+    </button>
+
+    <div class="ayuda">
+      Si el teléfono no permite seleccionar contactos, cargá los datos manualmente.
+    </div>
+
+    <div id="contactoEstado" class="estado"></div>
+
     <label>Nombre del cliente</label>
-    <input id="clientName" type="text">
+    <input
+      id="clientName"
+      type="text"
+      autocomplete="name"
+      placeholder="Nombre del cliente"
+    >
 
     <label>Teléfono</label>
-    <input id="clientPhone" type="tel" placeholder="Ej: 1155555555">
+    <input
+      id="clientPhone"
+      type="tel"
+      inputmode="tel"
+      autocomplete="tel"
+      placeholder="Ej: 1155555555"
+    >
 
     <label>Hora estimada de llegada</label>
     <select id="estimatedArrival"></select>
 
-    <button id="btnCrear" class="btnVerde">
-      INICIAR SERVICE
+    <button id="btnCrear" class="btnVerde" type="button">
+      🚐 INICIAR SERVICE
     </button>
 
-    <button id="btnLogout" class="btnOscuro">
+    <button id="btnLogout" class="btnOscuro" type="button">
       CERRAR SESIÓN
     </button>
 
     <div id="adminEstado" class="estado"></div>
+
 
     <div id="serviceActivo" class="serviceActivo">
 
@@ -192,12 +222,12 @@
 
       <div class="linkBox" id="activoLink"></div>
 
-      <button id="btnWhatsapp" class="btnVerde">
-        ABRIR WHATSAPP
+      <button id="btnWhatsapp" class="btnVerde" type="button">
+        💬 ABRIR WHATSAPP BUSINESS
       </button>
 
-      <button id="btnFinalizar" class="btnOscuro">
-        FINALIZAR SERVICE
+      <button id="btnFinalizar" class="btnOscuro" type="button">
+        ⛔ FINALIZAR SERVICE
       </button>
 
     </div>
@@ -205,6 +235,7 @@
   </div>
 
 </div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -223,6 +254,7 @@
       SUPABASE_KEY
     );
 
+
   const loginBox =
     document.getElementById("loginBox");
 
@@ -240,6 +272,12 @@
 
   const btnLogout =
     document.getElementById("btnLogout");
+
+  const btnContacto =
+    document.getElementById("btnContacto");
+
+  const contactoEstado =
+    document.getElementById("contactoEstado");
 
   const clientName =
     document.getElementById("clientName");
@@ -280,17 +318,25 @@
   const btnFinalizar =
     document.getElementById("btnFinalizar");
 
+
   let currentService = null;
 
+
   function mostrarEstado(el, texto, tipo){
+
     el.textContent = texto;
     el.className = "estado " + tipo;
     el.style.display = "block";
+
   }
 
+
   function ocultarEstado(el){
+
     el.style.display = "none";
+
   }
+
 
   function redondearProximo10(fecha){
 
@@ -299,19 +345,30 @@
     d.setSeconds(0);
     d.setMilliseconds(0);
 
-    const minutos = d.getMinutes();
-    const resto = minutos % 10;
+    const minutos =
+      d.getMinutes();
+
+    const resto =
+      minutos % 10;
 
     if(resto === 0){
-      d.setMinutes(minutos + 10);
+
+      d.setMinutes(
+        minutos + 10
+      );
+
     }else{
+
       d.setMinutes(
         minutos + (10 - resto)
       );
+
     }
 
     return d;
+
   }
+
 
   function cargarHorarios(){
 
@@ -348,25 +405,312 @@
       estimatedArrival.appendChild(
         option
       );
+
     }
+
   }
+
+
+  function limpiarTelefono(numero){
+
+    if(!numero){
+      return "";
+    }
+
+    return String(numero)
+      .replace(/\D/g,"");
+
+  }
+
+
+  function telefonoWhatsAppArgentina(numero){
+
+    let n =
+      limpiarTelefono(numero);
+
+    /*
+      Si viene desde contactos como:
+      +54 9 11 ...
+    */
+    if(n.startsWith("549")){
+      return n;
+    }
+
+    /*
+      Si ya viene como:
+      54 9 ...
+    */
+    if(n.startsWith("54")){
+      return n;
+    }
+
+    /*
+      Número local argentino.
+      Para WhatsApp móvil agregamos 549.
+    */
+    if(n.startsWith("0")){
+      n = n.substring(1);
+    }
+
+    /*
+      Si aparece un 15 después del código
+      local, lo quitamos cuando podemos.
+      La carga manual ideal sigue siendo
+      área + número sin 15.
+    */
+
+    return "549" + n;
+
+  }
+
+
+  async function seleccionarContacto(){
+
+    ocultarEstado(
+      contactoEstado
+    );
+
+    const soportado =
+      ("contacts" in navigator) &&
+      ("ContactsManager" in window);
+
+    if(!soportado){
+
+      mostrarEstado(
+        contactoEstado,
+        "Este teléfono/navegador no permite abrir la agenda desde la web. Podés cargar nombre y teléfono manualmente.",
+        "error"
+      );
+
+      clientName.focus();
+
+      return;
+    }
+
+    try{
+
+      const contactos =
+        await navigator.contacts.select(
+          ["name","tel"],
+          {
+            multiple:false
+          }
+        );
+
+      if(
+        !contactos ||
+        contactos.length === 0
+      ){
+        return;
+      }
+
+      const contacto =
+        contactos[0];
+
+
+      if(
+        contacto.name &&
+        contacto.name.length
+      ){
+
+        clientName.value =
+          contacto.name[0];
+
+      }
+
+
+      if(
+        contacto.tel &&
+        contacto.tel.length
+      ){
+
+        clientPhone.value =
+          contacto.tel[0];
+
+      }
+
+
+      mostrarEstado(
+        contactoEstado,
+        "✅ Contacto cargado. Revisá el teléfono antes de iniciar el service.",
+        "ok"
+      );
+
+    }
+
+    catch(error){
+
+      mostrarEstado(
+        contactoEstado,
+        "No se seleccionó ningún contacto. Podés cargarlo manualmente.",
+        "error"
+      );
+
+    }
+
+  }
+
+
+  function abrirWhatsAppBusiness(
+    telefono,
+    mensaje
+  ){
+
+    const numero =
+      telefonoWhatsAppArgentina(
+        telefono
+      );
+
+    const texto =
+      encodeURIComponent(
+        mensaje
+      );
+
+    const ua =
+      navigator.userAgent ||
+      navigator.vendor ||
+      window.opera;
+
+
+    /*
+      ANDROID:
+      fuerza el paquete oficial
+      de WhatsApp Business.
+    */
+
+    if(/android/i.test(ua)){
+
+      const intent =
+        "intent://send" +
+        "?phone=" +
+        numero +
+        "&text=" +
+        texto +
+        "#Intent;" +
+        "scheme=whatsapp;" +
+        "package=com.whatsapp.w4b;" +
+        "end";
+
+      window.location.href =
+        intent;
+
+      return;
+    }
+
+
+    /*
+      IPHONE:
+      intentamos primero el esquema
+      de WhatsApp Business.
+      Si el sistema no lo acepta,
+      usamos el universal link oficial.
+    */
+
+    if(
+      /iPhone|iPad|iPod/i.test(ua)
+    ){
+
+      const businessURL =
+        "whatsapp-business://send" +
+        "?phone=" +
+        numero +
+        "&text=" +
+        texto;
+
+      const fallback =
+        "https://wa.me/" +
+        numero +
+        "?text=" +
+        texto;
+
+
+      let salioDePagina = false;
+
+
+      function detectarSalida(){
+
+        if(document.hidden){
+          salioDePagina = true;
+        }
+
+      }
+
+
+      document.addEventListener(
+        "visibilitychange",
+        detectarSalida,
+        {
+          once:true
+        }
+      );
+
+
+      window.location.href =
+        businessURL;
+
+
+      setTimeout(
+        function(){
+
+          if(!salioDePagina){
+
+            window.location.href =
+              fallback;
+
+          }
+
+        },
+        1300
+      );
+
+      return;
+    }
+
+
+    /*
+      Fallback general.
+    */
+
+    window.location.href =
+      "https://wa.me/" +
+      numero +
+      "?text=" +
+      texto;
+
+  }
+
 
   async function comprobarSesion(){
 
     const {
       data
     } =
-      await supabaseClient.auth.getSession();
+      await supabaseClient.auth
+      .getSession();
 
     if(
       data &&
       data.session
     ){
-      loginBox.style.display = "none";
-      panelAdmin.style.display = "block";
+
+      loginBox.style.display =
+        "none";
+
+      panelAdmin.style.display =
+        "block";
+
       cargarHorarios();
+
     }
+
   }
+
+
+  btnContacto.addEventListener(
+    "click",
+    seleccionarContacto
+  );
+
 
   btnLogin.addEventListener(
     "click",
@@ -382,12 +726,15 @@
       } =
         await supabaseClient.auth
         .signInWithPassword({
+
           email:
             email.value.trim(),
 
           password:
             password.value
+
         });
+
 
       if(error){
 
@@ -398,19 +745,27 @@
         );
 
         return;
+
       }
+
 
       if(data.session){
 
-        loginBox.style.display = "none";
-        panelAdmin.style.display = "block";
+        loginBox.style.display =
+          "none";
+
+        panelAdmin.style.display =
+          "block";
 
         password.value = "";
 
         cargarHorarios();
+
       }
+
     }
   );
+
 
   btnLogout.addEventListener(
     "click",
@@ -419,15 +774,20 @@
       await supabaseClient.auth
         .signOut();
 
-      panelAdmin.style.display = "none";
-      loginBox.style.display = "block";
+      panelAdmin.style.display =
+        "none";
+
+      loginBox.style.display =
+        "block";
 
       serviceActivo.style.display =
         "none";
 
       currentService = null;
+
     }
   );
+
 
   btnCrear.addEventListener(
     "click",
@@ -441,10 +801,13 @@
         clientName.value.trim();
 
       const telefono =
-        clientPhone.value
-        .replace(/\D/g,"");
+        clientPhone.value.trim();
 
-      if(!nombre || !telefono){
+
+      if(
+        !nombre ||
+        !limpiarTelefono(telefono)
+      ){
 
         mostrarEstado(
           adminEstado,
@@ -453,18 +816,22 @@
         );
 
         return;
+
       }
+
 
       const llegada =
         new Date(
           estimatedArrival.value
         );
 
+
       const vence =
         new Date(
           llegada.getTime() +
           10 * 60 * 1000
         );
+
 
       const {
         data,
@@ -473,11 +840,14 @@
         await supabaseClient
         .from("services")
         .insert({
+
           client_name:
             nombre,
 
           client_phone:
-            telefono,
+            limpiarTelefono(
+              telefono
+            ),
 
           estimated_arrival:
             llegada.toISOString(),
@@ -487,9 +857,11 @@
 
           status:
             "active"
+
         })
         .select()
         .single();
+
 
       if(error){
 
@@ -501,17 +873,22 @@
         );
 
         return;
+
       }
+
 
       currentService =
         data;
+
 
       const link =
         "https://www.automatizacionpioca.com.ar/seguimiento/?id=" +
         data.service_code;
 
+
       activoCliente.textContent =
         nombre;
+
 
       activoHora.textContent =
         llegada.toLocaleTimeString(
@@ -522,6 +899,7 @@
           }
         );
 
+
       activoVence.textContent =
         vence.toLocaleTimeString(
           "es-AR",
@@ -531,41 +909,45 @@
           }
         );
 
+
       activoLink.textContent =
         link;
+
 
       serviceActivo.style.display =
         "block";
 
+
       mostrarEstado(
         adminEstado,
-        "Service creado correctamente.",
+        "✅ Service creado correctamente.",
         "ok"
       );
+
 
       btnWhatsapp.onclick =
         function(){
 
           const mensaje =
-            "Hola " +
+            "👋 Hola " +
             nombre +
-            ", tu service de piOca® está en camino.%0A%0A" +
-            "Podés seguir nuestra llegada en tiempo real desde este enlace:%0A" +
-            encodeURIComponent(link);
+            ", tu service de piOca® está en camino.\n\n" +
 
-          const whatsapp =
-            "https://wa.me/54" +
-            telefono +
-            "?text=" +
-            mensaje;
+            "🚐 Podés seguir nuestra llegada en tiempo real desde este enlace:\n\n" +
 
-          window.open(
-            whatsapp,
-            "_blank"
+            "📍 " +
+            link;
+
+          abrirWhatsAppBusiness(
+            telefono,
+            mensaje
           );
+
         };
+
     }
   );
+
 
   btnFinalizar.addEventListener(
     "click",
@@ -575,23 +957,27 @@
         return;
       }
 
+
       const {
         error
       } =
         await supabaseClient
         .from("services")
         .update({
+
           status:
             "finished",
 
           finished_at:
             new Date()
             .toISOString()
+
         })
         .eq(
           "id",
           currentService.id
         );
+
 
       if(error){
 
@@ -603,13 +989,16 @@
         );
 
         return;
+
       }
+
 
       mostrarEstado(
         adminEstado,
-        "Service finalizado.",
+        "✅ Service finalizado.",
         "ok"
       );
+
 
       serviceActivo.style.display =
         "none";
@@ -620,8 +1009,10 @@
       clientPhone.value = "";
 
       cargarHorarios();
+
     }
   );
+
 
   comprobarSesion();
 
