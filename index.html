@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>piOca GPS</title>
 
   <style>
@@ -91,117 +92,364 @@
 
 <div id="pioca-gps">
 
-  <div class="titulo">piOca®</div>
-  <div class="subtitulo">PRUEBA DE RASTREO GPS CONTINUO</div>
+  <div class="titulo">
+    piOca®
+  </div>
 
-  <div id="gpsEstado">GPS detenido</div>
+  <div class="subtitulo">
+    PRUEBA GPS + SUPABASE
+  </div>
 
-  <button id="gpsIniciar" class="boton" type="button">
+  <div id="gpsEstado">
+    GPS detenido
+  </div>
+
+  <button
+    id="gpsIniciar"
+    class="boton"
+    type="button">
     INICIAR RASTREO
   </button>
 
-  <button id="gpsDetener" class="boton" type="button">
+  <button
+    id="gpsDetener"
+    class="boton"
+    type="button">
     DETENER RASTREO
   </button>
 
   <div class="datos">
-    <div><strong>Latitud:</strong> <span id="gpsLat">-</span></div>
-    <div><strong>Longitud:</strong> <span id="gpsLon">-</span></div>
-    <div><strong>Precisión:</strong> <span id="gpsAcc">-</span></div>
-    <div><strong>Última posición:</strong> <span id="gpsHora">-</span></div>
-    <div><strong>Actualizaciones:</strong> <span id="gpsCantidad">0</span></div>
+
+    <div>
+      <strong>Latitud:</strong>
+      <span id="gpsLat">-</span>
+    </div>
+
+    <div>
+      <strong>Longitud:</strong>
+      <span id="gpsLon">-</span>
+    </div>
+
+    <div>
+      <strong>Precisión:</strong>
+      <span id="gpsAcc">-</span>
+    </div>
+
+    <div>
+      <strong>Última posición:</strong>
+      <span id="gpsHora">-</span>
+    </div>
+
+    <div>
+      <strong>Actualizaciones GPS:</strong>
+      <span id="gpsCantidad">0</span>
+    </div>
+
+    <div>
+      <strong>Último envío:</strong>
+      <span id="gpsEnvio">-</span>
+    </div>
+
+    <div>
+      <strong>Envíos a Supabase:</strong>
+      <span id="gpsEnvios">0</span>
+    </div>
+
   </div>
 
   <div id="gpsError"></div>
 
 </div>
 
+
 <script>
 (function(){
 
+  var SUPABASE_URL =
+    "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+  var SUPABASE_KEY =
+    "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+
   var watchId = null;
+
   var cantidad = 0;
+  var envios = 0;
 
-  var iniciar = document.getElementById("gpsIniciar");
-  var detener = document.getElementById("gpsDetener");
+  var ultimoEnvio = 0;
 
-  var estado = document.getElementById("gpsEstado");
-  var lat = document.getElementById("gpsLat");
-  var lon = document.getElementById("gpsLon");
-  var acc = document.getElementById("gpsAcc");
-  var hora = document.getElementById("gpsHora");
-  var cantidadTxt = document.getElementById("gpsCantidad");
-  var errorBox = document.getElementById("gpsError");
 
-  iniciar.addEventListener("click", function(){
+  var iniciar =
+    document.getElementById("gpsIniciar");
 
-    if(!navigator.geolocation){
-      estado.innerHTML = "❌ GPS no disponible";
-      estado.style.background = "#ffe0e0";
-      return;
-    }
+  var detener =
+    document.getElementById("gpsDetener");
 
-    cantidad = 0;
-    cantidadTxt.innerHTML = "0";
+  var estado =
+    document.getElementById("gpsEstado");
 
-    estado.innerHTML = "Solicitando ubicación...";
-    estado.style.background = "#fff3cd";
+  var lat =
+    document.getElementById("gpsLat");
 
-    errorBox.style.display = "none";
+  var lon =
+    document.getElementById("gpsLon");
 
-    watchId = navigator.geolocation.watchPosition(
+  var acc =
+    document.getElementById("gpsAcc");
 
-      function(position){
+  var hora =
+    document.getElementById("gpsHora");
 
-        cantidad++;
+  var cantidadTxt =
+    document.getElementById("gpsCantidad");
 
-        lat.innerHTML = position.coords.latitude.toFixed(6);
-        lon.innerHTML = position.coords.longitude.toFixed(6);
-        acc.innerHTML = Math.round(position.coords.accuracy) + " metros";
-        hora.innerHTML = new Date().toLocaleTimeString("es-AR");
-        cantidadTxt.innerHTML = cantidad;
+  var envioTxt =
+    document.getElementById("gpsEnvio");
 
-        estado.innerHTML = "🟢 GPS ACTIVO";
-        estado.style.background = "#dff5e1";
+  var enviosTxt =
+    document.getElementById("gpsEnvios");
 
-        iniciar.style.display = "none";
-        detener.style.display = "block";
-      },
+  var errorBox =
+    document.getElementById("gpsError");
 
-      function(error){
 
-        estado.innerHTML = "❌ ERROR GPS";
-        estado.style.background = "#ffe0e0";
+  function enviarSupabase(position){
 
-        errorBox.innerHTML =
-          "Error " + error.code + ": " + error.message;
+    var datos = {
 
-        errorBox.style.display = "block";
-      },
+      latitude:
+        position.coords.latitude,
 
+      longitude:
+        position.coords.longitude,
+
+      accuracy:
+        position.coords.accuracy
+
+    };
+
+
+    fetch(
+      SUPABASE_URL + "/rest/v1/gps_test",
       {
-        enableHighAccuracy:true,
-        maximumAge:0,
-        timeout:20000
+
+        method:"POST",
+
+        headers:{
+          "apikey":SUPABASE_KEY,
+          "Content-Type":"application/json",
+          "Prefer":"return=minimal"
+        },
+
+        body:
+          JSON.stringify(datos)
+
+      }
+    )
+
+    .then(function(respuesta){
+
+      if(!respuesta.ok){
+
+        throw new Error(
+          "Supabase respondió " +
+          respuesta.status
+        );
+
       }
 
-    );
 
-  });
+      envios++;
 
-  detener.addEventListener("click", function(){
+      enviosTxt.innerHTML =
+        envios;
 
-    if(watchId !== null){
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
+      envioTxt.innerHTML =
+        new Date()
+        .toLocaleTimeString("es-AR");
+
+    })
+
+    .catch(function(error){
+
+      errorBox.innerHTML =
+        "Error de envío: " +
+        error.message;
+
+      errorBox.style.display =
+        "block";
+
+    });
+
+  }
+
+
+
+  iniciar.addEventListener(
+    "click",
+    function(){
+
+      if(!navigator.geolocation){
+
+        estado.innerHTML =
+          "❌ GPS no disponible";
+
+        estado.style.background =
+          "#ffe0e0";
+
+        return;
+
+      }
+
+
+      cantidad = 0;
+      envios = 0;
+      ultimoEnvio = 0;
+
+
+      cantidadTxt.innerHTML = "0";
+      enviosTxt.innerHTML = "0";
+      envioTxt.innerHTML = "-";
+
+
+      estado.innerHTML =
+        "Solicitando ubicación...";
+
+      estado.style.background =
+        "#fff3cd";
+
+
+      errorBox.style.display =
+        "none";
+
+
+      watchId =
+        navigator.geolocation.watchPosition(
+
+          function(position){
+
+            cantidad++;
+
+
+            lat.innerHTML =
+              position.coords.latitude
+              .toFixed(6);
+
+            lon.innerHTML =
+              position.coords.longitude
+              .toFixed(6);
+
+            acc.innerHTML =
+              Math.round(
+                position.coords.accuracy
+              ) + " metros";
+
+            hora.innerHTML =
+              new Date()
+              .toLocaleTimeString("es-AR");
+
+            cantidadTxt.innerHTML =
+              cantidad;
+
+
+            estado.innerHTML =
+              "🟢 GPS ACTIVO";
+
+            estado.style.background =
+              "#dff5e1";
+
+
+            iniciar.style.display =
+              "none";
+
+            detener.style.display =
+              "block";
+
+
+            var ahora =
+              Date.now();
+
+
+            if(
+              ahora - ultimoEnvio
+              >= 10000
+            ){
+
+              ultimoEnvio =
+                ahora;
+
+              enviarSupabase(
+                position
+              );
+
+            }
+
+          },
+
+
+          function(error){
+
+            estado.innerHTML =
+              "❌ ERROR GPS";
+
+            estado.style.background =
+              "#ffe0e0";
+
+
+            errorBox.innerHTML =
+              "Error " +
+              error.code +
+              ": " +
+              error.message;
+
+            errorBox.style.display =
+              "block";
+
+          },
+
+
+          {
+            enableHighAccuracy:true,
+            maximumAge:0,
+            timeout:20000
+          }
+
+        );
+
     }
+  );
 
-    estado.innerHTML = "GPS detenido";
-    estado.style.background = "#eeeeee";
 
-    iniciar.style.display = "block";
-    detener.style.display = "none";
-  });
+  detener.addEventListener(
+    "click",
+    function(){
+
+      if(watchId !== null){
+
+        navigator.geolocation
+        .clearWatch(watchId);
+
+        watchId = null;
+
+      }
+
+
+      estado.innerHTML =
+        "GPS detenido";
+
+      estado.style.background =
+        "#eeeeee";
+
+
+      iniciar.style.display =
+        "block";
+
+      detener.style.display =
+        "none";
+
+    }
+  );
 
 })();
 </script>
