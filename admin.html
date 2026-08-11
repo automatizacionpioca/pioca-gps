@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>piOca® Panel de Service</title>
+
+  <style>
+    body{
+      margin:0;
+      padding:20px;
+      font-family:Arial,sans-serif;
+      background:#f5f5f5;
+      box-sizing:border-box;
+    }
+
+    .panel{
+      max-width:520px;
+      margin:0 auto;
+      background:#fff;
+      padding:22px;
+      border-radius:14px;
+      box-sizing:border-box;
+      border:1px solid #ddd;
+    }
+
+    .titulo{
+      text-align:center;
+      font-size:24px;
+      font-weight:700;
+      margin-bottom:6px;
+    }
+
+    .subtitulo{
+      text-align:center;
+      font-size:14px;
+      color:#555;
+      margin-bottom:20px;
+    }
+
+    label{
+      display:block;
+      font-size:14px;
+      font-weight:700;
+      margin-top:14px;
+      margin-bottom:6px;
+    }
+
+    input, select{
+      width:100%;
+      padding:13px;
+      font-size:16px;
+      border:1px solid #ccc;
+      border-radius:8px;
+      box-sizing:border-box;
+      background:#fff;
+    }
+
+    button{
+      width:100%;
+      padding:15px;
+      border:0;
+      border-radius:8px;
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      margin-top:12px;
+    }
+
+    .btnAzul{
+      background:#1769aa;
+      color:#fff;
+    }
+
+    .btnOscuro{
+      background:#333;
+      color:#fff;
+    }
+
+    .btnVerde{
+      background:#2d7a38;
+      color:#fff;
+    }
+
+    .estado{
+      padding:12px;
+      border-radius:8px;
+      margin-top:16px;
+      display:none;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .ok{
+      background:#e5f6e8;
+      border:1px solid #a6d8ad;
+    }
+
+    .error{
+      background:#fff1f1;
+      border:1px solid #e4aaaa;
+    }
+
+    #panelAdmin{
+      display:none;
+    }
+
+    .serviceActivo{
+      margin-top:20px;
+      padding:16px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      display:none;
+    }
+
+    .dato{
+      margin:6px 0;
+      font-size:14px;
+    }
+
+    .linkBox{
+      margin-top:12px;
+      word-break:break-all;
+      font-size:13px;
+      background:#f3f3f3;
+      padding:10px;
+      border-radius:8px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="panel">
+
+  <div class="titulo">piOca®</div>
+  <div class="subtitulo">Panel de seguimiento de service</div>
+
+  <div id="loginBox">
+
+    <label>Email</label>
+    <input id="email" type="email" autocomplete="username">
+
+    <label>Contraseña</label>
+    <input id="password" type="password" autocomplete="current-password">
+
+    <button id="btnLogin" class="btnAzul">
+      INGRESAR
+    </button>
+
+    <div id="loginEstado" class="estado"></div>
+
+  </div>
+
+  <div id="panelAdmin">
+
+    <label>Nombre del cliente</label>
+    <input id="clientName" type="text">
+
+    <label>Teléfono</label>
+    <input id="clientPhone" type="tel" placeholder="Ej: 1155555555">
+
+    <label>Hora estimada de llegada</label>
+    <select id="estimatedArrival"></select>
+
+    <button id="btnCrear" class="btnVerde">
+      INICIAR SERVICE
+    </button>
+
+    <button id="btnLogout" class="btnOscuro">
+      CERRAR SESIÓN
+    </button>
+
+    <div id="adminEstado" class="estado"></div>
+
+    <div id="serviceActivo" class="serviceActivo">
+
+      <div class="dato">
+        <strong>Cliente:</strong>
+        <span id="activoCliente"></span>
+      </div>
+
+      <div class="dato">
+        <strong>Hora estimada:</strong>
+        <span id="activoHora"></span>
+      </div>
+
+      <div class="dato">
+        <strong>Vence:</strong>
+        <span id="activoVence"></span>
+      </div>
+
+      <div class="linkBox" id="activoLink"></div>
+
+      <button id="btnWhatsapp" class="btnVerde">
+        ABRIR WHATSAPP
+      </button>
+
+      <button id="btnFinalizar" class="btnOscuro">
+        FINALIZAR SERVICE
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+(function(){
+
+  const SUPABASE_URL =
+    "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+  const SUPABASE_KEY =
+    "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  const supabaseClient =
+    supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+  const loginBox =
+    document.getElementById("loginBox");
+
+  const panelAdmin =
+    document.getElementById("panelAdmin");
+
+  const email =
+    document.getElementById("email");
+
+  const password =
+    document.getElementById("password");
+
+  const btnLogin =
+    document.getElementById("btnLogin");
+
+  const btnLogout =
+    document.getElementById("btnLogout");
+
+  const clientName =
+    document.getElementById("clientName");
+
+  const clientPhone =
+    document.getElementById("clientPhone");
+
+  const estimatedArrival =
+    document.getElementById("estimatedArrival");
+
+  const btnCrear =
+    document.getElementById("btnCrear");
+
+  const loginEstado =
+    document.getElementById("loginEstado");
+
+  const adminEstado =
+    document.getElementById("adminEstado");
+
+  const serviceActivo =
+    document.getElementById("serviceActivo");
+
+  const activoCliente =
+    document.getElementById("activoCliente");
+
+  const activoHora =
+    document.getElementById("activoHora");
+
+  const activoVence =
+    document.getElementById("activoVence");
+
+  const activoLink =
+    document.getElementById("activoLink");
+
+  const btnWhatsapp =
+    document.getElementById("btnWhatsapp");
+
+  const btnFinalizar =
+    document.getElementById("btnFinalizar");
+
+  let currentService = null;
+
+  function mostrarEstado(el, texto, tipo){
+    el.textContent = texto;
+    el.className = "estado " + tipo;
+    el.style.display = "block";
+  }
+
+  function ocultarEstado(el){
+    el.style.display = "none";
+  }
+
+  function redondearProximo10(fecha){
+
+    const d = new Date(fecha);
+
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+
+    const minutos = d.getMinutes();
+    const resto = minutos % 10;
+
+    if(resto === 0){
+      d.setMinutes(minutos + 10);
+    }else{
+      d.setMinutes(
+        minutos + (10 - resto)
+      );
+    }
+
+    return d;
+  }
+
+  function cargarHorarios(){
+
+    estimatedArrival.innerHTML = "";
+
+    const inicio =
+      redondearProximo10(
+        new Date()
+      );
+
+    for(let i = 0; i <= 8; i++){
+
+      const hora =
+        new Date(
+          inicio.getTime() +
+          i * 10 * 60 * 1000
+        );
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        hora.toISOString();
+
+      option.textContent =
+        hora.toLocaleTimeString(
+          "es-AR",
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+        );
+
+      estimatedArrival.appendChild(
+        option
+      );
+    }
+  }
+
+  async function comprobarSesion(){
+
+    const {
+      data
+    } =
+      await supabaseClient.auth.getSession();
+
+    if(
+      data &&
+      data.session
+    ){
+      loginBox.style.display = "none";
+      panelAdmin.style.display = "block";
+      cargarHorarios();
+    }
+  }
+
+  btnLogin.addEventListener(
+    "click",
+    async function(){
+
+      ocultarEstado(
+        loginEstado
+      );
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.auth
+        .signInWithPassword({
+          email:
+            email.value.trim(),
+
+          password:
+            password.value
+        });
+
+      if(error){
+
+        mostrarEstado(
+          loginEstado,
+          "Usuario o contraseña incorrectos.",
+          "error"
+        );
+
+        return;
+      }
+
+      if(data.session){
+
+        loginBox.style.display = "none";
+        panelAdmin.style.display = "block";
+
+        password.value = "";
+
+        cargarHorarios();
+      }
+    }
+  );
+
+  btnLogout.addEventListener(
+    "click",
+    async function(){
+
+      await supabaseClient.auth
+        .signOut();
+
+      panelAdmin.style.display = "none";
+      loginBox.style.display = "block";
+
+      serviceActivo.style.display =
+        "none";
+
+      currentService = null;
+    }
+  );
+
+  btnCrear.addEventListener(
+    "click",
+    async function(){
+
+      ocultarEstado(
+        adminEstado
+      );
+
+      const nombre =
+        clientName.value.trim();
+
+      const telefono =
+        clientPhone.value
+        .replace(/\D/g,"");
+
+      if(!nombre || !telefono){
+
+        mostrarEstado(
+          adminEstado,
+          "Completá nombre y teléfono.",
+          "error"
+        );
+
+        return;
+      }
+
+      const llegada =
+        new Date(
+          estimatedArrival.value
+        );
+
+      const vence =
+        new Date(
+          llegada.getTime() +
+          10 * 60 * 1000
+        );
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient
+        .from("services")
+        .insert({
+          client_name:
+            nombre,
+
+          client_phone:
+            telefono,
+
+          estimated_arrival:
+            llegada.toISOString(),
+
+          expires_at:
+            vence.toISOString(),
+
+          status:
+            "active"
+        })
+        .select()
+        .single();
+
+      if(error){
+
+        mostrarEstado(
+          adminEstado,
+          "Error al crear service: " +
+          error.message,
+          "error"
+        );
+
+        return;
+      }
+
+      currentService =
+        data;
+
+      const link =
+        "https://www.automatizacionpioca.com.ar/seguimiento/?id=" +
+        data.service_code;
+
+      activoCliente.textContent =
+        nombre;
+
+      activoHora.textContent =
+        llegada.toLocaleTimeString(
+          "es-AR",
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+        );
+
+      activoVence.textContent =
+        vence.toLocaleTimeString(
+          "es-AR",
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+        );
+
+      activoLink.textContent =
+        link;
+
+      serviceActivo.style.display =
+        "block";
+
+      mostrarEstado(
+        adminEstado,
+        "Service creado correctamente.",
+        "ok"
+      );
+
+      btnWhatsapp.onclick =
+        function(){
+
+          const mensaje =
+            "Hola " +
+            nombre +
+            ", tu service de piOca® está en camino.%0A%0A" +
+            "Podés seguir nuestra llegada en tiempo real desde este enlace:%0A" +
+            encodeURIComponent(link);
+
+          const whatsapp =
+            "https://wa.me/54" +
+            telefono +
+            "?text=" +
+            mensaje;
+
+          window.open(
+            whatsapp,
+            "_blank"
+          );
+        };
+    }
+  );
+
+  btnFinalizar.addEventListener(
+    "click",
+    async function(){
+
+      if(!currentService){
+        return;
+      }
+
+      const {
+        error
+      } =
+        await supabaseClient
+        .from("services")
+        .update({
+          status:
+            "finished",
+
+          finished_at:
+            new Date()
+            .toISOString()
+        })
+        .eq(
+          "id",
+          currentService.id
+        );
+
+      if(error){
+
+        mostrarEstado(
+          adminEstado,
+          "Error al finalizar: " +
+          error.message,
+          "error"
+        );
+
+        return;
+      }
+
+      mostrarEstado(
+        adminEstado,
+        "Service finalizado.",
+        "ok"
+      );
+
+      serviceActivo.style.display =
+        "none";
+
+      currentService = null;
+
+      clientName.value = "";
+      clientPhone.value = "";
+
+      cargarHorarios();
+    }
+  );
+
+  comprobarSesion();
+
+})();
+</script>
+
+</body>
+</html>
