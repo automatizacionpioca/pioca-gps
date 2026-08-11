@@ -6,75 +6,83 @@
   <title>piOca GPS</title>
 
   <style>
-    body {
-      margin: 0;
-      padding: 20px;
-      font-family: Arial, sans-serif;
-      background: #ffffff;
-      box-sizing: border-box;
+    body{
+      margin:0;
+      padding:20px;
+      font-family:Arial,sans-serif;
+      background:#fff;
+      box-sizing:border-box;
     }
 
-    #pioca-gps {
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 22px;
-      border: 1px solid #d9d9d9;
-      border-radius: 14px;
-      box-sizing: border-box;
-      background: #ffffff;
+    #pioca-gps{
+      max-width:520px;
+      margin:0 auto;
+      padding:22px;
+      border:1px solid #d9d9d9;
+      border-radius:14px;
+      box-sizing:border-box;
+      background:#fff;
     }
 
-    .titulo {
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 8px;
+    .titulo{
+      text-align:center;
+      font-size:24px;
+      font-weight:700;
+      margin-bottom:8px;
     }
 
-    .subtitulo {
-      text-align: center;
-      font-size: 15px;
-      color: #444;
-      margin-bottom: 20px;
+    .subtitulo{
+      text-align:center;
+      font-size:15px;
+      color:#444;
+      margin-bottom:20px;
     }
 
-    #gpsEstado {
-      background: #eeeeee;
-      padding: 14px 10px;
-      border-radius: 8px;
-      text-align: center;
-      font-weight: 700;
-      font-size: 16px;
-      margin-bottom: 18px;
+    #gpsEstado{
+      background:#eee;
+      padding:14px 10px;
+      border-radius:8px;
+      text-align:center;
+      font-weight:700;
+      font-size:16px;
+      margin-bottom:18px;
     }
 
-    #gpsIniciar {
-      width: 100%;
-      padding: 16px 10px;
-      border: 0;
-      border-radius: 8px;
-      background: #1769aa;
-      color: white;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-bottom: 18px;
+    .boton{
+      width:100%;
+      padding:16px 10px;
+      border:0;
+      border-radius:8px;
+      color:#fff;
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      margin-bottom:10px;
     }
 
-    .datos {
-      font-size: 15px;
-      line-height: 2;
-      color: #333;
+    #gpsIniciar{
+      background:#1769aa;
     }
 
-    #gpsError {
-      display: none;
-      margin-top: 15px;
-      padding: 12px;
-      background: #fff1f1;
-      border: 1px solid #e4aaaa;
-      border-radius: 8px;
-      font-size: 13px;
+    #gpsDetener{
+      background:#333;
+      display:none;
+    }
+
+    .datos{
+      font-size:15px;
+      line-height:2;
+      color:#333;
+    }
+
+    #gpsError{
+      display:none;
+      margin-top:15px;
+      padding:12px;
+      background:#fff1f1;
+      border:1px solid #e4aaaa;
+      border-radius:8px;
+      font-size:13px;
     }
   </style>
 </head>
@@ -84,17 +92,16 @@
 <div id="pioca-gps">
 
   <div class="titulo">piOca®</div>
+  <div class="subtitulo">PRUEBA DE RASTREO GPS CONTINUO</div>
 
-  <div class="subtitulo">
-    PRUEBA DE RASTREO GPS
-  </div>
+  <div id="gpsEstado">GPS detenido</div>
 
-  <div id="gpsEstado">
-    GPS detenido
-  </div>
+  <button id="gpsIniciar" class="boton" type="button">
+    INICIAR RASTREO
+  </button>
 
-  <button id="gpsIniciar" type="button">
-    INICIAR PRUEBA
+  <button id="gpsDetener" class="boton" type="button">
+    DETENER RASTREO
   </button>
 
   <div class="datos">
@@ -102,6 +109,7 @@
     <div><strong>Longitud:</strong> <span id="gpsLon">-</span></div>
     <div><strong>Precisión:</strong> <span id="gpsAcc">-</span></div>
     <div><strong>Última posición:</strong> <span id="gpsHora">-</span></div>
+    <div><strong>Actualizaciones:</strong> <span id="gpsCantidad">0</span></div>
   </div>
 
   <div id="gpsError"></div>
@@ -109,50 +117,58 @@
 </div>
 
 <script>
-(function () {
+(function(){
 
-  var boton = document.getElementById("gpsIniciar");
+  var watchId = null;
+  var cantidad = 0;
+
+  var iniciar = document.getElementById("gpsIniciar");
+  var detener = document.getElementById("gpsDetener");
+
   var estado = document.getElementById("gpsEstado");
   var lat = document.getElementById("gpsLat");
   var lon = document.getElementById("gpsLon");
   var acc = document.getElementById("gpsAcc");
   var hora = document.getElementById("gpsHora");
+  var cantidadTxt = document.getElementById("gpsCantidad");
   var errorBox = document.getElementById("gpsError");
 
-  boton.addEventListener("click", function () {
+  iniciar.addEventListener("click", function(){
+
+    if(!navigator.geolocation){
+      estado.innerHTML = "❌ GPS no disponible";
+      estado.style.background = "#ffe0e0";
+      return;
+    }
+
+    cantidad = 0;
+    cantidadTxt.innerHTML = "0";
 
     estado.innerHTML = "Solicitando ubicación...";
     estado.style.background = "#fff3cd";
 
     errorBox.style.display = "none";
 
-    if (!navigator.geolocation) {
-      estado.innerHTML = "❌ GPS no disponible";
-      estado.style.background = "#ffe0e0";
-      return;
-    }
+    watchId = navigator.geolocation.watchPosition(
 
-    navigator.geolocation.getCurrentPosition(
+      function(position){
 
-      function (position) {
+        cantidad++;
 
-        lat.innerHTML =
-          position.coords.latitude.toFixed(6);
+        lat.innerHTML = position.coords.latitude.toFixed(6);
+        lon.innerHTML = position.coords.longitude.toFixed(6);
+        acc.innerHTML = Math.round(position.coords.accuracy) + " metros";
+        hora.innerHTML = new Date().toLocaleTimeString("es-AR");
+        cantidadTxt.innerHTML = cantidad;
 
-        lon.innerHTML =
-          position.coords.longitude.toFixed(6);
-
-        acc.innerHTML =
-          Math.round(position.coords.accuracy) + " metros";
-
-        hora.innerHTML =
-          new Date().toLocaleTimeString("es-AR");
-
-        estado.innerHTML = "✅ GPS FUNCIONANDO";
+        estado.innerHTML = "🟢 GPS ACTIVO";
         estado.style.background = "#dff5e1";
+
+        iniciar.style.display = "none";
+        detener.style.display = "block";
       },
 
-      function (error) {
+      function(error){
 
         estado.innerHTML = "❌ ERROR GPS";
         estado.style.background = "#ffe0e0";
@@ -164,13 +180,27 @@
       },
 
       {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0
+        enableHighAccuracy:true,
+        maximumAge:0,
+        timeout:20000
       }
 
     );
 
+  });
+
+  detener.addEventListener("click", function(){
+
+    if(watchId !== null){
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+
+    estado.innerHTML = "GPS detenido";
+    estado.style.background = "#eeeeee";
+
+    iniciar.style.display = "block";
+    detener.style.display = "none";
   });
 
 })();
