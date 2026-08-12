@@ -10,12 +10,46 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>Seguimiento de Visita</title>
+  <title>piOca | Seguimiento en tiempo real</title>
+
+
+  <meta
+    name="description"
+    content="Seguimiento de visita piOca. Ver ubicación de la camioneta en tiempo real."
+  >
+
+
+  <meta
+    property="og:title"
+    content="piOca | Seguimiento en tiempo real"
+  >
+
+  <meta
+    property="og:description"
+    content="Ver ubicación de la camioneta."
+  >
+
+  <meta
+    property="og:image"
+    content="https://automatizacionpioca.github.io/pioca-gps/logo-pioca.png"
+  >
+
+  <meta
+    property="og:type"
+    content="website"
+  >
+
+  <meta
+    property="og:site_name"
+    content="piOca"
+  >
+
 
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   >
+
 
   <style>
 
@@ -88,7 +122,7 @@
       right:10px;
       z-index:1000;
 
-      background:rgba(0,0,0,.82);
+      background:rgba(0,0,0,.84);
 
       color:#38e06f;
 
@@ -219,6 +253,7 @@
 
   </div>
 
+
   <div class="subtitulo">
     SEGUIMIENTO DE VISITA
   </div>
@@ -232,6 +267,7 @@
   <div id="mapaWrap">
 
     <div id="mapa"></div>
+
 
     <div
       id="actualizacionBox"
@@ -344,6 +380,7 @@
       clearInterval(
         relojEstado
       );
+
 
       relojEstado =
         null;
@@ -770,16 +807,6 @@
         "#dff5e1";
 
 
-      /*
-        IMPORTANTE:
-
-        No usamos la hora del teléfono
-        del cliente.
-
-        Tomamos created_at
-        guardado en Supabase.
-      */
-
       ultimaActualizacionMs =
 
         new Date(
@@ -799,13 +826,12 @@
 
 
       /*
-        Ante error temporal NO movemos
-        el marcador ni mentimos con
-        una actualización nueva.
+        Si se corta momentáneamente
+        la consulta, mantenemos el mapa
+        y dejamos avanzar el contador.
 
-        El contador sigue avanzando
-        y automáticamente pasará
-        a rojo después de 15 segundos.
+        Si supera 15 segundos,
+        el indicador pasará a rojo.
       */
 
     }
