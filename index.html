@@ -10,8 +10,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>piOca® Rastreo</title>
-
+  <title>piOca® Seguimiento</title>
 
   <style>
 
@@ -23,17 +22,15 @@
       box-sizing:border-box;
     }
 
-
     .panel{
       max-width:520px;
       margin:0 auto;
       background:#fff;
       padding:22px;
+      border:1px solid #ddd;
       border-radius:14px;
       box-sizing:border-box;
-      border:1px solid #ddd;
     }
-
 
     .titulo{
       text-align:center;
@@ -42,7 +39,6 @@
       margin-bottom:6px;
     }
 
-
     .subtitulo{
       text-align:center;
       font-size:14px;
@@ -50,31 +46,15 @@
       margin-bottom:20px;
     }
 
-
     #bloqueGPS{
       display:none;
     }
 
-
     #bloqueDenegado{
       display:none;
       text-align:center;
-      padding:20px 10px;
+      padding:25px 10px;
     }
-
-
-    .denegadoTitulo{
-      font-size:17px;
-      font-weight:700;
-      margin-bottom:7px;
-    }
-
-
-    .denegadoTexto{
-      font-size:14px;
-      color:#666;
-    }
-
 
     #trackingBox{
       padding:10px;
@@ -83,62 +63,60 @@
       text-align:center;
       font-weight:700;
       margin-bottom:14px;
-      font-size:14px;
-      letter-spacing:.5px;
     }
 
-
     #gpsEstado{
-      background:#eee;
       padding:14px 10px;
+      background:#fff3cd;
       border-radius:8px;
       text-align:center;
-      font-weight:700;
       font-size:16px;
+      font-weight:700;
       margin-bottom:18px;
     }
 
-
     button{
       width:100%;
-      padding:16px 10px;
+      padding:15px;
       border:0;
       border-radius:8px;
-      color:#fff;
       font-size:16px;
       font-weight:700;
       cursor:pointer;
-      margin-bottom:10px;
+      margin-top:10px;
     }
 
-
-    #gpsIniciar{
-      background:#1769aa;
-    }
-
-
-    #gpsDetener{
-      background:#333;
+    #btnWhatsapp{
+      background:#2d7a38;
+      color:#fff;
       display:none;
     }
 
+    #btnFinalizar{
+      background:#333;
+      color:#fff;
+    }
+
+    #btnReactivar{
+      background:#1769aa;
+      color:#fff;
+      display:none;
+    }
 
     .datos{
-      font-size:15px;
+      font-size:14px;
       line-height:2;
       color:#333;
     }
 
-
     #gpsError{
       display:none;
-      margin-top:15px;
+      margin-top:14px;
       padding:12px;
       background:#fff1f1;
       border:1px solid #e4aaaa;
       border-radius:8px;
       font-size:13px;
-      line-height:1.5;
     }
 
   </style>
@@ -155,28 +133,19 @@
     piOca®
   </div>
 
-
   <div class="subtitulo">
-    Rastreo de visita
+    Seguimiento activo
   </div>
 
-
-  <!-- ACCESO DENEGADO -->
 
   <div id="bloqueDenegado">
 
-    <div class="denegadoTitulo">
+    <strong>
       Acceso no autorizado
-    </div>
-
-    <div class="denegadoTexto">
-      Esta función no se encuentra disponible.
-    </div>
+    </strong>
 
   </div>
 
-
-  <!-- GPS -->
 
   <div id="bloqueGPS">
 
@@ -184,24 +153,9 @@
       Seguimiento: -
     </div>
 
-
     <div id="gpsEstado">
-      GPS detenido
+      Iniciando GPS...
     </div>
-
-
-    <button
-      id="gpsIniciar"
-      type="button">
-      INICIAR RASTREO
-    </button>
-
-
-    <button
-      id="gpsDetener"
-      type="button">
-      DETENER RASTREO
-    </button>
 
 
     <div class="datos">
@@ -227,21 +181,32 @@
       </div>
 
       <div>
-        <strong>Actualizaciones GPS:</strong>
-        <span id="gpsCantidad">0</span>
-      </div>
-
-      <div>
-        <strong>Último envío:</strong>
-        <span id="gpsEnvio">-</span>
-      </div>
-
-      <div>
         <strong>Envíos:</strong>
         <span id="gpsEnvios">0</span>
       </div>
 
     </div>
+
+
+    <button
+      id="btnReactivar"
+      type="button">
+      📍 REACTIVAR GPS
+    </button>
+
+
+    <button
+      id="btnWhatsapp"
+      type="button">
+      💬 ENVIAR SEGUIMIENTO POR WHATSAPP
+    </button>
+
+
+    <button
+      id="btnFinalizar"
+      type="button">
+      ⛔ FINALIZAR SEGUIMIENTO
+    </button>
 
 
     <div id="gpsError"></div>
@@ -294,18 +259,6 @@
     );
 
 
-  const iniciar =
-    document.getElementById(
-      "gpsIniciar"
-    );
-
-
-  const detener =
-    document.getElementById(
-      "gpsDetener"
-    );
-
-
   const estado =
     document.getElementById(
       "gpsEstado"
@@ -336,21 +289,27 @@
     );
 
 
-  const cantidadTxt =
-    document.getElementById(
-      "gpsCantidad"
-    );
-
-
-  const envioTxt =
-    document.getElementById(
-      "gpsEnvio"
-    );
-
-
   const enviosTxt =
     document.getElementById(
       "gpsEnvios"
+    );
+
+
+  const btnWhatsapp =
+    document.getElementById(
+      "btnWhatsapp"
+    );
+
+
+  const btnFinalizar =
+    document.getElementById(
+      "btnFinalizar"
+    );
+
+
+  const btnReactivar =
+    document.getElementById(
+      "btnReactivar"
     );
 
 
@@ -360,9 +319,11 @@
     );
 
 
-  let watchId = null;
+  let trackingCode = null;
 
-  let cantidad = 0;
+  let serviceId = null;
+
+  let watchId = null;
 
   let envios = 0;
 
@@ -370,33 +331,28 @@
 
   let ultimaPosicion = null;
 
-  let detenidoManual = false;
-
   let enviando = false;
 
-  let trackingCode = null;
+  let seguimientoFinalizado =
+    false;
 
 
-  function negarAcceso(){
-
-    bloqueGPS.style.display =
-      "none";
-
-    bloqueDenegado.style.display =
-      "block";
-
-  }
+  const nombreCliente =
+    localStorage.getItem(
+      "pioca_client_name"
+    ) || "";
 
 
-  function permitirAcceso(){
+  const telefonoCliente =
+    localStorage.getItem(
+      "pioca_client_phone"
+    ) || "";
 
-    bloqueDenegado.style.display =
-      "none";
 
-    bloqueGPS.style.display =
-      "block";
-
-  }
+  const linkCliente =
+    localStorage.getItem(
+      "pioca_client_link"
+    ) || "";
 
 
   function mostrarError(texto){
@@ -421,11 +377,159 @@
   }
 
 
-  /*
-    -------------------------------------------------------
-    VALIDAMOS SESION + SEGUIMIENTO
-    -------------------------------------------------------
-  */
+  function negarAcceso(){
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "block";
+
+  }
+
+
+  function telefonoWhatsAppArgentina(
+    numero
+  ){
+
+    let n =
+      String(
+        numero || ""
+      )
+      .replace(/\D/g,"");
+
+
+    if(
+      n.startsWith("549")
+    ){
+      return n;
+    }
+
+
+    if(
+      n.startsWith("54")
+    ){
+      return n;
+    }
+
+
+    if(
+      n.startsWith("0")
+    ){
+      n = n.substring(1);
+    }
+
+
+    return "549" + n;
+  }
+
+
+  function abrirWhatsApp(){
+
+
+    if(
+      !telefonoCliente ||
+      !linkCliente
+    ){
+
+      mostrarError(
+        "No están disponibles los datos del cliente."
+      );
+
+      return;
+    }
+
+
+    const saludo =
+      "\uD83D\uDC4B";
+
+
+    const tecnico =
+      "\uD83D\uDC68\u200D\uD83D\uDD27";
+
+
+    const ubicacion =
+      "\uD83D\uDCCD";
+
+
+    const mensaje =
+
+      saludo +
+      " Hola " +
+      nombreCliente +
+      "." +
+
+      "\n\n" +
+
+      tecnico +
+      " El técnico de piOca® ya se encuentra en camino." +
+
+      "\n\n" +
+
+      "Podés seguir nuestra llegada en tiempo real desde este enlace:" +
+
+      "\n\n" +
+
+      ubicacion +
+      " " +
+      linkCliente;
+
+
+    const numero =
+      telefonoWhatsAppArgentina(
+        telefonoCliente
+      );
+
+
+    const texto =
+      encodeURIComponent(
+        mensaje
+      );
+
+
+    const ua =
+      navigator.userAgent ||
+      navigator.vendor ||
+      window.opera;
+
+
+    if(
+      /android/i.test(ua)
+    ){
+
+      window.location.href =
+
+        "intent://send" +
+
+        "?phone=" +
+        numero +
+
+        "&text=" +
+        texto +
+
+        "#Intent;" +
+
+        "scheme=whatsapp;" +
+
+        "package=com.whatsapp.w4b;" +
+
+        "end";
+
+
+      return;
+
+    }
+
+
+    window.location.href =
+
+      "https://wa.me/" +
+      numero +
+      "?text=" +
+      texto;
+
+  }
+
 
   async function validarAcceso(){
 
@@ -434,9 +538,7 @@
       data:
       sessionData
     } =
-
-      await supabaseClient
-      .auth
+      await supabaseClient.auth
       .getSession();
 
 
@@ -489,32 +591,19 @@
       .toUpperCase();
 
 
-    /*
-      Esta consulta está protegida
-      por RLS.
-
-      Sólo puede ver services
-      creados por el usuario logueado.
-    */
-
     const {
       data,
       error
     } =
-
       await supabaseClient
-
       .from("services")
-
       .select(
-        "tracking_code,status,expires_at"
+        "id,tracking_code,status,expires_at"
       )
-
       .eq(
         "tracking_code",
         trackingCode
       )
-
       .maybeSingle();
 
 
@@ -531,18 +620,7 @@
 
 
     if(
-      data.status !==
-      "active"
-    ){
-
-      negarAcceso();
-
-      return false;
-
-    }
-
-
-    if(
+      data.status !== "active" ||
       Date.now() >=
       new Date(
         data.expires_at
@@ -556,12 +634,21 @@
     }
 
 
+    serviceId =
+      data.id;
+
+
     trackingBox.textContent =
       "Seguimiento: " +
       trackingCode;
 
 
-    permitirAcceso();
+    bloqueDenegado.style.display =
+      "none";
+
+
+    bloqueGPS.style.display =
+      "block";
 
 
     return true;
@@ -569,35 +656,29 @@
   }
 
 
-  /*
-    -------------------------------------------------------
-    ENVIO SEGURO A SUPABASE
-    -------------------------------------------------------
-  */
-
   async function enviarPosicion(
     posicion,
-    intento = 0
+    intento
   ){
 
 
     if(
       !posicion ||
-      !trackingCode
+      seguimientoFinalizado
     ){
-
       return;
-
     }
+
+
+    intento =
+      intento || 0;
 
 
     if(
       enviando &&
       intento === 0
     ){
-
       return;
-
     }
 
 
@@ -612,9 +693,7 @@
         data,
         error
       } =
-
-        await supabaseClient
-        .rpc(
+        await supabaseClient.rpc(
           "push_tracking_position",
           {
 
@@ -640,7 +719,7 @@
       ){
 
         throw new Error(
-          "Seguimiento no autorizado o finalizado."
+          "Seguimiento no disponible."
         );
 
       }
@@ -657,12 +736,24 @@
         envios;
 
 
-      envioTxt.textContent =
+      /*
+        IMPORTANTÍSIMO:
 
-        new Date()
-        .toLocaleTimeString(
-          "es-AR"
-        );
+        WhatsApp aparece recién después
+        del PRIMER envío correcto.
+
+        Por lo tanto nunca podés mandar
+        el link sin ubicación.
+      */
+
+      if(
+        envios >= 1
+      ){
+
+        btnWhatsapp.style.display =
+          "block";
+
+      }
 
 
       ocultarError();
@@ -678,42 +769,11 @@
 
 
       if(
-        detenidoManual
+        seguimientoFinalizado
       ){
-
         return;
-
       }
 
-
-      /*
-        Si el backend rechazó
-        el seguimiento,
-        dejamos de enviar.
-      */
-
-      if(
-        String(
-          error.message
-        )
-        .includes(
-          "finalizado"
-        )
-      ){
-
-        detenerRastreo();
-
-        negarAcceso();
-
-        return;
-
-      }
-
-
-      /*
-        Microcorte:
-        reintentos 2 / 4 / 8 segundos.
-      */
 
       if(
         intento < 3
@@ -736,22 +796,14 @@
 
           function(){
 
-            if(
-              !detenidoManual
-            ){
-
-              enviarPosicion(
-                ultimaPosicion,
-                intento + 1
-              );
-
-            }
+            enviarPosicion(
+              ultimaPosicion,
+              intento + 1
+            );
 
           },
 
-          tiempos[
-            intento
-          ]
+          tiempos[intento]
 
         );
 
@@ -760,7 +812,7 @@
 
 
         mostrarError(
-          "Sin conexión. El rastreo continuará intentando automáticamente."
+          "Sin conexión. Se seguirá intentando automáticamente."
         );
 
       }
@@ -770,16 +822,11 @@
   }
 
 
-  /*
-    -------------------------------------------------------
-    GPS
-    -------------------------------------------------------
-  */
-
-  function iniciarRastreo(){
+  function iniciarGPS(){
 
 
     if(
+      seguimientoFinalizado ||
       watchId !== null
     ){
 
@@ -788,16 +835,33 @@
     }
 
 
-    detenidoManual =
-      false;
+    if(
+      !navigator.geolocation
+    ){
+
+      estado.textContent =
+        "GPS no disponible";
+
+
+      btnReactivar.style.display =
+        "block";
+
+
+      return;
+
+    }
 
 
     estado.textContent =
-      "Solicitando ubicación...";
+      "Obteniendo ubicación...";
 
 
     estado.style.background =
       "#fff3cd";
+
+
+    btnReactivar.style.display =
+      "none";
 
 
     watchId =
@@ -811,9 +875,6 @@
 
           ultimaPosicion =
             posicion;
-
-
-          cantidad++;
 
 
           lat.textContent =
@@ -847,10 +908,6 @@
             );
 
 
-          cantidadTxt.textContent =
-            cantidad;
-
-
           estado.textContent =
             "🟢 GPS ACTIVO";
 
@@ -859,19 +916,17 @@
             "#dff5e1";
 
 
-          iniciar.style.display =
-            "none";
-
-
-          detener.style.display =
-            "block";
-
-
           const ahora =
             Date.now();
 
 
+          /*
+            Primer envío inmediato.
+            Después cada 5 segundos.
+          */
+
           if(
+            envios === 0 ||
             ahora -
             ultimoEnvio
             >= 5000
@@ -895,20 +950,6 @@
 
 
           if(
-            detenidoManual
-          ){
-
-            return;
-
-          }
-
-
-          mostrarError(
-            "GPS momentáneamente sin posición. Reintentando..."
-          );
-
-
-          if(
             watchId !== null
           ){
 
@@ -924,15 +965,32 @@
           }
 
 
+          estado.textContent =
+            "GPS interrumpido";
+
+
+          estado.style.background =
+            "#ffe0e0";
+
+
+          btnReactivar.style.display =
+            "block";
+
+
+          /*
+            También intentamos
+            reactivarlo automáticamente.
+          */
+
           setTimeout(
 
             function(){
 
               if(
-                !detenidoManual
+                !seguimientoFinalizado
               ){
 
-                iniciarRastreo();
+                iniciarGPS();
 
               }
 
@@ -963,10 +1021,10 @@
   }
 
 
-  function detenerRastreo(){
+  async function finalizarSeguimiento(){
 
 
-    detenidoManual =
+    seguimientoFinalizado =
       true;
 
 
@@ -986,56 +1044,89 @@
     }
 
 
-    estado.textContent =
-      "GPS detenido";
+    const {
+      error
+    } =
+      await supabaseClient
+      .from("services")
+      .update({
+
+        status:
+          "finished",
+
+        finished_at:
+          new Date()
+          .toISOString()
+
+      })
+      .eq(
+        "id",
+        serviceId
+      );
 
 
-    estado.style.background =
-      "#eeeeee";
+    if(error){
+
+      seguimientoFinalizado =
+        false;
 
 
-    iniciar.style.display =
-      "block";
+      mostrarError(
+        "No se pudo finalizar el seguimiento."
+      );
 
 
-    detener.style.display =
-      "none";
+      return;
+
+    }
+
+
+    localStorage.removeItem(
+      "pioca_tracking_code"
+    );
+
+
+    localStorage.removeItem(
+      "pioca_tracking_active"
+    );
+
+
+    localStorage.removeItem(
+      "pioca_client_name"
+    );
+
+
+    localStorage.removeItem(
+      "pioca_client_phone"
+    );
+
+
+    localStorage.removeItem(
+      "pioca_client_link"
+    );
+
+
+    window.location.href =
+      "admin.html";
 
   }
 
 
-  iniciar.addEventListener(
+  btnWhatsapp.addEventListener(
     "click",
-    iniciarRastreo
+    abrirWhatsApp
   );
 
 
-  detener.addEventListener(
+  btnFinalizar.addEventListener(
     "click",
-    detenerRastreo
+    finalizarSeguimiento
   );
 
 
-  window.addEventListener(
-
-    "online",
-
-    function(){
-
-      if(
-        !detenidoManual &&
-        ultimaPosicion
-      ){
-
-        enviarPosicion(
-          ultimaPosicion,
-          0
-        );
-
-      }
-
-    }
-
+  btnReactivar.addEventListener(
+    "click",
+    iniciarGPS
   );
 
 
@@ -1043,9 +1134,16 @@
     await validarAcceso();
 
 
-  if(!acceso){
+  if(acceso){
 
-    negarAcceso();
+    /*
+      AUTOMÁTICO.
+
+      Ya no existe un botón
+      INICIAR GPS normal.
+    */
+
+    iniciarGPS();
 
   }
 
