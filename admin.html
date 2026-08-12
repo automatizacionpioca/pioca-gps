@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>piOca® Panel de Service</title>
 
   <style>
+
     body{
       margin:0;
       padding:20px;
@@ -46,7 +48,8 @@
       margin-bottom:6px;
     }
 
-    input, select{
+    input,
+    select{
       width:100%;
       padding:13px;
       font-size:16px;
@@ -118,6 +121,17 @@
       font-size:14px;
     }
 
+    .codigoBox{
+      margin-top:12px;
+      padding:10px;
+      background:#eef5fb;
+      border-radius:8px;
+      text-align:center;
+      font-size:18px;
+      font-weight:700;
+      letter-spacing:1px;
+    }
+
     .linkBox{
       margin-top:12px;
       word-break:break-all;
@@ -133,6 +147,7 @@
       margin-top:6px;
       line-height:1.4;
     }
+
   </style>
 </head>
 
@@ -140,39 +155,74 @@
 
 <div class="panel">
 
-  <div class="titulo">piOca®</div>
-  <div class="subtitulo">Panel de seguimiento de service</div>
+  <div class="titulo">
+    piOca®
+  </div>
+
+  <div class="subtitulo">
+    Panel de seguimiento de service
+  </div>
+
+
+  <!-- LOGIN -->
 
   <div id="loginBox">
 
     <label>Email</label>
-    <input id="email" type="email" autocomplete="username">
+
+    <input
+      id="email"
+      type="email"
+      autocomplete="username"
+    >
 
     <label>Contraseña</label>
-    <input id="password" type="password" autocomplete="current-password">
 
-    <button id="btnLogin" class="btnAzul" type="button">
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+    >
+
+    <button
+      id="btnLogin"
+      class="btnAzul"
+      type="button">
       INGRESAR
     </button>
 
-    <div id="loginEstado" class="estado"></div>
+    <div
+      id="loginEstado"
+      class="estado">
+    </div>
 
   </div>
 
 
+  <!-- PANEL -->
+
   <div id="panelAdmin">
 
-    <button id="btnContacto" class="btnAzul" type="button">
+    <button
+      id="btnContacto"
+      class="btnAzul"
+      type="button">
       👤 SELECCIONAR CONTACTO
     </button>
 
     <div class="ayuda">
-      Si el teléfono no permite seleccionar contactos, cargá los datos manualmente.
+      Si el teléfono no permite abrir la agenda desde la web,
+      cargá los datos manualmente.
     </div>
 
-    <div id="contactoEstado" class="estado"></div>
+    <div
+      id="contactoEstado"
+      class="estado">
+    </div>
+
 
     <label>Nombre del cliente</label>
+
     <input
       id="clientName"
       type="text"
@@ -180,7 +230,9 @@
       placeholder="Nombre del cliente"
     >
 
+
     <label>Teléfono</label>
+
     <input
       id="clientPhone"
       type="tel"
@@ -189,21 +241,39 @@
       placeholder="Ej: 1155555555"
     >
 
+
     <label>Hora estimada de llegada</label>
+
     <select id="estimatedArrival"></select>
 
-    <button id="btnCrear" class="btnVerde" type="button">
+
+    <button
+      id="btnCrear"
+      class="btnVerde"
+      type="button">
       🚐 INICIAR SERVICE
     </button>
 
-    <button id="btnLogout" class="btnOscuro" type="button">
+
+    <button
+      id="btnLogout"
+      class="btnOscuro"
+      type="button">
       CERRAR SESIÓN
     </button>
 
-    <div id="adminEstado" class="estado"></div>
+
+    <div
+      id="adminEstado"
+      class="estado">
+    </div>
 
 
-    <div id="serviceActivo" class="serviceActivo">
+    <!-- SERVICE ACTIVO -->
+
+    <div
+      id="serviceActivo"
+      class="serviceActivo">
 
       <div class="dato">
         <strong>Cliente:</strong>
@@ -220,13 +290,27 @@
         <span id="activoVence"></span>
       </div>
 
-      <div class="linkBox" id="activoLink"></div>
+      <div
+        class="codigoBox"
+        id="activoCodigo">
+      </div>
 
-      <button id="btnWhatsapp" class="btnVerde" type="button">
-        💬 ABRIR WHATSAPP BUSINESS
+      <div
+        class="linkBox"
+        id="activoLink">
+      </div>
+
+      <button
+        id="btnWhatsapp"
+        class="btnVerde"
+        type="button">
+        💬 ABRIR WHATSAPP
       </button>
 
-      <button id="btnFinalizar" class="btnOscuro" type="button">
+      <button
+        id="btnFinalizar"
+        class="btnOscuro"
+        type="button">
         ⛔ FINALIZAR SERVICE
       </button>
 
@@ -240,6 +324,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+
 (function(){
 
   const SUPABASE_URL =
@@ -247,6 +332,7 @@
 
   const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
 
   const supabaseClient =
     supabase.createClient(
@@ -309,6 +395,9 @@
   const activoVence =
     document.getElementById("activoVence");
 
+  const activoCodigo =
+    document.getElementById("activoCodigo");
+
   const activoLink =
     document.getElementById("activoLink");
 
@@ -322,25 +411,40 @@
   let currentService = null;
 
 
-  function mostrarEstado(el, texto, tipo){
+  function mostrarEstado(
+    elemento,
+    texto,
+    tipo
+  ){
 
-    el.textContent = texto;
-    el.className = "estado " + tipo;
-    el.style.display = "block";
+    elemento.textContent =
+      texto;
+
+    elemento.className =
+      "estado " + tipo;
+
+    elemento.style.display =
+      "block";
 
   }
 
 
-  function ocultarEstado(el){
+  function ocultarEstado(
+    elemento
+  ){
 
-    el.style.display = "none";
+    elemento.style.display =
+      "none";
 
   }
 
 
-  function redondearProximo10(fecha){
+  function redondearProximo10(
+    fecha
+  ){
 
-    const d = new Date(fecha);
+    const d =
+      new Date(fecha);
 
     d.setSeconds(0);
     d.setMilliseconds(0);
@@ -351,6 +455,7 @@
     const resto =
       minutos % 10;
 
+
     if(resto === 0){
 
       d.setMinutes(
@@ -360,7 +465,8 @@
     }else{
 
       d.setMinutes(
-        minutos + (10 - resto)
+        minutos +
+        (10 - resto)
       );
 
     }
@@ -372,14 +478,26 @@
 
   function cargarHorarios(){
 
-    estimatedArrival.innerHTML = "";
+    estimatedArrival.innerHTML =
+      "";
 
     const inicio =
       redondearProximo10(
         new Date()
       );
 
-    for(let i = 0; i <= 8; i++){
+
+    /*
+      10 opciones:
+      primer horario +
+      90 minutos máximo.
+    */
+
+    for(
+      let i = 0;
+      i <= 9;
+      i++
+    ){
 
       const hora =
         new Date(
@@ -387,11 +505,16 @@
           i * 10 * 60 * 1000
         );
 
+
       const option =
-        document.createElement("option");
+        document.createElement(
+          "option"
+        );
+
 
       option.value =
         hora.toISOString();
+
 
       option.textContent =
         hora.toLocaleTimeString(
@@ -402,6 +525,7 @@
           }
         );
 
+
       estimatedArrival.appendChild(
         option
       );
@@ -411,7 +535,9 @@
   }
 
 
-  function limpiarTelefono(numero){
+  function limpiarTelefono(
+    numero
+  ){
 
     if(!numero){
       return "";
@@ -423,40 +549,61 @@
   }
 
 
-  function telefonoWhatsAppArgentina(numero){
+  function telefonoWhatsAppArgentina(
+    numero
+  ){
 
     let n =
-      limpiarTelefono(numero);
+      limpiarTelefono(
+        numero
+      );
+
 
     /*
-      Si viene desde contactos como:
-      +54 9 11 ...
+      Ya viene:
+      54911...
     */
-    if(n.startsWith("549")){
+
+    if(
+      n.startsWith("549")
+    ){
+
       return n;
+
     }
 
+
     /*
-      Si ya viene como:
-      54 9 ...
+      Viene:
+      54...
     */
-    if(n.startsWith("54")){
+
+    if(
+      n.startsWith("54")
+    ){
+
       return n;
+
     }
 
+
     /*
-      Número local argentino.
-      Para WhatsApp móvil agregamos 549.
+      Quitamos 0 inicial
     */
-    if(n.startsWith("0")){
-      n = n.substring(1);
+
+    if(
+      n.startsWith("0")
+    ){
+
+      n =
+        n.substring(1);
+
     }
 
+
     /*
-      Si aparece un 15 después del código
-      local, lo quitamos cuando podemos.
-      La carga manual ideal sigue siendo
-      área + número sin 15.
+      WhatsApp Argentina:
+      54 + 9 + número
     */
 
     return "549" + n;
@@ -470,39 +617,60 @@
       contactoEstado
     );
 
+
     const soportado =
+
       ("contacts" in navigator) &&
-      ("ContactsManager" in window);
+
+      (
+        typeof navigator
+        .contacts
+        .select === "function"
+      );
+
 
     if(!soportado){
 
       mostrarEstado(
         contactoEstado,
-        "Este teléfono/navegador no permite abrir la agenda desde la web. Podés cargar nombre y teléfono manualmente.",
+        "Este teléfono no permite seleccionar contactos desde el navegador. Podés cargar nombre y teléfono manualmente.",
         "error"
       );
 
       clientName.focus();
 
       return;
+
     }
+
 
     try{
 
       const contactos =
+
         await navigator.contacts.select(
-          ["name","tel"],
+
+          [
+            "name",
+            "tel"
+          ],
+
           {
             multiple:false
           }
+
         );
+
 
       if(
         !contactos ||
         contactos.length === 0
       ){
+
         return;
+
       }
+
 
       const contacto =
         contactos[0];
@@ -551,7 +719,7 @@
   }
 
 
-  function abrirWhatsAppBusiness(
+  function abrirWhatsApp(
     telefono,
     mensaje
   ){
@@ -561,10 +729,12 @@
         telefono
       );
 
+
     const texto =
       encodeURIComponent(
         mensaje
       );
+
 
     const ua =
       navigator.userAgent ||
@@ -573,109 +743,61 @@
 
 
     /*
-      ANDROID:
-      fuerza el paquete oficial
-      de WhatsApp Business.
+      ANDROID
+
+      Intenta abrir específicamente
+      WhatsApp Business.
     */
 
-    if(/android/i.test(ua)){
+    if(
+      /android/i.test(ua)
+    ){
 
       const intent =
+
         "intent://send" +
+
         "?phone=" +
         numero +
+
         "&text=" +
         texto +
+
         "#Intent;" +
+
         "scheme=whatsapp;" +
+
         "package=com.whatsapp.w4b;" +
+
         "end";
+
 
       window.location.href =
         intent;
 
       return;
+
     }
 
 
     /*
-      IPHONE:
-      intentamos primero el esquema
-      de WhatsApp Business.
-      Si el sistema no lo acepta,
-      usamos el universal link oficial.
+      IPHONE / iOS
+
+      Usamos el enlace estándar.
+      Evitamos el intento anterior
+      que generaba pasos extra.
     */
 
-    if(
-      /iPhone|iPad|iPod/i.test(ua)
-    ){
+    const whatsappURL =
 
-      const businessURL =
-        "whatsapp-business://send" +
-        "?phone=" +
-        numero +
-        "&text=" +
-        texto;
-
-      const fallback =
-        "https://wa.me/" +
-        numero +
-        "?text=" +
-        texto;
-
-
-      let salioDePagina = false;
-
-
-      function detectarSalida(){
-
-        if(document.hidden){
-          salioDePagina = true;
-        }
-
-      }
-
-
-      document.addEventListener(
-        "visibilitychange",
-        detectarSalida,
-        {
-          once:true
-        }
-      );
-
-
-      window.location.href =
-        businessURL;
-
-
-      setTimeout(
-        function(){
-
-          if(!salioDePagina){
-
-            window.location.href =
-              fallback;
-
-          }
-
-        },
-        1300
-      );
-
-      return;
-    }
-
-
-    /*
-      Fallback general.
-    */
-
-    window.location.href =
       "https://wa.me/" +
       numero +
       "?text=" +
       texto;
+
+
+    window.location.href =
+      whatsappURL;
 
   }
 
@@ -685,8 +807,11 @@
     const {
       data
     } =
-      await supabaseClient.auth
+
+      await supabaseClient
+      .auth
       .getSession();
+
 
     if(
       data &&
@@ -707,24 +832,33 @@
 
 
   btnContacto.addEventListener(
+
     "click",
+
     seleccionarContacto
+
   );
 
 
   btnLogin.addEventListener(
+
     "click",
+
     async function(){
+
 
       ocultarEstado(
         loginEstado
       );
 
+
       const {
         data,
         error
       } =
-        await supabaseClient.auth
+
+        await supabaseClient
+        .auth
         .signInWithPassword({
 
           email:
@@ -749,7 +883,9 @@
       }
 
 
-      if(data.session){
+      if(
+        data.session
+      ){
 
         loginBox.style.display =
           "none";
@@ -757,22 +893,28 @@
         panelAdmin.style.display =
           "block";
 
-        password.value = "";
+        password.value =
+          "";
 
         cargarHorarios();
 
       }
 
     }
+
   );
 
 
   btnLogout.addEventListener(
+
     "click",
+
     async function(){
 
-      await supabaseClient.auth
+      await supabaseClient
+        .auth
         .signOut();
+
 
       panelAdmin.style.display =
         "none";
@@ -783,22 +925,29 @@
       serviceActivo.style.display =
         "none";
 
-      currentService = null;
+      currentService =
+        null;
 
     }
+
   );
 
 
   btnCrear.addEventListener(
+
     "click",
+
     async function(){
+
 
       ocultarEstado(
         adminEstado
       );
 
+
       const nombre =
         clientName.value.trim();
+
 
       const telefono =
         clientPhone.value.trim();
@@ -806,7 +955,9 @@
 
       if(
         !nombre ||
-        !limpiarTelefono(telefono)
+        !limpiarTelefono(
+          telefono
+        )
       ){
 
         mostrarEstado(
@@ -837,6 +988,7 @@
         data,
         error
       } =
+
         await supabaseClient
         .from("services")
         .insert({
@@ -859,7 +1011,9 @@
             "active"
 
         })
+
         .select()
+
         .single();
 
 
@@ -881,9 +1035,19 @@
         data;
 
 
+      /*
+        AHORA USAMOS
+        tracking_code CORTO
+      */
+
+      const codigo =
+        data.tracking_code;
+
+
       const link =
+
         "https://www.automatizacionpioca.com.ar/seguimiento/?id=" +
-        data.service_code;
+        codigo;
 
 
       activoCliente.textContent =
@@ -891,23 +1055,35 @@
 
 
       activoHora.textContent =
+
         llegada.toLocaleTimeString(
+
           "es-AR",
+
           {
             hour:"2-digit",
             minute:"2-digit"
           }
+
         );
 
 
       activoVence.textContent =
+
         vence.toLocaleTimeString(
+
           "es-AR",
+
           {
             hour:"2-digit",
             minute:"2-digit"
           }
+
         );
+
+
+      activoCodigo.textContent =
+        "Código: " + codigo;
 
 
       activoLink.textContent =
@@ -926,19 +1102,49 @@
 
 
       btnWhatsapp.onclick =
+
         function(){
 
+
+          /*
+            Emojis mediante Unicode.
+            Así evitamos los símbolos �
+            que aparecieron en la prueba.
+          */
+
+
+          const saludo =
+            "\uD83D\uDC4B";
+
+
+          const camioneta =
+            "\uD83D\uDE90";
+
+
+          const ubicacion =
+            "\uD83D\uDCCD";
+
+
           const mensaje =
-            "👋 Hola " +
+
+            saludo +
+            " Hola " +
             nombre +
-            ", tu service de piOca® está en camino.\n\n" +
+            ", tu service de piOca® está en camino." +
 
-            "🚐 Podés seguir nuestra llegada en tiempo real desde este enlace:\n\n" +
+            "\n\n" +
 
-            "📍 " +
+            camioneta +
+            " Podés seguir nuestra llegada en tiempo real desde este enlace:" +
+
+            "\n\n" +
+
+            ubicacion +
+            " " +
             link;
 
-          abrirWhatsAppBusiness(
+
+          abrirWhatsApp(
             telefono,
             mensaje
           );
@@ -946,23 +1152,34 @@
         };
 
     }
+
   );
 
 
   btnFinalizar.addEventListener(
+
     "click",
+
     async function(){
 
-      if(!currentService){
+
+      if(
+        !currentService
+      ){
+
         return;
+
       }
 
 
       const {
         error
       } =
+
         await supabaseClient
+
         .from("services")
+
         .update({
 
           status:
@@ -973,6 +1190,7 @@
             .toISOString()
 
         })
+
         .eq(
           "id",
           currentService.id
@@ -1003,20 +1221,30 @@
       serviceActivo.style.display =
         "none";
 
-      currentService = null;
 
-      clientName.value = "";
-      clientPhone.value = "";
+      currentService =
+        null;
+
+
+      clientName.value =
+        "";
+
+
+      clientPhone.value =
+        "";
+
 
       cargarHorarios();
 
     }
+
   );
 
 
   comprobarSesion();
 
 })();
+
 </script>
 
 </body>
