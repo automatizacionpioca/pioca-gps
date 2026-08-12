@@ -166,6 +166,57 @@
     }
 
     /* ==========================================================
+       ESTADO DEL AUTODIAGNOSTICO
+       ========================================================== */
+
+    #systemTestBox{
+      margin-top:18px;
+      padding:12px 14px;
+      border-radius:9px;
+      border:1px solid #d5d5d5;
+      background:#f8f8f8;
+      text-align:center;
+      font-size:12px;
+      line-height:1.5;
+      color:#555;
+      cursor:default;
+    }
+
+    #systemTestBox.testOk{
+      background:#e5f6e8;
+      border-color:#a6d8ad;
+      color:#235b2b;
+    }
+
+    #systemTestBox.testError{
+      background:#fff1f1;
+      border-color:#e4aaaa;
+      color:#9a1625;
+      cursor:pointer;
+    }
+
+    #systemTestBox.testRunning{
+      background:#fff7dc;
+      border-color:#e3cf82;
+      color:#705c13;
+    }
+
+    #systemTestTitulo{
+      font-weight:700;
+      margin-bottom:3px;
+    }
+
+    #systemTestDetalle{
+      display:none;
+      margin-top:9px;
+      padding-top:9px;
+      border-top:1px solid rgba(0,0,0,.12);
+      font-size:11px;
+      line-height:1.45;
+      text-align:left;
+    }
+
+    /* ==========================================================
        PANTALLA DE CARGA / RECUPERACION
        Evita el parpadeo del panel mientras Supabase recupera
        el seguimiento activo.
@@ -289,6 +340,20 @@
       id="loginEstado"
       class="estado">
     </div>
+
+  </div>
+
+  <div id="systemTestBox">
+
+    <div id="systemTestTitulo">
+      Último test del sistema
+    </div>
+
+    <div id="systemTestEstado">
+      Verificando...
+    </div>
+
+    <div id="systemTestDetalle"></div>
 
   </div>
 
@@ -521,6 +586,18 @@
   const emergenciaEstado =
     document.getElementById("emergenciaEstado");
 
+  const systemTestBox =
+    document.getElementById("systemTestBox");
+
+  const systemTestEstado =
+    document.getElementById("systemTestEstado");
+
+  const systemTestDetalle =
+    document.getElementById("systemTestDetalle");
+
+  let ultimoTestTieneProblema =
+    false;
+
   function mostrarEstado(el,texto,tipo){
     el.textContent = texto;
     el.className = "estado " + tipo;
@@ -531,6 +608,251 @@
     el.style.display = "none";
     el.textContent = "";
   }
+
+  function formatearFechaTest(valor){
+
+    if(!valor){
+      return "-";
+    }
+
+    const d =
+      new Date(valor);
+
+    if(
+      !Number.isFinite(
+        d.getTime()
+      )
+    ){
+      return "-";
+    }
+
+    return d.toLocaleString(
+      "es-AR",
+      {
+        timeZone:
+          "America/Argentina/Buenos_Aires",
+
+        day:"2-digit",
+        month:"2-digit",
+        year:"numeric",
+
+        hour:"2-digit",
+        minute:"2-digit",
+
+        hour12:false
+      }
+    );
+  }
+
+  async function cargarUltimoTest(){
+
+    systemTestBox.className =
+      "";
+
+    systemTestEstado.textContent =
+      "Verificando...";
+
+    systemTestDetalle.style.display =
+      "none";
+
+    systemTestDetalle.textContent =
+      "";
+
+    ultimoTestTieneProblema =
+      false;
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "get_latest_system_test_summary"
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+
+        systemTestEstado.textContent =
+          "Todavía no hay tests registrados.";
+
+        return;
+      }
+
+      const t =
+        data[0];
+
+      const fecha =
+        formatearFechaTest(
+          t.started_at
+        );
+
+      if(
+        t.status ===
+        "ok" &&
+        Number(t.positions_written) ===
+        Number(t.positions_expected)
+      ){
+
+        systemTestBox.className =
+          "testOk";
+
+        systemTestEstado.textContent =
+          fecha +
+          " · ✅ TODO OK · " +
+          t.positions_written +
+          "/" +
+          t.positions_expected +
+          " posiciones";
+
+        return;
+      }
+
+      if(
+        t.status ===
+        "running"
+      ){
+
+        systemTestBox.className =
+          "testRunning";
+
+        systemTestEstado.textContent =
+          fecha +
+          " · TEST EN CURSO · " +
+          t.positions_written +
+          "/" +
+          t.positions_expected +
+          " posiciones";
+
+        return;
+      }
+
+      ultimoTestTieneProblema =
+        true;
+
+      systemTestBox.className =
+        "testError";
+
+      systemTestEstado.textContent =
+        fecha +
+        " · ⚠️ PROBLEMA · " +
+        t.positions_written +
+        "/" +
+        t.positions_expected +
+        " posiciones · Tocá para ver detalle";
+
+    }catch(error){
+
+      systemTestBox.className =
+        "testError";
+
+      systemTestEstado.textContent =
+        "⚠️ No se pudo consultar el último test.";
+
+      ultimoTestTieneProblema =
+        false;
+    }
+  }
+
+  async function mostrarDetalleUltimoTest(){
+
+    if(
+      !ultimoTestTieneProblema
+    ){
+      return;
+    }
+
+    const {
+      data:
+      sessionData
+    } =
+      await supabaseClient.auth
+      .getSession();
+
+    if(
+      !sessionData ||
+      !sessionData.session
+    ){
+
+      systemTestDetalle.textContent =
+        "Ingresá con usuario y contraseña para ver el detalle técnico.";
+
+      systemTestDetalle.style.display =
+        "block";
+
+      return;
+    }
+
+    systemTestDetalle.textContent =
+      "Consultando detalle...";
+
+    systemTestDetalle.style.display =
+      "block";
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "get_latest_system_test_detail"
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+
+        systemTestDetalle.textContent =
+          "No hay detalle disponible.";
+
+        return;
+      }
+
+      const t =
+        data[0];
+
+      systemTestDetalle.textContent =
+
+        "Resultado: " +
+        t.positions_written +
+        " de " +
+        t.positions_expected +
+        " posiciones." +
+
+        (
+          t.detail
+            ? "\n\nDetalle: " +
+              t.detail
+            : ""
+        );
+
+      systemTestDetalle.style.whiteSpace =
+        "pre-line";
+
+    }catch(error){
+
+      systemTestDetalle.textContent =
+        "No se pudo recuperar el detalle técnico.";
+    }
+  }
+
+  systemTestBox.addEventListener(
+    "click",
+    mostrarDetalleUltimoTest
+  );
 
   function redondearProximo10(fecha){
     const d = new Date(fecha);
@@ -1020,6 +1342,8 @@
       }
     }
   );
+
+  cargarUltimoTest();
 
   comprobarSesion();
 
