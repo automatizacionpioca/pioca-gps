@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>piOca - Panel de Seguimiento</title>
+  <title>piOca Panel de Seguimiento</title>
 
   <style>
     body{
@@ -47,7 +47,9 @@
       margin-bottom:6px;
     }
 
-    input,select{
+    input,
+    select,
+    textarea{
       width:100%;
       padding:13px;
       font-size:16px;
@@ -55,6 +57,12 @@
       border-radius:8px;
       box-sizing:border-box;
       background:#fff;
+      font-family:Arial,sans-serif;
+    }
+
+    textarea{
+      min-height:80px;
+      resize:vertical;
     }
 
     button{
@@ -119,29 +127,54 @@
 
 <div class="panel">
 
-  <div class="titulo">piOca®</div>
-  <div class="subtitulo">Panel de seguimiento</div>
+  <div class="titulo">
+    piOca
+  </div>
+
+  <div class="subtitulo">
+    Panel de seguimiento
+  </div>
+
 
   <div id="loginBox">
 
     <label>Email</label>
-    <input id="email" type="email" autocomplete="username">
+
+    <input
+      id="email"
+      type="email"
+      autocomplete="username"
+    >
 
     <label>Contraseña</label>
-    <input id="password" type="password" autocomplete="current-password">
 
-    <button id="btnLogin" class="btnAzul" type="button">
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+    >
+
+    <button
+      id="btnLogin"
+      class="btnAzul"
+      type="button">
       INGRESAR
     </button>
 
-    <div id="loginEstado" class="estado"></div>
+    <div
+      id="loginEstado"
+      class="estado">
+    </div>
 
   </div>
 
 
   <div id="panelAdmin">
 
-    <button id="btnContacto" class="btnAzul" type="button">
+    <button
+      id="btnContacto"
+      class="btnAzul"
+      type="button">
       👤 SELECCIONAR CONTACTO
     </button>
 
@@ -150,9 +183,15 @@
       cargá los datos manualmente.
     </div>
 
-    <div id="contactoEstado" class="estado"></div>
+    <div
+      id="contactoEstado"
+      class="estado">
+    </div>
 
-    <label>Nombre del cliente</label>
+
+    <label>
+      Nombre del cliente
+    </label>
 
     <input
       id="clientName"
@@ -161,7 +200,10 @@
       placeholder="Nombre del cliente"
     >
 
-    <label>Teléfono</label>
+
+    <label>
+      Teléfono
+    </label>
 
     <input
       id="clientPhone"
@@ -171,19 +213,48 @@
       placeholder="Ej: 1155555555"
     >
 
-    <label>Hora estimada de llegada</label>
+
+    <label>
+      Hora estimada de llegada
+    </label>
 
     <select id="estimatedArrival"></select>
 
-    <button id="btnCrear" class="btnVerde" type="button">
+
+    <label>
+      Información adicional
+    </label>
+
+    <textarea
+      id="additionalInfo"
+      placeholder="Opcional. Ej: Por favor dejar libre el acceso al portón."
+      maxlength="500"></textarea>
+
+    <div class="ayuda">
+      Si lo dejás vacío, no se agrega nada al mensaje de WhatsApp.
+    </div>
+
+
+    <button
+      id="btnCrear"
+      class="btnVerde"
+      type="button">
       🚐 INICIAR SEGUIMIENTO
     </button>
 
-    <button id="btnLogout" class="btnOscuro" type="button">
+
+    <button
+      id="btnLogout"
+      class="btnOscuro"
+      type="button">
       CERRAR SESIÓN
     </button>
 
-    <div id="adminEstado" class="estado"></div>
+
+    <div
+      id="adminEstado"
+      class="estado">
+    </div>
 
   </div>
 
@@ -191,6 +262,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 
 <script>
 (function(){
@@ -206,6 +278,7 @@
       SUPABASE_URL,
       SUPABASE_KEY
     );
+
 
   const loginBox =
     document.getElementById("loginBox");
@@ -240,6 +313,9 @@
   const estimatedArrival =
     document.getElementById("estimatedArrival");
 
+  const additionalInfo =
+    document.getElementById("additionalInfo");
+
   const btnCrear =
     document.getElementById("btnCrear");
 
@@ -250,31 +326,48 @@
     document.getElementById("adminEstado");
 
 
-  function mostrarEstado(el,texto,tipo){
+  function mostrarEstado(
+    el,
+    texto,
+    tipo
+  ){
 
-    el.textContent = texto;
-    el.className = "estado " + tipo;
-    el.style.display = "block";
+    el.textContent =
+      texto;
+
+    el.className =
+      "estado " + tipo;
+
+    el.style.display =
+      "block";
 
   }
 
 
   function ocultarEstado(el){
 
-    el.style.display = "none";
+    el.style.display =
+      "none";
 
   }
 
 
-  function redondearProximo10(fecha){
+  function redondearProximo10(
+    fecha
+  ){
 
-    const d = new Date(fecha);
+    const d =
+      new Date(fecha);
 
     d.setSeconds(0);
     d.setMilliseconds(0);
 
-    const minutos = d.getMinutes();
-    const resto = minutos % 10;
+    const minutos =
+      d.getMinutes();
+
+    const resto =
+      minutos % 10;
+
 
     if(resto === 0){
 
@@ -285,7 +378,8 @@
     }else{
 
       d.setMinutes(
-        minutos + (10 - resto)
+        minutos +
+        (10 - resto)
       );
 
     }
@@ -296,14 +390,20 @@
 
   function cargarHorarios(){
 
-    estimatedArrival.innerHTML = "";
+    estimatedArrival.innerHTML =
+      "";
 
     const inicio =
       redondearProximo10(
         new Date()
       );
 
-    for(let i=0;i<=9;i++){
+
+    for(
+      let i = 0;
+      i <= 9;
+      i++
+    ){
 
       const h =
         new Date(
@@ -311,11 +411,16 @@
           i * 10 * 60 * 1000
         );
 
+
       const option =
-        document.createElement("option");
+        document.createElement(
+          "option"
+        );
+
 
       option.value =
         h.toISOString();
+
 
       option.textContent =
         h.toLocaleTimeString(
@@ -326,19 +431,27 @@
           }
         );
 
+
       estimatedArrival.appendChild(
         option
       );
 
     }
+
   }
 
 
-  function limpiarTelefono(numero){
+  function limpiarTelefono(
+    numero
+  ){
 
     return String(
       numero || ""
-    ).replace(/\D/g,"");
+    )
+    .replace(
+      /\D/g,
+      ""
+    );
 
   }
 
@@ -349,10 +462,16 @@
       contactoEstado
     );
 
+
     const soportado =
+
       ("contacts" in navigator) &&
+
       navigator.contacts &&
-      typeof navigator.contacts.select === "function";
+
+      typeof navigator.contacts.select ===
+        "function";
+
 
     if(!soportado){
 
@@ -365,25 +484,39 @@
       return;
     }
 
+
     try{
 
+
       const contactos =
+
         await navigator.contacts.select(
-          ["name","tel"],
+
+          [
+            "name",
+            "tel"
+          ],
+
           {
             multiple:false
           }
+
         );
+
 
       if(
         !contactos ||
         contactos.length === 0
       ){
+
         return;
+
       }
+
 
       const contacto =
         contactos[0];
+
 
       if(
         contacto.name &&
@@ -395,6 +528,7 @@
 
       }
 
+
       if(
         contacto.tel &&
         contacto.tel.length
@@ -405,13 +539,16 @@
 
       }
 
+
       mostrarEstado(
         contactoEstado,
         "✅ Contacto cargado.",
         "ok"
       );
 
+
     }catch(e){
+
 
       mostrarEstado(
         contactoEstado,
@@ -420,14 +557,20 @@
       );
 
     }
+
   }
 
 
   async function comprobarSesion(){
 
-    const {data} =
+
+    const {
+      data
+    } =
+
       await supabaseClient.auth
       .getSession();
+
 
     if(
       data &&
@@ -437,12 +580,15 @@
       loginBox.style.display =
         "none";
 
+
       panelAdmin.style.display =
         "block";
+
 
       cargarHorarios();
 
     }
+
   }
 
 
@@ -453,17 +599,22 @@
 
 
   btnLogin.addEventListener(
+
     "click",
+
     async function(){
+
 
       ocultarEstado(
         loginEstado
       );
 
+
       const {
         data,
         error
       } =
+
         await supabaseClient.auth
         .signInWithPassword({
 
@@ -475,7 +626,9 @@
 
         });
 
+
       if(error){
+
 
         mostrarEstado(
           loginEstado,
@@ -483,65 +636,91 @@
           "error"
         );
 
+
         return;
 
       }
 
-      if(data.session){
+
+      if(
+        data.session
+      ){
 
         loginBox.style.display =
           "none";
 
+
         panelAdmin.style.display =
           "block";
 
-        password.value = "";
+
+        password.value =
+          "";
+
 
         cargarHorarios();
 
       }
 
     }
+
   );
 
 
   btnLogout.addEventListener(
+
     "click",
+
     async function(){
+
 
       await supabaseClient.auth
         .signOut();
 
+
       panelAdmin.style.display =
         "none";
+
 
       loginBox.style.display =
         "block";
 
     }
+
   );
 
 
   btnCrear.addEventListener(
+
     "click",
+
     async function(){
+
 
       ocultarEstado(
         adminEstado
       );
 
+
       const nombre =
         clientName.value.trim();
+
 
       const telefono =
         limpiarTelefono(
           clientPhone.value
         );
 
+
+      const informacion =
+        additionalInfo.value.trim();
+
+
       if(
         !nombre ||
         !telefono
       ){
+
 
         mostrarEstado(
           adminEstado,
@@ -549,11 +728,15 @@
           "error"
         );
 
+
         return;
+
       }
 
 
-      btnCrear.disabled = true;
+      btnCrear.disabled =
+        true;
+
 
       btnCrear.textContent =
         "CREANDO SEGUIMIENTO...";
@@ -563,6 +746,7 @@
         new Date(
           estimatedArrival.value
         );
+
 
       const vence =
         new Date(
@@ -575,8 +759,11 @@
         data,
         error
       } =
+
         await supabaseClient
+
         .from("services")
+
         .insert({
 
           client_name:
@@ -595,17 +782,22 @@
             "active"
 
         })
+
         .select()
+
         .single();
 
 
       if(error){
 
+
         btnCrear.disabled =
           false;
 
+
         btnCrear.textContent =
           "🚐 INICIAR SEGUIMIENTO";
+
 
         mostrarEstado(
           adminEstado,
@@ -614,7 +806,9 @@
           "error"
         );
 
+
         return;
+
       }
 
 
@@ -622,25 +816,23 @@
         data.tracking_code;
 
 
-      /*
-        Guardamos TODO lo necesario
-        para la pantalla GPS.
-      */
-
       localStorage.setItem(
         "pioca_tracking_code",
         codigo
       );
+
 
       localStorage.setItem(
         "pioca_tracking_active",
         "1"
       );
 
+
       localStorage.setItem(
         "pioca_client_name",
         nombre
       );
+
 
       localStorage.setItem(
         "pioca_client_phone",
@@ -648,9 +840,25 @@
       );
 
 
+      /*
+        INFORMACIÓN ADICIONAL
+
+        También la guardamos en el teléfono
+        para que index.html pueda incluirla
+        en el WhatsApp después de confirmar
+        la primera posición GPS.
+      */
+
+      localStorage.setItem(
+        "pioca_additional_info",
+        informacion
+      );
+
+
       const linkCliente =
 
         "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
+
         encodeURIComponent(
           codigo
         );
@@ -662,22 +870,16 @@
       );
 
 
-      /*
-        Al iniciar seguimiento,
-        vamos DIRECTAMENTE al GPS.
-
-        No existe posibilidad de mandar
-        WhatsApp antes de activar GPS.
-      */
-
       window.location.href =
 
         "index.html?tracking=" +
+
         encodeURIComponent(
           codigo
         );
 
     }
+
   );
 
 
