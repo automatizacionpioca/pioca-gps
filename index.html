@@ -86,6 +86,11 @@
       margin-top:10px;
     }
 
+    button:disabled{
+      opacity:.55;
+      cursor:default;
+    }
+
     #btnWhatsapp{
       background:#2d7a38;
       color:#fff;
@@ -107,6 +112,67 @@
       font-size:14px;
       line-height:2;
       color:#333;
+    }
+
+    #horaClienteBox{
+      margin-top:18px;
+      padding:16px;
+      border:1px solid #cfdceb;
+      border-radius:12px;
+      background:#f5f9fd;
+      text-align:center;
+    }
+
+    .horaClienteTitulo{
+      font-size:12px;
+      font-weight:700;
+      color:#54687a;
+      text-transform:uppercase;
+      letter-spacing:.3px;
+    }
+
+    #horaCliente{
+      font-size:28px;
+      font-weight:700;
+      color:#1769aa;
+      margin:6px 0 2px;
+    }
+
+    .horaClienteTexto{
+      font-size:13px;
+      color:#555;
+    }
+
+    #controlesHora{
+      display:flex;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    #controlesHora button{
+      flex:1;
+      width:auto;
+      margin-top:0;
+      padding:11px 8px;
+      font-size:14px;
+    }
+
+    #btnRestar5{
+      background:#eceff2;
+      color:#333;
+      border:1px solid #d0d4d8;
+    }
+
+    #btnSumar5{
+      background:#1769aa;
+      color:#fff;
+    }
+
+    #horaEstado{
+      display:none;
+      margin-top:10px;
+      font-size:12px;
+      line-height:1.4;
     }
 
     #gpsError{
@@ -189,6 +255,41 @@
         <strong>Envíos:</strong>
         <span id="gpsEnvios">0</span>
       </div>
+
+    </div>
+
+
+    <div id="horaClienteBox">
+
+      <div class="horaClienteTitulo">
+        EL CLIENTE ESTÁ VIENDO
+      </div>
+
+      <div id="horaCliente">
+        --:--
+      </div>
+
+      <div class="horaClienteTexto">
+        Hora estimada de llegada
+      </div>
+
+      <div id="controlesHora">
+
+        <button
+          id="btnRestar5"
+          type="button">
+          − 5 min
+        </button>
+
+        <button
+          id="btnSumar5"
+          type="button">
+          + 5 min
+        </button>
+
+      </div>
+
+      <div id="horaEstado"></div>
 
     </div>
 
@@ -330,6 +431,30 @@
     );
 
 
+  const horaCliente =
+    document.getElementById(
+      "horaCliente"
+    );
+
+
+  const btnRestar5 =
+    document.getElementById(
+      "btnRestar5"
+    );
+
+
+  const btnSumar5 =
+    document.getElementById(
+      "btnSumar5"
+    );
+
+
+  const horaEstado =
+    document.getElementById(
+      "horaEstado"
+    );
+
+
   let trackingCode = null;
 
   let serviceId = null;
@@ -347,6 +472,12 @@
   let enviando = false;
 
   let seguimientoFinalizado =
+    false;
+
+  let llegadaClienteMs =
+    null;
+
+  let modificandoHora =
     false;
 
 
@@ -374,7 +505,9 @@
     ) || "";
 
 
-  function mostrarError(texto){
+  function mostrarError(
+    texto
+  ){
 
     errorBox.textContent =
       texto;
@@ -396,6 +529,25 @@
   }
 
 
+  function mostrarEstadoHora(
+    texto,
+    ok
+  ){
+
+    horaEstado.textContent =
+      texto;
+
+    horaEstado.style.display =
+      "block";
+
+    horaEstado.style.color =
+      ok
+        ? "#2d7a38"
+        : "#b00020";
+
+  }
+
+
   function negarAcceso(){
 
     bloqueGPS.style.display =
@@ -403,6 +555,356 @@
 
     bloqueDenegado.style.display =
       "block";
+
+  }
+
+
+  function formatearHora(
+    fechaMs
+  ){
+
+    if(
+      !fechaMs ||
+      !Number.isFinite(
+        fechaMs
+      )
+    ){
+
+      return "--:--";
+    }
+
+
+    return new Date(
+      fechaMs
+    )
+    .toLocaleTimeString(
+      "es-AR",
+      {
+        hour:"2-digit",
+        minute:"2-digit"
+      }
+    );
+
+  }
+
+
+  function pintarHoraCliente(){
+
+    horaCliente.textContent =
+      formatearHora(
+        llegadaClienteMs
+      );
+
+  }
+
+
+  async function actualizarVencimientoNativo(
+    nuevoVenceIso
+  ){
+
+    localStorage.setItem(
+      "pioca_tracking_expires_at",
+      nuevoVenceIso
+    );
+
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.startTracking ===
+        "function"
+    ){
+
+      try{
+
+        const {
+          data
+        } =
+          await supabaseClient.auth
+          .getSession();
+
+
+        if(
+          data &&
+          data.session
+        ){
+
+          window.PiocaNative
+          .startTracking(
+            trackingCode,
+            String(
+              data.session.access_token ||
+              ""
+            ),
+            String(
+              data.session.refresh_token ||
+              ""
+            ),
+            nombreCliente,
+            nuevoVenceIso
+          );
+
+        }
+
+      }catch(e){
+      }
+
+    }
+
+  }
+
+
+  async function inicializarHoraCliente(
+    servicio
+  ){
+
+    if(
+      servicio.client_arrival
+    ){
+
+      llegadaClienteMs =
+        new Date(
+          servicio.client_arrival
+        )
+        .getTime();
+
+      pintarHoraCliente();
+
+      return true;
+    }
+
+
+    if(
+      !servicio.estimated_arrival
+    ){
+
+      mostrarEstadoHora(
+        "No se pudo obtener la hora estimada.",
+        false
+      );
+
+      return false;
+    }
+
+
+    const baseMs =
+      new Date(
+        servicio.estimated_arrival
+      )
+      .getTime();
+
+
+    if(
+      !Number.isFinite(
+        baseMs
+      )
+    ){
+
+      mostrarEstadoHora(
+        "La hora estimada no es válida.",
+        false
+      );
+
+      return false;
+    }
+
+
+    const nuevaLlegadaMs =
+      baseMs +
+      5 * 60 * 1000;
+
+
+    const nuevoVenceMs =
+      nuevaLlegadaMs +
+      20 * 60 * 1000;
+
+
+    const nuevaLlegadaIso =
+      new Date(
+        nuevaLlegadaMs
+      )
+      .toISOString();
+
+
+    const nuevoVenceIso =
+      new Date(
+        nuevoVenceMs
+      )
+      .toISOString();
+
+
+    const {
+      error
+    } =
+      await supabaseClient
+      .from(
+        "services"
+      )
+      .update({
+
+        client_arrival:
+          nuevaLlegadaIso,
+
+        expires_at:
+          nuevoVenceIso
+
+      })
+      .eq(
+        "id",
+        serviceId
+      );
+
+
+    if(
+      error
+    ){
+
+      mostrarEstadoHora(
+        "No se pudo preparar la hora para el cliente.",
+        false
+      );
+
+      return false;
+    }
+
+
+    llegadaClienteMs =
+      nuevaLlegadaMs;
+
+
+    pintarHoraCliente();
+
+
+    await actualizarVencimientoNativo(
+      nuevoVenceIso
+    );
+
+
+    return true;
+
+  }
+
+
+  async function moverHoraCliente(
+    minutos
+  ){
+
+    if(
+      modificandoHora ||
+      seguimientoFinalizado ||
+      !serviceId ||
+      !llegadaClienteMs
+    ){
+
+      return;
+    }
+
+
+    modificandoHora =
+      true;
+
+
+    btnRestar5.disabled =
+      true;
+
+    btnSumar5.disabled =
+      true;
+
+    horaEstado.style.display =
+      "none";
+
+
+    const nuevaLlegadaMs =
+      llegadaClienteMs +
+      minutos * 60 * 1000;
+
+
+    const nuevoVenceMs =
+      nuevaLlegadaMs +
+      20 * 60 * 1000;
+
+
+    const nuevaLlegadaIso =
+      new Date(
+        nuevaLlegadaMs
+      )
+      .toISOString();
+
+
+    const nuevoVenceIso =
+      new Date(
+        nuevoVenceMs
+      )
+      .toISOString();
+
+
+    const {
+      error
+    } =
+      await supabaseClient
+      .from(
+        "services"
+      )
+      .update({
+
+        client_arrival:
+          nuevaLlegadaIso,
+
+        expires_at:
+          nuevoVenceIso
+
+      })
+      .eq(
+        "id",
+        serviceId
+      )
+      .eq(
+        "status",
+        "active"
+      );
+
+
+    if(
+      error
+    ){
+
+      mostrarEstadoHora(
+        "No se pudo actualizar la hora.",
+        false
+      );
+
+    }else{
+
+      llegadaClienteMs =
+        nuevaLlegadaMs;
+
+
+      pintarHoraCliente();
+
+
+      await actualizarVencimientoNativo(
+        nuevoVenceIso
+      );
+
+
+      mostrarEstadoHora(
+        "✓ Hora actualizada. El cliente ya ve " +
+        formatearHora(
+          llegadaClienteMs
+        ),
+        true
+      );
+
+    }
+
+
+    btnRestar5.disabled =
+      false;
+
+    btnSumar5.disabled =
+      false;
+
+    modificandoHora =
+      false;
 
   }
 
@@ -415,31 +917,44 @@
       String(
         numero || ""
       )
-      .replace(/\D/g,"");
+      .replace(
+        /\D/g,
+        ""
+      );
 
 
     if(
-      n.startsWith("549")
+      n.startsWith(
+        "549"
+      )
     ){
       return n;
     }
 
 
     if(
-      n.startsWith("54")
+      n.startsWith(
+        "54"
+      )
     ){
       return n;
     }
 
 
     if(
-      n.startsWith("0")
+      n.startsWith(
+        "0"
+      )
     ){
-      n = n.substring(1);
+      n =
+        n.substring(
+          1
+        );
     }
 
 
     return "549" + n;
+
   }
 
 
@@ -498,7 +1013,8 @@
 
 
     if(
-      informacionAdicional.trim() !== ""
+      informacionAdicional.trim() !==
+      ""
     ){
 
       mensaje +=
@@ -541,7 +1057,9 @@
 
 
     if(
-      /android/i.test(ua)
+      /android/i.test(
+        ua
+      )
     ){
 
       window.location.href =
@@ -597,7 +1115,6 @@
       negarAcceso();
 
       return false;
-
     }
 
 
@@ -613,7 +1130,9 @@
       );
 
 
-    if(!trackingCode){
+    if(
+      !trackingCode
+    ){
 
       trackingCode =
         localStorage.getItem(
@@ -623,12 +1142,13 @@
     }
 
 
-    if(!trackingCode){
+    if(
+      !trackingCode
+    ){
 
       negarAcceso();
 
       return false;
-
     }
 
 
@@ -643,9 +1163,11 @@
       error
     } =
       await supabaseClient
-      .from("services")
+      .from(
+        "services"
+      )
       .select(
-        "id,tracking_code,status,expires_at"
+        "id,tracking_code,status,expires_at,estimated_arrival,client_arrival"
       )
       .eq(
         "tracking_code",
@@ -662,22 +1184,22 @@
       negarAcceso();
 
       return false;
-
     }
 
 
     if(
-      data.status !== "active" ||
+      data.status !==
+        "active" ||
       Date.now() >=
       new Date(
         data.expires_at
-      ).getTime()
+      )
+      .getTime()
     ){
 
       negarAcceso();
 
       return false;
-
     }
 
 
@@ -696,6 +1218,11 @@
 
     bloqueGPS.style.display =
       "block";
+
+
+    await inicializarHoraCliente(
+      data
+    );
 
 
     return true;
@@ -848,7 +1375,9 @@
 
           },
 
-          tiempos[intento]
+          tiempos[
+            intento
+          ]
 
         );
 
@@ -992,7 +1521,9 @@
       .watchPosition(
 
 
-        function(posicion){
+        function(
+          posicion
+        ){
 
 
           ultimaPosicion =
@@ -1003,14 +1534,18 @@
 
             posicion.coords
             .latitude
-            .toFixed(6);
+            .toFixed(
+              6
+            );
 
 
           lon.textContent =
 
             posicion.coords
             .longitude
-            .toFixed(6);
+            .toFixed(
+              6
+            );
 
 
           acc.textContent =
@@ -1166,7 +1701,9 @@
       error
     } =
       await supabaseClient
-      .from("services")
+      .from(
+        "services"
+      )
       .update({
 
         status:
@@ -1183,7 +1720,9 @@
       );
 
 
-    if(error){
+    if(
+      error
+    ){
 
       seguimientoFinalizado =
         false;
@@ -1232,6 +1771,11 @@
     );
 
 
+    localStorage.removeItem(
+      "pioca_tracking_expires_at"
+    );
+
+
     window.location.href =
       "admin.html";
 
@@ -1256,11 +1800,37 @@
   );
 
 
+  btnRestar5.addEventListener(
+    "click",
+    function(){
+
+      moverHoraCliente(
+        -5
+      );
+
+    }
+  );
+
+
+  btnSumar5.addEventListener(
+    "click",
+    function(){
+
+      moverHoraCliente(
+        5
+      );
+
+    }
+  );
+
+
   const acceso =
     await validarAcceso();
 
 
-  if(acceso){
+  if(
+    acceso
+  ){
 
     iniciarGPS();
 
