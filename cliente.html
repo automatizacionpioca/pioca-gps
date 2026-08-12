@@ -580,51 +580,58 @@
 
 
   function actualizarMarcador(
+  lat,
+  lon
+){
+
+  crearMapa(
     lat,
     lon
-  ){
+  );
 
+  if(!marcador){
 
-    crearMapa(
-      lat,
-      lon
-    );
+    marcador =
 
-
-    if(!marcador){
-
-
-      marcador =
-
-        L.marker(
-          [lat,lon]
-        )
-
-        .addTo(
-          mapa
-        )
-
-        .bindPopup(
-
-          "<strong>piOca</strong><br>Técnico en camino"
-
-        );
-
-
-      marcador.openPopup();
-
-
-    }else{
-
-
-      marcador.setLatLng(
+      L.marker(
         [lat,lon]
+      )
+
+      .addTo(
+        mapa
+      )
+
+      .bindPopup(
+
+        "<strong>piOca</strong><br>Técnico en camino"
+
       );
 
-    }
+    marcador.openPopup();
+
+  }else{
+
+    marcador.setLatLng(
+      [lat,lon]
+    );
 
   }
 
+
+  /*
+    Acompañamos automáticamente
+    la posición de la camioneta.
+  */
+
+  mapa.panTo(
+    [lat,lon],
+    {
+      animate:true,
+      duration:0.8
+    }
+  );
+
+}
 
   async function consultar(){
 
