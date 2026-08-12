@@ -21,8 +21,8 @@
       background:#fff;
       padding:22px;
       border-radius:14px;
-      box-sizing:border-box;
       border:1px solid #ddd;
+      box-sizing:border-box;
     }
 
     .titulo{
@@ -47,7 +47,7 @@
       margin-bottom:6px;
     }
 
-    input, select{
+    input,select{
       width:100%;
       padding:13px;
       font-size:16px;
@@ -73,21 +73,21 @@
       color:#fff;
     }
 
-    .btnOscuro{
-      background:#333;
-      color:#fff;
-    }
-
     .btnVerde{
       background:#2d7a38;
       color:#fff;
     }
 
+    .btnOscuro{
+      background:#333;
+      color:#fff;
+    }
+
     .estado{
+      display:none;
       padding:12px;
       border-radius:8px;
       margin-top:12px;
-      display:none;
       font-size:14px;
       line-height:1.5;
     }
@@ -104,39 +104,6 @@
 
     #panelAdmin{
       display:none;
-    }
-
-    .seguimientoActivo{
-      margin-top:20px;
-      padding:16px;
-      border:1px solid #ddd;
-      border-radius:10px;
-      display:none;
-    }
-
-    .dato{
-      margin:6px 0;
-      font-size:14px;
-    }
-
-    .codigoBox{
-      margin-top:12px;
-      padding:10px;
-      background:#eef5fb;
-      border-radius:8px;
-      text-align:center;
-      font-size:18px;
-      font-weight:700;
-      letter-spacing:1px;
-    }
-
-    .linkBox{
-      margin-top:12px;
-      word-break:break-all;
-      font-size:13px;
-      background:#f3f3f3;
-      padding:10px;
-      border-radius:8px;
     }
 
     .ayuda{
@@ -179,7 +146,7 @@
     </button>
 
     <div class="ayuda">
-      Si el teléfono no permite abrir la agenda desde la web,
+      Si el navegador no permite abrir contactos,
       cargá los datos manualmente.
     </div>
 
@@ -218,42 +185,6 @@
 
     <div id="adminEstado" class="estado"></div>
 
-
-    <div id="seguimientoActivo" class="seguimientoActivo">
-
-      <div class="dato">
-        <strong>Cliente:</strong>
-        <span id="activoCliente"></span>
-      </div>
-
-      <div class="dato">
-        <strong>Hora estimada:</strong>
-        <span id="activoHora"></span>
-      </div>
-
-      <div class="dato">
-        <strong>Vence:</strong>
-        <span id="activoVence"></span>
-      </div>
-
-      <div class="codigoBox" id="activoCodigo"></div>
-
-      <div class="linkBox" id="activoLink"></div>
-
-      <button id="btnGPS" class="btnAzul" type="button">
-        📍 ABRIR GPS
-      </button>
-
-      <button id="btnWhatsapp" class="btnVerde" type="button">
-        💬 ABRIR WHATSAPP
-      </button>
-
-      <button id="btnFinalizar" class="btnOscuro" type="button">
-        ⛔ FINALIZAR SEGUIMIENTO
-      </button>
-
-    </div>
-
   </div>
 
 </div>
@@ -275,7 +206,6 @@
       SUPABASE_URL,
       SUPABASE_KEY
     );
-
 
   const loginBox =
     document.getElementById("loginBox");
@@ -319,46 +249,20 @@
   const adminEstado =
     document.getElementById("adminEstado");
 
-  const seguimientoActivo =
-    document.getElementById("seguimientoActivo");
-
-  const activoCliente =
-    document.getElementById("activoCliente");
-
-  const activoHora =
-    document.getElementById("activoHora");
-
-  const activoVence =
-    document.getElementById("activoVence");
-
-  const activoCodigo =
-    document.getElementById("activoCodigo");
-
-  const activoLink =
-    document.getElementById("activoLink");
-
-  const btnGPS =
-    document.getElementById("btnGPS");
-
-  const btnWhatsapp =
-    document.getElementById("btnWhatsapp");
-
-  const btnFinalizar =
-    document.getElementById("btnFinalizar");
-
-
-  let currentService = null;
-
 
   function mostrarEstado(el,texto,tipo){
+
     el.textContent = texto;
     el.className = "estado " + tipo;
     el.style.display = "block";
+
   }
 
 
   function ocultarEstado(el){
+
     el.style.display = "none";
+
   }
 
 
@@ -373,11 +277,17 @@
     const resto = minutos % 10;
 
     if(resto === 0){
-      d.setMinutes(minutos + 10);
+
+      d.setMinutes(
+        minutos + 10
+      );
+
     }else{
+
       d.setMinutes(
         minutos + (10 - resto)
       );
+
     }
 
     return d;
@@ -393,9 +303,9 @@
         new Date()
       );
 
-    for(let i = 0; i <= 9; i++){
+    for(let i=0;i<=9;i++){
 
-      const hora =
+      const h =
         new Date(
           inicio.getTime() +
           i * 10 * 60 * 1000
@@ -405,10 +315,10 @@
         document.createElement("option");
 
       option.value =
-        hora.toISOString();
+        h.toISOString();
 
       option.textContent =
-        hora.toLocaleTimeString(
+        h.toLocaleTimeString(
           "es-AR",
           {
             hour:"2-digit",
@@ -419,39 +329,17 @@
       estimatedArrival.appendChild(
         option
       );
+
     }
   }
 
 
   function limpiarTelefono(numero){
 
-    if(!numero){
-      return "";
-    }
+    return String(
+      numero || ""
+    ).replace(/\D/g,"");
 
-    return String(numero)
-      .replace(/\D/g,"");
-  }
-
-
-  function telefonoWhatsAppArgentina(numero){
-
-    let n =
-      limpiarTelefono(numero);
-
-    if(n.startsWith("549")){
-      return n;
-    }
-
-    if(n.startsWith("54")){
-      return n;
-    }
-
-    if(n.startsWith("0")){
-      n = n.substring(1);
-    }
-
-    return "549" + n;
   }
 
 
@@ -463,24 +351,19 @@
 
     const soportado =
       ("contacts" in navigator) &&
-      (
-        typeof navigator
-        .contacts
-        .select === "function"
-      );
+      navigator.contacts &&
+      typeof navigator.contacts.select === "function";
 
     if(!soportado){
 
       mostrarEstado(
         contactoEstado,
-        "Este teléfono no permite seleccionar contactos desde el navegador. Podés cargar nombre y teléfono manualmente.",
+        "Este navegador no permite seleccionar contactos. Cargalo manualmente.",
         "error"
       );
 
-      clientName.focus();
       return;
     }
-
 
     try{
 
@@ -506,31 +389,33 @@
         contacto.name &&
         contacto.name.length
       ){
+
         clientName.value =
           contacto.name[0];
+
       }
 
       if(
         contacto.tel &&
         contacto.tel.length
       ){
+
         clientPhone.value =
           contacto.tel[0];
+
       }
 
       mostrarEstado(
         contactoEstado,
-        "✅ Contacto cargado. Revisá el teléfono antes de iniciar el seguimiento.",
+        "✅ Contacto cargado.",
         "ok"
       );
 
-    }
-
-    catch(error){
+    }catch(e){
 
       mostrarEstado(
         contactoEstado,
-        "No se seleccionó ningún contacto. Podés cargarlo manualmente.",
+        "No se seleccionó ningún contacto.",
         "error"
       );
 
@@ -538,56 +423,9 @@
   }
 
 
-  function abrirWhatsApp(
-    telefono,
-    mensaje
-  ){
-
-    const numero =
-      telefonoWhatsAppArgentina(
-        telefono
-      );
-
-    const texto =
-      encodeURIComponent(
-        mensaje
-      );
-
-    const ua =
-      navigator.userAgent ||
-      navigator.vendor ||
-      window.opera;
-
-    if(/android/i.test(ua)){
-
-      const intent =
-        "intent://send" +
-        "?phone=" +
-        numero +
-        "&text=" +
-        texto +
-        "#Intent;" +
-        "scheme=whatsapp;" +
-        "package=com.whatsapp.w4b;" +
-        "end";
-
-      window.location.href =
-        intent;
-
-      return;
-    }
-
-    window.location.href =
-      "https://wa.me/" +
-      numero +
-      "?text=" +
-      texto;
-  }
-
-
   async function comprobarSesion(){
 
-    const { data } =
+    const {data} =
       await supabaseClient.auth
       .getSession();
 
@@ -603,6 +441,7 @@
         "block";
 
       cargarHorarios();
+
     }
   }
 
@@ -627,11 +466,13 @@
       } =
         await supabaseClient.auth
         .signInWithPassword({
+
           email:
             email.value.trim(),
 
           password:
             password.value
+
         });
 
       if(error){
@@ -643,6 +484,7 @@
         );
 
         return;
+
       }
 
       if(data.session){
@@ -656,7 +498,9 @@
         password.value = "";
 
         cargarHorarios();
+
       }
+
     }
   );
 
@@ -674,10 +518,6 @@
       loginBox.style.display =
         "block";
 
-      seguimientoActivo.style.display =
-        "none";
-
-      currentService = null;
     }
   );
 
@@ -694,13 +534,13 @@
         clientName.value.trim();
 
       const telefono =
-        clientPhone.value.trim();
+        limpiarTelefono(
+          clientPhone.value
+        );
 
       if(
         !nombre ||
-        !limpiarTelefono(
-          telefono
-        )
+        !telefono
       ){
 
         mostrarEstado(
@@ -711,6 +551,12 @@
 
         return;
       }
+
+
+      btnCrear.disabled = true;
+
+      btnCrear.textContent =
+        "CREANDO SEGUIMIENTO...";
 
 
       const llegada =
@@ -737,9 +583,7 @@
             nombre,
 
           client_phone:
-            limpiarTelefono(
-              telefono
-            ),
+            telefono,
 
           estimated_arrival:
             llegada.toISOString(),
@@ -757,6 +601,12 @@
 
       if(error){
 
+        btnCrear.disabled =
+          false;
+
+        btnCrear.textContent =
+          "🚐 INICIAR SEGUIMIENTO";
+
         mostrarEstado(
           adminEstado,
           "Error al crear seguimiento: " +
@@ -768,18 +618,13 @@
       }
 
 
-      currentService =
-        data;
-
-
       const codigo =
         data.tracking_code;
 
 
       /*
-        IMPORTANTE:
-        guardamos el seguimiento activo
-        para que index.html lo pueda leer.
+        Guardamos TODO lo necesario
+        para la pantalla GPS.
       */
 
       localStorage.setItem(
@@ -792,185 +637,46 @@
         "1"
       );
 
+      localStorage.setItem(
+        "pioca_client_name",
+        nombre
+      );
 
-      const link =
-  "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
-  codigo;
-
-
-      activoCliente.textContent =
-        nombre;
-
-
-      activoHora.textContent =
-        llegada.toLocaleTimeString(
-          "es-AR",
-          {
-            hour:"2-digit",
-            minute:"2-digit"
-          }
-        );
-
-
-      activoVence.textContent =
-        vence.toLocaleTimeString(
-          "es-AR",
-          {
-            hour:"2-digit",
-            minute:"2-digit"
-          }
-        );
-
-
-      activoCodigo.textContent =
-        "Código: " + codigo;
-
-
-      activoLink.textContent =
-        link;
-
-
-      seguimientoActivo.style.display =
-        "block";
-
-
-      mostrarEstado(
-        adminEstado,
-        "✅ Seguimiento creado correctamente.",
-        "ok"
+      localStorage.setItem(
+        "pioca_client_phone",
+        telefono
       );
 
 
-      btnGPS.onclick =
-        function(){
+      const linkCliente =
 
-          window.location.href =
-            "index.html?tracking=" +
-            encodeURIComponent(
-              codigo
-            );
-
-        };
-
-
-      btnWhatsapp.onclick =
-        function(){
-
-          const saludo =
-            "\uD83D\uDC4B";
-
-          const tecnico =
-            "\uD83D\uDC68\u200D\uD83D\uDD27";
-
-          const ubicacion =
-            "\uD83D\uDCCD";
-
-
-          const mensaje =
-
-            saludo +
-            " Hola " +
-            nombre +
-            "." +
-
-            "\n\n" +
-
-            tecnico +
-            " El técnico de piOca® ya se encuentra en camino." +
-
-            "\n\n" +
-
-            "Podés seguir nuestra llegada en tiempo real desde este enlace:" +
-
-            "\n\n" +
-
-            ubicacion +
-            " " +
-            link;
-
-
-          abrirWhatsApp(
-            telefono,
-            mensaje
-          );
-
-        };
-    }
-  );
-
-
-  btnFinalizar.addEventListener(
-    "click",
-    async function(){
-
-      if(!currentService){
-        return;
-      }
-
-
-      const { error } =
-        await supabaseClient
-        .from("services")
-        .update({
-
-          status:
-            "finished",
-
-          finished_at:
-            new Date()
-            .toISOString()
-
-        })
-        .eq(
-          "id",
-          currentService.id
+        "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
+        encodeURIComponent(
+          codigo
         );
 
 
-      if(error){
-
-        mostrarEstado(
-          adminEstado,
-          "Error al finalizar: " +
-          error.message,
-          "error"
-        );
-
-        return;
-      }
+      localStorage.setItem(
+        "pioca_client_link",
+        linkCliente
+      );
 
 
       /*
-        Eliminamos el código activo
-        del teléfono.
+        Al iniciar seguimiento,
+        vamos DIRECTAMENTE al GPS.
+
+        No existe posibilidad de mandar
+        WhatsApp antes de activar GPS.
       */
 
-      localStorage.removeItem(
-        "pioca_tracking_code"
-      );
+      window.location.href =
 
-      localStorage.removeItem(
-        "pioca_tracking_active"
-      );
+        "index.html?tracking=" +
+        encodeURIComponent(
+          codigo
+        );
 
-
-      mostrarEstado(
-        adminEstado,
-        "✅ Seguimiento finalizado.",
-        "ok"
-      );
-
-
-      seguimientoActivo.style.display =
-        "none";
-
-
-      currentService = null;
-
-      clientName.value = "";
-      clientPhone.value = "";
-
-      cargarHorarios();
     }
   );
 
