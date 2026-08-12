@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>piOca® Panel de Service</title>
+  <title>piOca® Panel de Seguimiento</title>
 
   <style>
 
@@ -108,7 +108,7 @@
       display:none;
     }
 
-    .serviceActivo{
+    .seguimientoActivo{
       margin-top:20px;
       padding:16px;
       border:1px solid #ddd;
@@ -160,7 +160,7 @@
   </div>
 
   <div class="subtitulo">
-    Panel de seguimiento de service
+    Panel de seguimiento
   </div>
 
 
@@ -251,7 +251,7 @@
       id="btnCrear"
       class="btnVerde"
       type="button">
-      🚐 INICIAR SERVICE
+      🚐 INICIAR SEGUIMIENTO
     </button>
 
 
@@ -269,11 +269,11 @@
     </div>
 
 
-    <!-- SERVICE ACTIVO -->
+    <!-- SEGUIMIENTO ACTIVO -->
 
     <div
-      id="serviceActivo"
-      class="serviceActivo">
+      id="seguimientoActivo"
+      class="seguimientoActivo">
 
       <div class="dato">
         <strong>Cliente:</strong>
@@ -311,7 +311,7 @@
         id="btnFinalizar"
         class="btnOscuro"
         type="button">
-        ⛔ FINALIZAR SERVICE
+        ⛔ FINALIZAR SEGUIMIENTO
       </button>
 
     </div>
@@ -383,8 +383,8 @@
   const adminEstado =
     document.getElementById("adminEstado");
 
-  const serviceActivo =
-    document.getElementById("serviceActivo");
+  const seguimientoActivo =
+    document.getElementById("seguimientoActivo");
 
   const activoCliente =
     document.getElementById("activoCliente");
@@ -487,12 +487,6 @@
       );
 
 
-    /*
-      10 opciones:
-      primer horario +
-      90 minutos máximo.
-    */
-
     for(
       let i = 0;
       i <= 9;
@@ -559,11 +553,6 @@
       );
 
 
-    /*
-      Ya viene:
-      54911...
-    */
-
     if(
       n.startsWith("549")
     ){
@@ -572,11 +561,6 @@
 
     }
 
-
-    /*
-      Viene:
-      54...
-    */
 
     if(
       n.startsWith("54")
@@ -587,10 +571,6 @@
     }
 
 
-    /*
-      Quitamos 0 inicial
-    */
-
     if(
       n.startsWith("0")
     ){
@@ -600,11 +580,6 @@
 
     }
 
-
-    /*
-      WhatsApp Argentina:
-      54 + 9 + número
-    */
 
     return "549" + n;
 
@@ -700,7 +675,7 @@
 
       mostrarEstado(
         contactoEstado,
-        "✅ Contacto cargado. Revisá el teléfono antes de iniciar el service.",
+        "✅ Contacto cargado. Revisá el teléfono antes de iniciar el seguimiento.",
         "ok"
       );
 
@@ -742,13 +717,6 @@
       window.opera;
 
 
-    /*
-      ANDROID
-
-      Intenta abrir específicamente
-      WhatsApp Business.
-    */
-
     if(
       /android/i.test(ua)
     ){
@@ -779,14 +747,6 @@
 
     }
 
-
-    /*
-      IPHONE / iOS
-
-      Usamos el enlace estándar.
-      Evitamos el intento anterior
-      que generaba pasos extra.
-    */
 
     const whatsappURL =
 
@@ -922,7 +882,7 @@
       loginBox.style.display =
         "block";
 
-      serviceActivo.style.display =
+      seguimientoActivo.style.display =
         "none";
 
       currentService =
@@ -1021,7 +981,7 @@
 
         mostrarEstado(
           adminEstado,
-          "Error al crear service: " +
+          "Error al crear seguimiento: " +
           error.message,
           "error"
         );
@@ -1034,11 +994,6 @@
       currentService =
         data;
 
-
-      /*
-        AHORA USAMOS
-        tracking_code CORTO
-      */
 
       const codigo =
         data.tracking_code;
@@ -1090,13 +1045,13 @@
         link;
 
 
-      serviceActivo.style.display =
+      seguimientoActivo.style.display =
         "block";
 
 
       mostrarEstado(
         adminEstado,
-        "✅ Service creado correctamente.",
+        "✅ Seguimiento creado correctamente.",
         "ok"
       );
 
@@ -1106,19 +1061,12 @@
         function(){
 
 
-          /*
-            Emojis mediante Unicode.
-            Así evitamos los símbolos �
-            que aparecieron en la prueba.
-          */
-
-
           const saludo =
             "\uD83D\uDC4B";
 
 
-          const camioneta =
-            "\uD83D\uDE90";
+          const tecnico =
+            "\uD83D\uDC68\u200D\uD83D\uDD27";
 
 
           const ubicacion =
@@ -1130,12 +1078,16 @@
             saludo +
             " Hola " +
             nombre +
-            ", tu service de piOca® está en camino." +
+            "." +
 
             "\n\n" +
 
-            camioneta +
-            " Podés seguir nuestra llegada en tiempo real desde este enlace:" +
+            tecnico +
+            " El técnico de piOca® ya se encuentra en camino." +
+
+            "\n\n" +
+
+            "Podés seguir nuestra llegada en tiempo real desde este enlace:" +
 
             "\n\n" +
 
@@ -1213,12 +1165,12 @@
 
       mostrarEstado(
         adminEstado,
-        "✅ Service finalizado.",
+        "✅ Seguimiento finalizado.",
         "ok"
       );
 
 
-      serviceActivo.style.display =
+      seguimientoActivo.style.display =
         "none";
 
 
