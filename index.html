@@ -181,6 +181,11 @@
       </div>
 
       <div>
+        <strong>Último envío:</strong>
+        <span id="gpsEnvio">-</span>
+      </div>
+
+      <div>
         <strong>Envíos:</strong>
         <span id="gpsEnvios">0</span>
       </div>
@@ -289,6 +294,12 @@
     );
 
 
+  const envioHora =
+    document.getElementById(
+      "gpsEnvio"
+    );
+
+
   const enviosTxt =
     document.getElementById(
       "gpsEnvios"
@@ -324,6 +335,8 @@
   let serviceId = null;
 
   let watchId = null;
+
+  let heartbeatId = null;
 
   let envios = 0;
 
@@ -736,15 +749,13 @@
         envios;
 
 
-      /*
-        IMPORTANTÍSIMO:
+      envioHora.textContent =
 
-        WhatsApp aparece recién después
-        del PRIMER envío correcto.
+        new Date()
+        .toLocaleTimeString(
+          "es-AR"
+        );
 
-        Por lo tanto nunca podés mandar
-        el link sin ubicación.
-      */
 
       if(
         envios >= 1
@@ -816,6 +827,89 @@
         );
 
       }
+
+    }
+
+  }
+
+
+  function iniciarHeartbeat(){
+
+
+    if(
+      heartbeatId !== null
+    ){
+      return;
+    }
+
+
+    heartbeatId =
+
+      setInterval(
+
+        function(){
+
+
+          if(
+            seguimientoFinalizado ||
+            !ultimaPosicion
+          ){
+
+            return;
+
+          }
+
+
+          const ahora =
+            Date.now();
+
+
+          /*
+            Si en los últimos 10 segundos
+            watchPosition no generó un envío,
+            reenviamos la última posición válida.
+          */
+
+          if(
+            ahora -
+            ultimoEnvio
+            >= 10000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+
+            enviarPosicion(
+              ultimaPosicion,
+              0
+            );
+
+          }
+
+        },
+
+        2000
+
+      );
+
+  }
+
+
+  function detenerHeartbeat(){
+
+
+    if(
+      heartbeatId !== null
+    ){
+
+      clearInterval(
+        heartbeatId
+      );
+
+
+      heartbeatId =
+        null;
 
     }
 
@@ -922,7 +1016,9 @@
 
           /*
             Primer envío inmediato.
-            Después cada 5 segundos.
+
+            Después, si hay nuevas posiciones,
+            enviamos como máximo cada 5 segundos.
           */
 
           if(
@@ -977,11 +1073,6 @@
             "block";
 
 
-          /*
-            También intentamos
-            reactivarlo automáticamente.
-          */
-
           setTimeout(
 
             function(){
@@ -1018,6 +1109,9 @@
 
       );
 
+
+    iniciarHeartbeat();
+
   }
 
 
@@ -1042,6 +1136,9 @@
         null;
 
     }
+
+
+    detenerHeartbeat();
 
 
     const {
@@ -1074,6 +1171,9 @@
       mostrarError(
         "No se pudo finalizar el seguimiento."
       );
+
+
+      iniciarHeartbeat();
 
 
       return;
@@ -1135,13 +1235,6 @@
 
 
   if(acceso){
-
-    /*
-      AUTOMÁTICO.
-
-      Ya no existe un botón
-      INICIAR GPS normal.
-    */
 
     iniciarGPS();
 
