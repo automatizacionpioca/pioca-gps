@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
- 
+
 <head>
 
   <meta charset="UTF-8">
@@ -10,32 +10,32 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-<title>piOca | Seguimiento en tiempo real</title>
+  <title>piOca | Seguimiento en tiempo real</title>
 
-<meta
-  name="description"
-  content="Seguimiento de visita piOca. Ver ubicación de la camioneta."
->
+  <meta
+    name="description"
+    content="Seguimiento de visita piOca. Ver ubicación de la camioneta."
+  >
 
-<meta
-  property="og:title"
-  content="piOca | Seguimiento en tiempo real"
->
+  <meta
+    property="og:title"
+    content="piOca | Seguimiento en tiempo real"
+  >
 
-<meta
-  property="og:description"
-  content="Ver ubicación de la camioneta."
->
+  <meta
+    property="og:description"
+    content="Ver ubicación de la camioneta."
+  >
 
-<meta
-  property="og:type"
-  content="website"
->
+  <meta
+    property="og:type"
+    content="website"
+  >
 
-<meta
-  property="og:site_name"
-  content="piOca"
->
+  <meta
+    property="og:site_name"
+    content="piOca"
+  >
 
   <link
     rel="stylesheet"
@@ -90,7 +90,34 @@
       text-align:center;
       font-size:15px;
       font-weight:700;
+      margin-bottom:10px;
+    }
+
+    /*
+      NUEVO:
+      hora estimada que ve el cliente.
+    */
+    #horaLlegadaBox{
+      display:none;
+      padding:12px 10px;
+      background:#f3f8fc;
+      border:1px solid #d5e2ee;
+      border-radius:9px;
+      text-align:center;
       margin-bottom:14px;
+    }
+
+    #horaLlegadaTitulo{
+      font-size:12px;
+      color:#555;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+
+    #horaLlegada{
+      font-size:22px;
+      color:#1769aa;
+      font-weight:700;
     }
 
     #mapaWrap{
@@ -224,6 +251,10 @@
         font-size:10px;
       }
 
+      #horaLlegada{
+        font-size:21px;
+      }
+
     }
 
   </style>
@@ -253,6 +284,19 @@
 
   <div id="estado">
     Seguimiento no disponible
+  </div>
+
+
+  <div id="horaLlegadaBox">
+
+    <div id="horaLlegadaTitulo">
+      HORA ESTIMADA DE LLEGADA DEL TÉCNICO
+    </div>
+
+    <div id="horaLlegada">
+      --:--
+    </div>
+
   </div>
 
 
@@ -302,6 +346,18 @@
   const estado =
     document.getElementById(
       "estado"
+    );
+
+
+  const horaLlegadaBox =
+    document.getElementById(
+      "horaLlegadaBox"
+    );
+
+
+  const horaLlegada =
+    document.getElementById(
+      "horaLlegada"
     );
 
 
@@ -382,6 +438,71 @@
   }
 
 
+  function ocultarHoraLlegada(){
+
+    horaLlegadaBox.style.display =
+      "none";
+
+
+    horaLlegada.textContent =
+      "--:--";
+
+  }
+
+
+  function mostrarHoraLlegada(
+    valor
+  ){
+
+    if(
+      !valor
+    ){
+
+      ocultarHoraLlegada();
+
+      return;
+
+    }
+
+
+    const fecha =
+      new Date(
+        valor
+      );
+
+
+    if(
+      !Number.isFinite(
+        fecha.getTime()
+      )
+    ){
+
+      ocultarHoraLlegada();
+
+      return;
+
+    }
+
+
+    horaLlegada.textContent =
+
+      fecha.toLocaleTimeString(
+        "es-AR",
+        {
+          hour:"2-digit",
+          minute:"2-digit"
+        }
+      ) +
+
+      " hs";
+
+
+    horaLlegadaBox.style.display =
+      "block";
+
+  }
+
+
   function ocultarTodo(){
 
 
@@ -395,6 +516,9 @@
 
     mapaWrap.style.display =
       "none";
+
+
+    ocultarHoraLlegada();
 
 
     ultimaActualizacionMs =
@@ -580,58 +704,62 @@
 
 
   function actualizarMarcador(
-  lat,
-  lon
-){
-
-  crearMapa(
     lat,
     lon
-  );
+  ){
 
-  if(!marcador){
+    crearMapa(
+      lat,
+      lon
+    );
 
-    marcador =
 
-      L.marker(
+    if(!marcador){
+
+      marcador =
+
+        L.marker(
+          [lat,lon]
+        )
+
+        .addTo(
+          mapa
+        )
+
+        .bindPopup(
+
+          "<strong>piOca</strong><br>Técnico en camino"
+
+        );
+
+
+      marcador.openPopup();
+
+
+    }else{
+
+
+      marcador.setLatLng(
         [lat,lon]
-      )
-
-      .addTo(
-        mapa
-      )
-
-      .bindPopup(
-
-        "<strong>piOca</strong><br>Técnico en camino"
-
       );
 
-    marcador.openPopup();
+    }
 
-  }else{
 
-    marcador.setLatLng(
-      [lat,lon]
+    /*
+      El mapa acompaña automáticamente
+      el movimiento de la camioneta.
+    */
+    mapa.panTo(
+      [lat,lon],
+      {
+        animate:true,
+        duration:0.8
+      }
     );
 
   }
 
-
-  /*
-    Acompañamos automáticamente
-    la posición de la camioneta.
-  */
-
-  mapa.panTo(
-    [lat,lon],
-    {
-      animate:true,
-      duration:0.8
-    }
-  );
-
-}
 
   async function consultar(){
 
@@ -738,6 +866,16 @@
         datos[0];
 
 
+      /*
+        NUEVO:
+        tomamos de Supabase exactamente
+        la hora destinada al cliente.
+      */
+      mostrarHoraLlegada(
+        p.client_arrival
+      );
+
+
       if(
         p.latitude === null ||
         p.longitude === null
@@ -826,11 +964,12 @@
 
       /*
         Si se corta momentáneamente
-        la consulta, mantenemos el mapa
-        y dejamos avanzar el contador.
+        la consulta, mantenemos el mapa,
+        la hora estimada y dejamos
+        avanzar el contador.
 
         Si supera 15 segundos,
-        el indicador pasará a rojo.
+        el indicador pasa a rojo.
       */
 
     }
