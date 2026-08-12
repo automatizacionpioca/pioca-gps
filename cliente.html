@@ -301,6 +301,10 @@
   src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
 </script>
 
+<script
+  src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js">
+</script>
+
 <script>
 
 (function(){
@@ -374,6 +378,27 @@
   let terminado =
     false;
 
+  /*
+    Datos usados únicamente para orientar
+    el mapa según el sentido real de marcha.
+  */
+  let ultimaPosicionRumbo =
+    null;
+
+  let rumboActual =
+    0;
+
+  let animacionRumboId =
+    null;
+
+  /*
+    Evita que el mapa "baile" por pequeños
+    errores del GPS cuando el vehículo está
+    detenido o apenas se movió.
+  */
+  const DISTANCIA_MINIMA_RUMBO_METROS =
+    8;
+
   function detenerReloj(){
 
     if(
@@ -400,6 +425,21 @@
       );
 
       consultaId =
+        null;
+    }
+  }
+
+  function detenerAnimacionRumbo(){
+
+    if(
+      animacionRumboId !== null
+    ){
+
+      cancelAnimationFrame(
+        animacionRumboId
+      );
+
+      animacionRumboId =
         null;
     }
   }
@@ -488,7 +528,12 @@
 
     detenerConsultas();
 
+    detenerAnimacionRumbo();
+
     ultimaActualizacionMs =
+      null;
+
+    ultimaPosicionRumbo =
       null;
 
     quitarMarcador();
@@ -529,7 +574,12 @@
     ultimaActualizacionMs =
       null;
 
+    ultimaPosicionRumbo =
+      null;
+
     detenerReloj();
+
+    detenerAnimacionRumbo();
 
     quitarMarcador();
   }
@@ -606,6 +656,314 @@
       );
   }
 
+  function gradosARadianes(
+    grados
+  ){
+
+    return grados *
+      Math.PI /
+      180;
+  }
+
+  function radianesAGrados(
+    radianes
+  ){
+
+    return radianes *
+      180 /
+      Math.PI;
+  }
+
+  function distanciaMetros(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+  ){
+
+    const radioTierra =
+      6371000;
+
+    const dLat =
+      gradosARadianes(
+        lat2 -
+        lat1
+      );
+
+    const dLon =
+      gradosARadianes(
+        lon2 -
+        lon1
+      );
+
+    const a =
+
+      Math.sin(
+        dLat / 2
+      ) *
+      Math.sin(
+        dLat / 2
+      ) +
+
+      Math.cos(
+        gradosARadianes(
+          lat1
+        )
+      ) *
+
+      Math.cos(
+        gradosARadianes(
+          lat2
+        )
+      ) *
+
+      Math.sin(
+        dLon / 2
+      ) *
+      Math.sin(
+        dLon / 2
+      );
+
+    const c =
+      2 *
+      Math.atan2(
+        Math.sqrt(a),
+        Math.sqrt(1 - a)
+      );
+
+    return radioTierra * c;
+  }
+
+  function calcularRumbo(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+  ){
+
+    const phi1 =
+      gradosARadianes(
+        lat1
+      );
+
+    const phi2 =
+      gradosARadianes(
+        lat2
+      );
+
+    const deltaLon =
+      gradosARadianes(
+        lon2 -
+        lon1
+      );
+
+    const y =
+      Math.sin(
+        deltaLon
+      ) *
+      Math.cos(
+        phi2
+      );
+
+    const x =
+
+      Math.cos(
+        phi1
+      ) *
+      Math.sin(
+        phi2
+      ) -
+
+      Math.sin(
+        phi1
+      ) *
+      Math.cos(
+        phi2
+      ) *
+      Math.cos(
+        deltaLon
+      );
+
+    const rumbo =
+      radianesAGrados(
+        Math.atan2(
+          y,
+          x
+        )
+      );
+
+    return (
+      rumbo +
+      360
+    ) % 360;
+  }
+
+  function diferenciaAngular(
+    desde,
+    hasta
+  ){
+
+    return (
+      (
+        hasta -
+        desde +
+        540
+      ) % 360
+    ) - 180;
+  }
+
+  function animarRumboMapa(
+    rumboDestino
+  ){
+
+    if(
+      !mapa ||
+      typeof mapa.setBearing !==
+        "function"
+    ){
+
+      return;
+    }
+
+    detenerAnimacionRumbo();
+
+    const inicio =
+      performance.now();
+
+    const rumboInicio =
+      rumboActual;
+
+    const diferencia =
+      diferenciaAngular(
+        rumboInicio,
+        rumboDestino
+      );
+
+    const duracion =
+      700;
+
+    function paso(
+      ahora
+    ){
+
+      const progreso =
+        Math.min(
+          1,
+          (
+            ahora -
+            inicio
+          ) /
+          duracion
+        );
+
+      /*
+        Suavizado para que el giro no sea brusco.
+      */
+      const suavizado =
+        progreso *
+        progreso *
+        (
+          3 -
+          2 *
+          progreso
+        );
+
+      rumboActual =
+        (
+          rumboInicio +
+          diferencia *
+          suavizado +
+          360
+        ) % 360;
+
+      mapa.setBearing(
+        rumboActual
+      );
+
+      if(
+        progreso <
+        1
+      ){
+
+        animacionRumboId =
+          requestAnimationFrame(
+            paso
+          );
+
+      }else{
+
+        rumboActual =
+          (
+            rumboDestino +
+            360
+          ) % 360;
+
+        mapa.setBearing(
+          rumboActual
+        );
+
+        animacionRumboId =
+          null;
+      }
+    }
+
+    animacionRumboId =
+      requestAnimationFrame(
+        paso
+      );
+  }
+
+  function actualizarRumbo(
+    lat,
+    lon
+  ){
+
+    if(
+      !ultimaPosicionRumbo
+    ){
+
+      ultimaPosicionRumbo = {
+        lat:lat,
+        lon:lon
+      };
+
+      return;
+    }
+
+    const distancia =
+      distanciaMetros(
+        ultimaPosicionRumbo.lat,
+        ultimaPosicionRumbo.lon,
+        lat,
+        lon
+      );
+
+    if(
+      distancia <
+      DISTANCIA_MINIMA_RUMBO_METROS
+    ){
+
+      return;
+    }
+
+    const nuevoRumbo =
+      calcularRumbo(
+        ultimaPosicionRumbo.lat,
+        ultimaPosicionRumbo.lon,
+        lat,
+        lon
+      );
+
+    ultimaPosicionRumbo = {
+      lat:lat,
+      lon:lon
+    };
+
+    animarRumboMapa(
+      nuevoRumbo
+    );
+  }
+
   function crearMapa(
     lat,
     lon
@@ -622,7 +980,11 @@
         L.map(
           "mapa",
           {
-            zoomControl:true
+            zoomControl:true,
+            rotate:true,
+            bearing:0,
+            touchRotate:false,
+            rotateControl:false
           }
         )
         .setView(
@@ -671,6 +1033,11 @@
       lon
     );
 
+    actualizarRumbo(
+      lat,
+      lon
+    );
+
     if(
       !marcador
     ){
@@ -680,7 +1047,10 @@
           [
             lat,
             lon
-          ]
+          ],
+          {
+            rotateWithView:false
+          }
         )
         .addTo(
           mapa
@@ -864,7 +1234,12 @@
         ultimaActualizacionMs =
           null;
 
+        ultimaPosicionRumbo =
+          null;
+
         detenerReloj();
+
+        detenerAnimacionRumbo();
 
         return;
       }
