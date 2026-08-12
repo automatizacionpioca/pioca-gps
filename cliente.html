@@ -23,134 +23,83 @@
 
     html,
     body{
-
       margin:0;
       padding:0;
-
-      font-family:
-        Arial,
-        sans-serif;
-
+      font-family:Arial,sans-serif;
       background:#fff;
-
     }
-
 
     body{
-
       padding:18px;
-
-      box-sizing:
-        border-box;
-
+      box-sizing:border-box;
     }
-
 
     .panel{
-
       max-width:620px;
-
       margin:0 auto;
-
       background:#fff;
-
     }
 
-
-    .titulo{
-
+    .logo{
       text-align:center;
-
-      font-size:25px;
-
-      font-weight:700;
-
-      margin-bottom:5px;
-
+      margin-bottom:8px;
     }
 
+    .logo img{
+      width:170px;
+      max-width:48vw;
+      height:auto;
+      display:inline-block;
+    }
 
     .subtitulo{
-
       text-align:center;
-
       font-size:16px;
-
       color:#444;
-
       margin-bottom:18px;
-
     }
-
 
     #estado{
-
       padding:14px 10px;
-
       background:#eeeeee;
-
       border-radius:9px;
-
       text-align:center;
-
       font-size:15px;
-
       font-weight:700;
-
       margin-bottom:14px;
-
     }
-
 
     #mapa{
-
       display:none;
-
       width:100%;
-
       height:420px;
-
       border-radius:14px;
-
       overflow:hidden;
-
       border:1px solid #d7d7d7;
-
       box-sizing:border-box;
-
     }
-
 
     #ultima{
-
       display:none;
-
       text-align:center;
-
       margin-top:13px;
-
       font-size:14px;
-
       color:#555;
-
     }
 
-
-    @media(
-      max-width:600px
-    ){
+    @media(max-width:600px){
 
       body{
-
         padding:10px;
-
       }
 
+      .logo img{
+        width:150px;
+        max-width:46vw;
+      }
 
       #mapa{
-
         height:430px;
-
       }
 
     }
@@ -165,24 +114,22 @@
 
 <div class="panel">
 
-
-  <div class="titulo">
-    piOca®
+  <div class="logo">
+    <img
+      src="logo-pioca.png"
+      alt="piOca®"
+    >
   </div>
-
 
   <div class="subtitulo">
     SEGUIMIENTO DE VISITA
   </div>
 
-
   <div id="estado">
     Seguimiento no disponible
   </div>
 
-
   <div id="mapa"></div>
-
 
   <div id="ultima">
 
@@ -193,7 +140,6 @@
     </strong>
 
   </div>
-
 
 </div>
 
@@ -260,18 +206,6 @@
     null;
 
 
-  /*
-    ------------------------------------------------------
-    ESTADO NEUTRO
-
-    Misma respuesta para:
-    - sin código
-    - código falso
-    - código vencido
-    - código finalizado
-    ------------------------------------------------------
-  */
-
   function ocultarTodo(){
 
 
@@ -312,15 +246,6 @@
 
   }
 
-
-  /*
-    ------------------------------------------------------
-    MAPA
-
-    Sólo se crea cuando Supabase
-    ya confirmó seguimiento válido.
-    ------------------------------------------------------
-  */
 
   function crearMapa(
     lat,
@@ -425,17 +350,6 @@
   }
 
 
-  /*
-    ------------------------------------------------------
-    CONSULTA SEGURA
-
-    cliente.html NO consulta tablas.
-
-    Sólo llama a una función
-    controlada de Supabase.
-    ------------------------------------------------------
-  */
-
   async function consultar(){
 
 
@@ -455,11 +369,6 @@
       .trim()
       .toUpperCase();
 
-
-    /*
-      Una longitud absurda tampoco
-      merece siquiera consulta.
-    */
 
     if(
       codigo.length < 8 ||
@@ -527,17 +436,6 @@
         await respuesta.json();
 
 
-      /*
-        Vacío significa:
-
-        - inexistente
-        - finalizado
-        - vencido
-
-        Todos reciben exactamente
-        la misma pantalla.
-      */
-
       if(
         !Array.isArray(
           datos
@@ -556,12 +454,6 @@
       const p =
         datos[0];
 
-
-      /*
-        El seguimiento es válido,
-        pero todavía no llegó
-        la primera posición GPS.
-      */
 
       if(
         p.latitude === null ||
@@ -644,22 +536,12 @@
     catch(error){
 
 
-      /*
-        Tampoco mostramos
-        mensajes técnicos al público.
-      */
-
       ocultarTodo();
 
     }
 
   }
 
-
-  /*
-    Sin ID no hacemos
-    absolutamente ninguna consulta.
-  */
 
   if(!codigo){
 
