@@ -4,91 +4,150 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>piOca® Seguimiento</title>
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  >
+  <title>piOca® Panel de Seguimiento</title>
 
   <style>
-    html, body{
-      margin:0;
-      padding:0;
-      font-family:Arial,sans-serif;
-      background:#fff;
-    }
 
     body{
-      padding:18px;
+      margin:0;
+      padding:20px;
+      font-family:Arial,sans-serif;
+      background:#f5f5f5;
       box-sizing:border-box;
     }
 
     .panel{
-      max-width:620px;
+      max-width:520px;
       margin:0 auto;
       background:#fff;
+      padding:22px;
+      border-radius:14px;
+      box-sizing:border-box;
+      border:1px solid #ddd;
     }
 
     .titulo{
       text-align:center;
-      font-size:25px;
+      font-size:24px;
       font-weight:700;
-      margin-bottom:5px;
+      margin-bottom:6px;
     }
 
     .subtitulo{
       text-align:center;
-      font-size:16px;
-      color:#444;
-      margin-bottom:18px;
-    }
-
-    #estado{
-      padding:13px 10px;
-      background:#eee;
-      border-radius:9px;
-      text-align:center;
-      font-size:15px;
-      font-weight:700;
-      margin-bottom:14px;
-    }
-
-    #mapa{
-      width:100%;
-      height:420px;
-      border-radius:14px;
-      overflow:hidden;
-      border:1px solid #d7d7d7;
-      box-sizing:border-box;
-    }
-
-    .ultima{
-      text-align:center;
-      margin-top:13px;
       font-size:14px;
       color:#555;
+      margin-bottom:20px;
     }
 
-    #error{
-      display:none;
-      margin-top:15px;
+    label{
+      display:block;
+      font-size:14px;
+      font-weight:700;
+      margin-top:14px;
+      margin-bottom:6px;
+    }
+
+    input,
+    select{
+      width:100%;
+      padding:13px;
+      font-size:16px;
+      border:1px solid #ccc;
+      border-radius:8px;
+      box-sizing:border-box;
+      background:#fff;
+    }
+
+    button{
+      width:100%;
+      padding:15px;
+      border:0;
+      border-radius:8px;
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      margin-top:12px;
+    }
+
+    .btnAzul{
+      background:#1769aa;
+      color:#fff;
+    }
+
+    .btnOscuro{
+      background:#333;
+      color:#fff;
+    }
+
+    .btnVerde{
+      background:#2d7a38;
+      color:#fff;
+    }
+
+    .estado{
       padding:12px;
+      border-radius:8px;
+      margin-top:12px;
+      display:none;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .ok{
+      background:#e5f6e8;
+      border:1px solid #a6d8ad;
+    }
+
+    .error{
       background:#fff1f1;
       border:1px solid #e4aaaa;
+    }
+
+    #panelAdmin{
+      display:none;
+    }
+
+    .seguimientoActivo{
+      margin-top:20px;
+      padding:16px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      display:none;
+    }
+
+    .dato{
+      margin:6px 0;
+      font-size:14px;
+    }
+
+    .codigoBox{
+      margin-top:12px;
+      padding:10px;
+      background:#eef5fb;
       border-radius:8px;
+      text-align:center;
+      font-size:18px;
+      font-weight:700;
+      letter-spacing:1px;
+    }
+
+    .linkBox{
+      margin-top:12px;
+      word-break:break-all;
       font-size:13px;
+      background:#f3f3f3;
+      padding:10px;
+      border-radius:8px;
     }
 
-    @media(max-width:600px){
-      body{
-        padding:10px;
-      }
-
-      #mapa{
-        height:430px;
-      }
+    .ayuda{
+      font-size:12px;
+      color:#666;
+      margin-top:6px;
+      line-height:1.4;
     }
+
   </style>
 </head>
 
@@ -101,208 +160,1043 @@
   </div>
 
   <div class="subtitulo">
-    TU SERVICE ESTÁ EN CAMINO
+    Panel de seguimiento
   </div>
 
-  <div id="estado">
-    Buscando ubicación...
+
+  <!-- LOGIN -->
+
+  <div id="loginBox">
+
+    <label>Email</label>
+
+    <input
+      id="email"
+      type="email"
+      autocomplete="username"
+    >
+
+    <label>Contraseña</label>
+
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+    >
+
+    <button
+      id="btnLogin"
+      class="btnAzul"
+      type="button">
+      INGRESAR
+    </button>
+
+    <div
+      id="loginEstado"
+      class="estado">
+    </div>
+
   </div>
 
-  <div id="mapa"></div>
 
-  <div class="ultima">
-    Última actualización:
-    <strong id="hora">-</strong>
+  <!-- PANEL -->
+
+  <div id="panelAdmin">
+
+    <button
+      id="btnContacto"
+      class="btnAzul"
+      type="button">
+      👤 SELECCIONAR CONTACTO
+    </button>
+
+    <div class="ayuda">
+      Si el teléfono no permite abrir la agenda desde la web,
+      cargá los datos manualmente.
+    </div>
+
+    <div
+      id="contactoEstado"
+      class="estado">
+    </div>
+
+
+    <label>Nombre del cliente</label>
+
+    <input
+      id="clientName"
+      type="text"
+      autocomplete="name"
+      placeholder="Nombre del cliente"
+    >
+
+
+    <label>Teléfono</label>
+
+    <input
+      id="clientPhone"
+      type="tel"
+      inputmode="tel"
+      autocomplete="tel"
+      placeholder="Ej: 1155555555"
+    >
+
+
+    <label>Hora estimada de llegada</label>
+
+    <select id="estimatedArrival"></select>
+
+
+    <button
+      id="btnCrear"
+      class="btnVerde"
+      type="button">
+      🚐 INICIAR SEGUIMIENTO
+    </button>
+
+
+    <button
+      id="btnLogout"
+      class="btnOscuro"
+      type="button">
+      CERRAR SESIÓN
+    </button>
+
+
+    <div
+      id="adminEstado"
+      class="estado">
+    </div>
+
+
+    <!-- SEGUIMIENTO ACTIVO -->
+
+    <div
+      id="seguimientoActivo"
+      class="seguimientoActivo">
+
+      <div class="dato">
+        <strong>Cliente:</strong>
+        <span id="activoCliente"></span>
+      </div>
+
+      <div class="dato">
+        <strong>Hora estimada:</strong>
+        <span id="activoHora"></span>
+      </div>
+
+      <div class="dato">
+        <strong>Vence:</strong>
+        <span id="activoVence"></span>
+      </div>
+
+      <div
+        class="codigoBox"
+        id="activoCodigo">
+      </div>
+
+      <div
+        class="linkBox"
+        id="activoLink">
+      </div>
+
+      <button
+        id="btnWhatsapp"
+        class="btnVerde"
+        type="button">
+        💬 ABRIR WHATSAPP
+      </button>
+
+      <button
+        id="btnFinalizar"
+        class="btnOscuro"
+        type="button">
+        ⛔ FINALIZAR SEGUIMIENTO
+      </button>
+
+    </div>
+
   </div>
-
-  <div id="error"></div>
 
 </div>
 
 
-<script
-  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+
 (function(){
 
-  var SUPABASE_URL =
+  const SUPABASE_URL =
     "https://apxrmkdegjnblkbyjsbp.supabase.co";
 
-  var SUPABASE_KEY =
+  const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
 
-  var estado =
-    document.getElementById("estado");
-
-  var hora =
-    document.getElementById("hora");
-
-  var errorBox =
-    document.getElementById("error");
-
-
-  var mapa =
-    L.map("mapa", {
-      zoomControl:true
-    }).setView(
-      [-34.5146, -58.5796],
-      16
+  const supabaseClient =
+    supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
     );
 
 
-  L.tileLayer(
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-      maxZoom:19,
-      attribution:
-        '&copy; OpenStreetMap contributors'
+  const loginBox =
+    document.getElementById("loginBox");
+
+  const panelAdmin =
+    document.getElementById("panelAdmin");
+
+  const email =
+    document.getElementById("email");
+
+  const password =
+    document.getElementById("password");
+
+  const btnLogin =
+    document.getElementById("btnLogin");
+
+  const btnLogout =
+    document.getElementById("btnLogout");
+
+  const btnContacto =
+    document.getElementById("btnContacto");
+
+  const contactoEstado =
+    document.getElementById("contactoEstado");
+
+  const clientName =
+    document.getElementById("clientName");
+
+  const clientPhone =
+    document.getElementById("clientPhone");
+
+  const estimatedArrival =
+    document.getElementById("estimatedArrival");
+
+  const btnCrear =
+    document.getElementById("btnCrear");
+
+  const loginEstado =
+    document.getElementById("loginEstado");
+
+  const adminEstado =
+    document.getElementById("adminEstado");
+
+  const seguimientoActivo =
+    document.getElementById("seguimientoActivo");
+
+  const activoCliente =
+    document.getElementById("activoCliente");
+
+  const activoHora =
+    document.getElementById("activoHora");
+
+  const activoVence =
+    document.getElementById("activoVence");
+
+  const activoCodigo =
+    document.getElementById("activoCodigo");
+
+  const activoLink =
+    document.getElementById("activoLink");
+
+  const btnWhatsapp =
+    document.getElementById("btnWhatsapp");
+
+  const btnFinalizar =
+    document.getElementById("btnFinalizar");
+
+
+  let currentService = null;
+
+
+  function mostrarEstado(
+    elemento,
+    texto,
+    tipo
+  ){
+
+    elemento.textContent =
+      texto;
+
+    elemento.className =
+      "estado " + tipo;
+
+    elemento.style.display =
+      "block";
+
+  }
+
+
+  function ocultarEstado(
+    elemento
+  ){
+
+    elemento.style.display =
+      "none";
+
+  }
+
+
+  function redondearProximo10(
+    fecha
+  ){
+
+    const d =
+      new Date(fecha);
+
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+
+    const minutos =
+      d.getMinutes();
+
+    const resto =
+      minutos % 10;
+
+
+    if(resto === 0){
+
+      d.setMinutes(
+        minutos + 10
+      );
+
+    }else{
+
+      d.setMinutes(
+        minutos +
+        (10 - resto)
+      );
+
     }
-  ).addTo(mapa);
+
+    return d;
+
+  }
 
 
-  var marcador = null;
-  var primeraPosicion = true;
+  function cargarHorarios(){
+
+    estimatedArrival.innerHTML =
+      "";
+
+    const inicio =
+      redondearProximo10(
+        new Date()
+      );
 
 
-  function cargarPosicion(){
+    for(
+      let i = 0;
+      i <= 9;
+      i++
+    ){
 
-    fetch(
-      SUPABASE_URL +
-      "/rest/v1/gps_test" +
-      "?select=latitude,longitude,accuracy,created_at" +
-      "&order=created_at.desc" +
-      "&limit=1",
-      {
-
-        method:"GET",
-
-        headers:{
-          "apikey":SUPABASE_KEY
-        }
-
-      }
-    )
-
-    .then(function(respuesta){
-
-      if(!respuesta.ok){
-
-        throw new Error(
-          "Supabase respondió " +
-          respuesta.status
+      const hora =
+        new Date(
+          inicio.getTime() +
+          i * 10 * 60 * 1000
         );
 
-      }
 
-      return respuesta.json();
+      const option =
+        document.createElement(
+          "option"
+        );
 
-    })
 
-    .then(function(datos){
+      option.value =
+        hora.toISOString();
 
-      if(!datos || datos.length === 0){
 
-        estado.innerHTML =
-          "Ubicación no disponible";
+      option.textContent =
+        hora.toLocaleTimeString(
+          "es-AR",
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+        );
+
+
+      estimatedArrival.appendChild(
+        option
+      );
+
+    }
+
+  }
+
+
+  function limpiarTelefono(
+    numero
+  ){
+
+    if(!numero){
+      return "";
+    }
+
+    return String(numero)
+      .replace(/\D/g,"");
+
+  }
+
+
+  function telefonoWhatsAppArgentina(
+    numero
+  ){
+
+    let n =
+      limpiarTelefono(
+        numero
+      );
+
+
+    if(
+      n.startsWith("549")
+    ){
+
+      return n;
+
+    }
+
+
+    if(
+      n.startsWith("54")
+    ){
+
+      return n;
+
+    }
+
+
+    if(
+      n.startsWith("0")
+    ){
+
+      n =
+        n.substring(1);
+
+    }
+
+
+    return "549" + n;
+
+  }
+
+
+  async function seleccionarContacto(){
+
+    ocultarEstado(
+      contactoEstado
+    );
+
+
+    const soportado =
+
+      ("contacts" in navigator) &&
+
+      (
+        typeof navigator
+        .contacts
+        .select === "function"
+      );
+
+
+    if(!soportado){
+
+      mostrarEstado(
+        contactoEstado,
+        "Este teléfono no permite seleccionar contactos desde el navegador. Podés cargar nombre y teléfono manualmente.",
+        "error"
+      );
+
+      clientName.focus();
+
+      return;
+
+    }
+
+
+    try{
+
+      const contactos =
+
+        await navigator.contacts.select(
+
+          [
+            "name",
+            "tel"
+          ],
+
+          {
+            multiple:false
+          }
+
+        );
+
+
+      if(
+        !contactos ||
+        contactos.length === 0
+      ){
 
         return;
 
       }
 
 
-      var p = datos[0];
-
-      var lat =
-        Number(p.latitude);
-
-      var lon =
-        Number(p.longitude);
+      const contacto =
+        contactos[0];
 
 
-      if(!marcador){
+      if(
+        contacto.name &&
+        contacto.name.length
+      ){
 
-        marcador =
-          L.marker([lat,lon])
-          .addTo(mapa)
-          .bindPopup(
-            "<strong>piOca®</strong><br>Service en camino"
-          );
-
-      }else{
-
-        marcador.setLatLng(
-          [lat,lon]
-        );
+        clientName.value =
+          contacto.name[0];
 
       }
 
 
-      if(primeraPosicion){
+      if(
+        contacto.tel &&
+        contacto.tel.length
+      ){
 
-        mapa.setView(
-          [lat,lon],
-          16
-        );
-
-        marcador.openPopup();
-
-        primeraPosicion = false;
+        clientPhone.value =
+          contacto.tel[0];
 
       }
 
 
-      hora.innerHTML =
-        new Date(
-          p.created_at
-        ).toLocaleTimeString(
-          "es-AR"
-        );
+      mostrarEstado(
+        contactoEstado,
+        "✅ Contacto cargado. Revisá el teléfono antes de iniciar el seguimiento.",
+        "ok"
+      );
 
+    }
 
-      estado.innerHTML =
-        "🟢 Service en camino";
+    catch(error){
 
-      estado.style.background =
-        "#dff5e1";
+      mostrarEstado(
+        contactoEstado,
+        "No se seleccionó ningún contacto. Podés cargarlo manualmente.",
+        "error"
+      );
 
-
-      errorBox.style.display =
-        "none";
-
-    })
-
-    .catch(function(error){
-
-      estado.innerHTML =
-        "Ubicación momentáneamente no disponible";
-
-      estado.style.background =
-        "#ffe0e0";
-
-
-      errorBox.innerHTML =
-        error.message;
-
-      errorBox.style.display =
-        "block";
-
-    });
+    }
 
   }
 
 
-  cargarPosicion();
+  function abrirWhatsApp(
+    telefono,
+    mensaje
+  ){
+
+    const numero =
+      telefonoWhatsAppArgentina(
+        telefono
+      );
 
 
-  setInterval(
-    cargarPosicion,
-    3000
+    const texto =
+      encodeURIComponent(
+        mensaje
+      );
+
+
+    const ua =
+      navigator.userAgent ||
+      navigator.vendor ||
+      window.opera;
+
+
+    if(
+      /android/i.test(ua)
+    ){
+
+      const intent =
+
+        "intent://send" +
+
+        "?phone=" +
+        numero +
+
+        "&text=" +
+        texto +
+
+        "#Intent;" +
+
+        "scheme=whatsapp;" +
+
+        "package=com.whatsapp.w4b;" +
+
+        "end";
+
+
+      window.location.href =
+        intent;
+
+      return;
+
+    }
+
+
+    const whatsappURL =
+
+      "https://wa.me/" +
+      numero +
+      "?text=" +
+      texto;
+
+
+    window.location.href =
+      whatsappURL;
+
+  }
+
+
+  async function comprobarSesion(){
+
+    const {
+      data
+    } =
+
+      await supabaseClient
+      .auth
+      .getSession();
+
+
+    if(
+      data &&
+      data.session
+    ){
+
+      loginBox.style.display =
+        "none";
+
+      panelAdmin.style.display =
+        "block";
+
+      cargarHorarios();
+
+    }
+
+  }
+
+
+  btnContacto.addEventListener(
+
+    "click",
+
+    seleccionarContacto
+
   );
 
+
+  btnLogin.addEventListener(
+
+    "click",
+
+    async function(){
+
+
+      ocultarEstado(
+        loginEstado
+      );
+
+
+      const {
+        data,
+        error
+      } =
+
+        await supabaseClient
+        .auth
+        .signInWithPassword({
+
+          email:
+            email.value.trim(),
+
+          password:
+            password.value
+
+        });
+
+
+      if(error){
+
+        mostrarEstado(
+          loginEstado,
+          "Usuario o contraseña incorrectos.",
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      if(
+        data.session
+      ){
+
+        loginBox.style.display =
+          "none";
+
+        panelAdmin.style.display =
+          "block";
+
+        password.value =
+          "";
+
+        cargarHorarios();
+
+      }
+
+    }
+
+  );
+
+
+  btnLogout.addEventListener(
+
+    "click",
+
+    async function(){
+
+      await supabaseClient
+        .auth
+        .signOut();
+
+
+      panelAdmin.style.display =
+        "none";
+
+      loginBox.style.display =
+        "block";
+
+      seguimientoActivo.style.display =
+        "none";
+
+      currentService =
+        null;
+
+    }
+
+  );
+
+
+  btnCrear.addEventListener(
+
+    "click",
+
+    async function(){
+
+
+      ocultarEstado(
+        adminEstado
+      );
+
+
+      const nombre =
+        clientName.value.trim();
+
+
+      const telefono =
+        clientPhone.value.trim();
+
+
+      if(
+        !nombre ||
+        !limpiarTelefono(
+          telefono
+        )
+      ){
+
+        mostrarEstado(
+          adminEstado,
+          "Completá nombre y teléfono.",
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      const llegada =
+        new Date(
+          estimatedArrival.value
+        );
+
+
+      const vence =
+        new Date(
+          llegada.getTime() +
+          10 * 60 * 1000
+        );
+
+
+      const {
+        data,
+        error
+      } =
+
+        await supabaseClient
+        .from("services")
+        .insert({
+
+          client_name:
+            nombre,
+
+          client_phone:
+            limpiarTelefono(
+              telefono
+            ),
+
+          estimated_arrival:
+            llegada.toISOString(),
+
+          expires_at:
+            vence.toISOString(),
+
+          status:
+            "active"
+
+        })
+
+        .select()
+
+        .single();
+
+
+      if(error){
+
+        mostrarEstado(
+          adminEstado,
+          "Error al crear seguimiento: " +
+          error.message,
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      currentService =
+        data;
+
+
+      const codigo =
+        data.tracking_code;
+
+
+      const link =
+
+        "https://www.automatizacionpioca.com.ar/seguimiento/?id=" +
+        codigo;
+
+
+      activoCliente.textContent =
+        nombre;
+
+
+      activoHora.textContent =
+
+        llegada.toLocaleTimeString(
+
+          "es-AR",
+
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+
+        );
+
+
+      activoVence.textContent =
+
+        vence.toLocaleTimeString(
+
+          "es-AR",
+
+          {
+            hour:"2-digit",
+            minute:"2-digit"
+          }
+
+        );
+
+
+      activoCodigo.textContent =
+        "Código: " + codigo;
+
+
+      activoLink.textContent =
+        link;
+
+
+      seguimientoActivo.style.display =
+        "block";
+
+
+      mostrarEstado(
+        adminEstado,
+        "✅ Seguimiento creado correctamente.",
+        "ok"
+      );
+
+
+      btnWhatsapp.onclick =
+
+        function(){
+
+
+          const saludo =
+            "\uD83D\uDC4B";
+
+
+          const tecnico =
+            "\uD83D\uDC68\u200D\uD83D\uDD27";
+
+
+          const ubicacion =
+            "\uD83D\uDCCD";
+
+
+          const mensaje =
+
+            saludo +
+            " Hola " +
+            nombre +
+            "." +
+
+            "\n\n" +
+
+            tecnico +
+            " El técnico de piOca® ya se encuentra en camino." +
+
+            "\n\n" +
+
+            "Podés seguir nuestra llegada en tiempo real desde este enlace:" +
+
+            "\n\n" +
+
+            ubicacion +
+            " " +
+            link;
+
+
+          abrirWhatsApp(
+            telefono,
+            mensaje
+          );
+
+        };
+
+    }
+
+  );
+
+
+  btnFinalizar.addEventListener(
+
+    "click",
+
+    async function(){
+
+
+      if(
+        !currentService
+      ){
+
+        return;
+
+      }
+
+
+      const {
+        error
+      } =
+
+        await supabaseClient
+
+        .from("services")
+
+        .update({
+
+          status:
+            "finished",
+
+          finished_at:
+            new Date()
+            .toISOString()
+
+        })
+
+        .eq(
+          "id",
+          currentService.id
+        );
+
+
+      if(error){
+
+        mostrarEstado(
+          adminEstado,
+          "Error al finalizar: " +
+          error.message,
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      mostrarEstado(
+        adminEstado,
+        "✅ Seguimiento finalizado.",
+        "ok"
+      );
+
+
+      seguimientoActivo.style.display =
+        "none";
+
+
+      currentService =
+        null;
+
+
+      clientName.value =
+        "";
+
+
+      clientPhone.value =
+        "";
+
+
+      cargarHorarios();
+
+    }
+
+  );
+
+
+  comprobarSesion();
+
 })();
+
 </script>
 
 </body>
