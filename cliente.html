@@ -42,6 +42,7 @@
   >
 
   <style>
+
     html,
     body{
       margin:0;
@@ -173,26 +174,51 @@
     }
 
     @keyframes piocaBlink{
-      0%{opacity:1;}
-      50%{opacity:.45;}
-      100%{opacity:1;}
+
+      0%{
+        opacity:1;
+      }
+
+      50%{
+        opacity:.45;
+      }
+
+      100%{
+        opacity:1;
+      }
+
     }
 
     @keyframes piocaPulse{
-      0%{opacity:1;}
-      50%{opacity:.65;}
-      100%{opacity:1;}
+
+      0%{
+        opacity:1;
+      }
+
+      50%{
+        opacity:.65;
+      }
+
+      100%{
+        opacity:1;
+      }
+
     }
 
     @media(max-width:600px){
-      body{padding:10px;}
+
+      body{
+        padding:10px;
+      }
 
       .logo img{
         width:150px;
         max-width:46vw;
       }
 
-      #mapa{height:430px;}
+      #mapa{
+        height:430px;
+      }
 
       #actualizacionBox{
         top:8px;
@@ -202,10 +228,18 @@
         min-width:105px;
       }
 
-      #actualizacionSegundos{font-size:10px;}
-      #horaLlegada{font-size:21px;}
+      #actualizacionSegundos{
+        font-size:10px;
+      }
+
+      #horaLlegada{
+        font-size:21px;
+      }
+
     }
+
   </style>
+
 </head>
 
 <body>
@@ -213,10 +247,12 @@
 <div class="panel">
 
   <div class="logo">
+
     <img
       src="logo-pioca.png"
       alt="piOca"
     >
+
   </div>
 
   <div class="subtitulo">
@@ -228,6 +264,7 @@
   </div>
 
   <div id="horaLlegadaBox">
+
     <div id="horaLlegadaTitulo">
       HORA ESTIMADA DE LLEGADA DEL TÉCNICO
     </div>
@@ -235,9 +272,11 @@
     <div id="horaLlegada">
       --:--
     </div>
+
   </div>
 
   <div id="mapaWrap">
+
     <div id="mapa"></div>
 
     <div
@@ -251,14 +290,19 @@
       <span id="actualizacionSegundos">
         hace 0 s
       </span>
+
     </div>
+
   </div>
 
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
 
 <script>
+
 (function(){
 
   const SUPABASE_URL =
@@ -268,70 +312,138 @@
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
   const estado =
-    document.getElementById("estado");
+    document.getElementById(
+      "estado"
+    );
 
   const horaLlegadaBox =
-    document.getElementById("horaLlegadaBox");
+    document.getElementById(
+      "horaLlegadaBox"
+    );
 
   const horaLlegada =
-    document.getElementById("horaLlegada");
+    document.getElementById(
+      "horaLlegada"
+    );
 
   const mapaWrap =
-    document.getElementById("mapaWrap");
+    document.getElementById(
+      "mapaWrap"
+    );
 
   const actualizacionBox =
-    document.getElementById("actualizacionBox");
+    document.getElementById(
+      "actualizacionBox"
+    );
 
   const actualizacionTexto =
-    document.getElementById("actualizacionTexto");
+    document.getElementById(
+      "actualizacionTexto"
+    );
 
   const actualizacionSegundos =
-    document.getElementById("actualizacionSegundos");
+    document.getElementById(
+      "actualizacionSegundos"
+    );
 
   const parametros =
-    new URLSearchParams(window.location.search);
+    new URLSearchParams(
+      window.location.search
+    );
 
-  let codigo = parametros.get("id");
-  let mapa = null;
-  let marcador = null;
-  let ultimaActualizacionMs = null;
-  let relojEstado = null;
-  let consultaId = null;
-  let terminado = false;
+  let codigo =
+    parametros.get(
+      "id"
+    );
+
+  let mapa =
+    null;
+
+  let marcador =
+    null;
+
+  let ultimaActualizacionMs =
+    null;
+
+  let relojEstado =
+    null;
+
+  let consultaId =
+    null;
+
+  let terminado =
+    false;
 
   function detenerReloj(){
-    if(relojEstado !== null){
-      clearInterval(relojEstado);
-      relojEstado = null;
+
+    if(
+      relojEstado !== null
+    ){
+
+      clearInterval(
+        relojEstado
+      );
+
+      relojEstado =
+        null;
     }
   }
 
   function detenerConsultas(){
-    if(consultaId !== null){
-      clearInterval(consultaId);
-      consultaId = null;
+
+    if(
+      consultaId !== null
+    ){
+
+      clearInterval(
+        consultaId
+      );
+
+      consultaId =
+        null;
     }
   }
 
   function ocultarHoraLlegada(){
-    horaLlegadaBox.style.display = "none";
-    horaLlegada.textContent = "--:--";
+
+    horaLlegadaBox.style.display =
+      "none";
+
+    horaLlegada.textContent =
+      "--:--";
   }
 
-  function mostrarHoraLlegada(valor){
-    if(!valor){
+  function mostrarHoraLlegada(
+    valor
+  ){
+
+    if(
+      !valor
+    ){
+
       ocultarHoraLlegada();
+
       return;
     }
 
-    const fecha = new Date(valor);
+    const fecha =
+      new Date(
+        valor
+      );
 
-    if(!Number.isFinite(fecha.getTime())){
+    if(
+      !Number.isFinite(
+        fecha.getTime()
+      )
+    ){
+
       ocultarHoraLlegada();
+
       return;
     }
 
     horaLlegada.textContent =
+
       fecha.toLocaleTimeString(
         "es-AR",
         {
@@ -339,29 +451,53 @@
           minute:"2-digit",
           hour12:false
         }
-      ) + " hs";
+      ) +
 
-    horaLlegadaBox.style.display = "block";
+      " hs";
+
+    horaLlegadaBox.style.display =
+      "block";
   }
 
   function quitarMarcador(){
-    if(mapa && marcador){
+
+    if(
+      mapa &&
+      marcador
+    ){
+
       try{
-        mapa.removeLayer(marcador);
+
+        mapa.removeLayer(
+          marcador
+        );
+
       }catch(e){}
-      marcador = null;
+
+      marcador =
+        null;
     }
   }
 
   function mostrarFinalizado(){
-    terminado = true;
+
+    terminado =
+      true;
+
     detenerReloj();
+
     detenerConsultas();
-    ultimaActualizacionMs = null;
+
+    ultimaActualizacionMs =
+      null;
+
     quitarMarcador();
 
-    mapaWrap.style.display = "none";
-    horaLlegadaBox.style.display = "none";
+    mapaWrap.style.display =
+      "none";
+
+    horaLlegadaBox.style.display =
+      "none";
 
     estado.textContent =
       "✅ SEGUIMIENTO FINALIZADO";
@@ -371,7 +507,11 @@
   }
 
   function ocultarTodo(){
-    if(terminado){
+
+    if(
+      terminado
+    ){
+
       return;
     }
 
@@ -381,40 +521,64 @@
     estado.style.background =
       "#eeeeee";
 
-    mapaWrap.style.display = "none";
+    mapaWrap.style.display =
+      "none";
+
     ocultarHoraLlegada();
-    ultimaActualizacionMs = null;
+
+    ultimaActualizacionMs =
+      null;
+
     detenerReloj();
+
     quitarMarcador();
   }
 
   function actualizarIndicador(){
-    if(!ultimaActualizacionMs || terminado){
+
+    if(
+      !ultimaActualizacionMs ||
+      terminado
+    ){
+
       return;
     }
 
-    const diferencia = Math.max(
-      0,
-      Math.floor(
-        (Date.now() - ultimaActualizacionMs) / 1000
-      )
-    );
+    const diferencia =
+
+      Math.max(
+
+        0,
+
+        Math.floor(
+
+          (
+            Date.now() -
+            ultimaActualizacionMs
+          ) / 1000
+
+        )
+
+      );
 
     actualizacionSegundos.textContent =
-      "hace " + diferencia + " s";
+      "hace " +
+      diferencia +
+      " s";
 
-    /*
-      SOLO se muestra SIN ACTUALIZACION
-      mientras el servidor siga diciendo ACTIVE.
-      Un vencido nunca llega a este estado.
-    */
-    if(diferencia <= 15){
+    if(
+      diferencia <=
+      15
+    ){
+
       actualizacionBox.className =
         "actualizacionOk";
 
       actualizacionTexto.textContent =
         "UBICACIÓN ACTUALIZADA";
+
     }else{
+
       actualizacionBox.className =
         "actualizacionError";
 
@@ -424,61 +588,126 @@
   }
 
   function iniciarReloj(){
-    if(relojEstado !== null || terminado){
+
+    if(
+      relojEstado !== null ||
+      terminado
+    ){
+
       return;
     }
 
     actualizarIndicador();
 
-    relojEstado = setInterval(
-      actualizarIndicador,
-      1000
-    );
+    relojEstado =
+      setInterval(
+        actualizarIndicador,
+        1000
+      );
   }
 
-  function crearMapa(lat,lon){
-    mapaWrap.style.display = "block";
+  function crearMapa(
+    lat,
+    lon
+  ){
 
-    if(!mapa){
-      mapa = L.map(
-        "mapa",
-        {zoomControl:true}
-      ).setView([lat,lon],16);
+    mapaWrap.style.display =
+      "block";
+
+    if(
+      !mapa
+    ){
+
+      mapa =
+        L.map(
+          "mapa",
+          {
+            zoomControl:true
+          }
+        )
+        .setView(
+          [
+            lat,
+            lon
+          ],
+          16
+        );
 
       L.tileLayer(
+
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+
         {
           maxZoom:19,
-          attribution:'&copy; OpenStreetMap contributors'
+          attribution:
+            '&copy; OpenStreetMap contributors'
         }
-      ).addTo(mapa);
+
+      )
+      .addTo(
+        mapa
+      );
 
       setTimeout(
+
         function(){
+
           mapa.invalidateSize();
+
         },
+
         100
       );
     }
   }
 
-  function actualizarMarcador(lat,lon){
-    crearMapa(lat,lon);
+  function actualizarMarcador(
+    lat,
+    lon
+  ){
 
-    if(!marcador){
-      marcador = L.marker([lat,lon])
-        .addTo(mapa)
+    crearMapa(
+      lat,
+      lon
+    );
+
+    if(
+      !marcador
+    ){
+
+      marcador =
+        L.marker(
+          [
+            lat,
+            lon
+          ]
+        )
+        .addTo(
+          mapa
+        )
         .bindPopup(
+
           "<strong>piOca</strong><br>Técnico en camino"
+
         );
 
       marcador.openPopup();
+
     }else{
-      marcador.setLatLng([lat,lon]);
+
+      marcador.setLatLng(
+        [
+          lat,
+          lon
+        ]
+      );
     }
 
     mapa.panTo(
-      [lat,lon],
+      [
+        lat,
+        lon
+      ],
       {
         animate:true,
         duration:0.8
@@ -487,88 +716,185 @@
   }
 
   async function consultar(){
-    if(terminado){
+
+    if(
+      terminado
+    ){
+
       return;
     }
 
-    if(!codigo){
+    if(
+      !codigo
+    ){
+
       ocultarTodo();
+
       return;
     }
 
-    codigo = codigo.trim().toUpperCase();
+    codigo =
+      codigo
+      .trim()
+      .toUpperCase();
 
-    if(codigo.length < 8 || codigo.length > 32){
+    if(
+      codigo.length <
+        8 ||
+      codigo.length >
+        32
+    ){
+
       ocultarTodo();
+
       return;
     }
 
     try{
-      const respuesta = await fetch(
-        SUPABASE_URL +
-        "/rest/v1/rpc/get_tracking_snapshot",
-        {
-          method:"POST",
-          headers:{
-            "apikey":SUPABASE_KEY,
-            "Content-Type":"application/json"
-          },
-          body:JSON.stringify({
-            p_code:codigo
-          })
-        }
+
+      const respuesta =
+        await fetch(
+
+          SUPABASE_URL +
+
+          "/rest/v1/rpc/get_tracking_snapshot",
+
+          {
+
+            method:
+              "POST",
+
+            headers:{
+
+              "apikey":
+                SUPABASE_KEY,
+
+              "Content-Type":
+                "application/json"
+
+            },
+
+            body:
+              JSON.stringify({
+
+                p_code:
+                  codigo
+
+              })
+
+          }
+
+        );
+
+      if(
+        !respuesta.ok
+      ){
+
+        /*
+          Si hay un corte momentáneo de Internet,
+          conservamos la última pantalla válida.
+        */
+
+        return;
+      }
+
+      const datos =
+        await respuesta.json();
+
+      if(
+        !Array.isArray(
+          datos
+        ) ||
+        datos.length ===
+          0
+      ){
+
+        ocultarTodo();
+
+        return;
+      }
+
+      const p =
+        datos[0];
+
+      /*
+        Si el servidor informa que terminó,
+        desaparece inmediatamente el mapa.
+      */
+      if(
+        p.state ===
+          "finished"
+      ){
+
+        mostrarFinalizado();
+
+        return;
+      }
+
+      if(
+        p.state !==
+          "active"
+      ){
+
+        ocultarTodo();
+
+        return;
+      }
+
+      mostrarHoraLlegada(
+        p.client_arrival
       );
 
-      if(!respuesta.ok){
-        /*
-          No destruimos una pantalla valida por
-          un corte momentaneo de red.
-        */
-        return;
-      }
+      if(
+        p.latitude ===
+          null ||
+        p.longitude ===
+          null
+      ){
 
-      const datos = await respuesta.json();
-
-      if(!Array.isArray(datos) || datos.length === 0){
-        ocultarTodo();
-        return;
-      }
-
-      const p = datos[0];
-
-      if(p.state === "finished"){
-        mostrarFinalizado();
-        return;
-      }
-
-      if(p.state !== "active"){
-        ocultarTodo();
-        return;
-      }
-
-      mostrarHoraLlegada(p.client_arrival);
-
-      if(p.latitude === null || p.longitude === null){
         estado.textContent =
           "Esperando ubicación del técnico...";
 
         estado.style.background =
           "#fff3cd";
 
-        mapaWrap.style.display = "none";
-        ultimaActualizacionMs = null;
+        mapaWrap.style.display =
+          "none";
+
+        ultimaActualizacionMs =
+          null;
+
         detenerReloj();
+
         return;
       }
 
-      const lat = Number(p.latitude);
-      const lon = Number(p.longitude);
+      const lat =
+        Number(
+          p.latitude
+        );
 
-      if(!Number.isFinite(lat) || !Number.isFinite(lon)){
+      const lon =
+        Number(
+          p.longitude
+        );
+
+      if(
+        !Number.isFinite(
+          lat
+        ) ||
+        !Number.isFinite(
+          lon
+        )
+      ){
+
         return;
       }
 
-      actualizarMarcador(lat,lon);
+      actualizarMarcador(
+        lat,
+        lon
+      );
 
       estado.textContent =
         "🟢 Técnico en camino";
@@ -577,29 +903,47 @@
         "#dff5e1";
 
       ultimaActualizacionMs =
-        new Date(p.created_at).getTime();
+        new Date(
+          p.created_at
+        )
+        .getTime();
 
       iniciarReloj();
+
       actualizarIndicador();
 
     }catch(error){
+
       /*
-        Corte de internet: conservamos la ultima
-        pantalla conocida. No cambiamos el estado
-        del seguimiento sin respuesta del servidor.
+        Si se corta Internet,
+        conservamos la última posición
+        y no damos por finalizado el seguimiento.
       */
+
     }
   }
 
-  if(!codigo){
+  if(
+    !codigo
+  ){
+
     ocultarTodo();
+
   }else{
+
     consultar();
-    consultaId = setInterval(consultar,3000);
+
+    consultaId =
+      setInterval(
+        consultar,
+        3000
+      );
   }
 
 })();
+
 </script>
 
 </body>
+
 </html>
