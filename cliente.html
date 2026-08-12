@@ -208,15 +208,11 @@
 
 
   var marcador = null;
-
   var primeraPosicion = true;
-
   var seguimientoValido = false;
 
 
-  function mostrarError(
-    texto
-  ){
+  function mostrarError(texto){
 
     errorBox.innerHTML =
       texto;
@@ -251,6 +247,8 @@
 
     hora.innerHTML =
       "-";
+
+    ocultarError();
 
     if(marcador){
 
@@ -287,9 +285,9 @@
 
       SUPABASE_URL +
 
-      "/rest/v1/services" +
+      "/rest/v1/tracking_public" +
 
-      "?select=tracking_code,status,estimated_arrival,expires_at" +
+      "?select=tracking_code,status,expires_at" +
 
       "&tracking_code=eq." +
 
@@ -377,9 +375,7 @@
       seguimientoValido =
         true;
 
-
       ocultarError();
-
 
       return true;
 
