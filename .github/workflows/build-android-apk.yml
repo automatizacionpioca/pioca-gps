@@ -33,12 +33,17 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Crear proyecto Android v4
+      - name: Crear proyecto Android v4 con icono
         shell: bash
         run: |
           set -e
           mkdir -p android-pioca/app/src/main/java/ar/com/pioca/seguimiento
           mkdir -p android-pioca/app/src/main/res/values
+          mkdir -p android-pioca/app/src/main/res/mipmap-mdpi
+          mkdir -p android-pioca/app/src/main/res/mipmap-hdpi
+          mkdir -p android-pioca/app/src/main/res/mipmap-xhdpi
+          mkdir -p android-pioca/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android-pioca/app/src/main/res/mipmap-xxxhdpi
 
           cat > android-pioca/settings.gradle <<'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -81,6 +86,56 @@ jobs:
           </resources>
           EOF
 
+          # ------------------------------------------------------------
+          # ICONO PERSONALIZADO piOca
+          # Toma un único archivo de la raíz del repositorio:
+          # icono-pioca.png
+          # y genera automáticamente todos los tamaños Android.
+          # ------------------------------------------------------------
+
+          if [ ! -f "icono-pioca.png" ]; then
+            echo "ERROR: Falta icono-pioca.png en la raíz del repositorio."
+            exit 1
+          fi
+
+          sudo apt-get update -y
+          sudo apt-get install -y imagemagick
+
+          convert "icono-pioca.png" \
+            -background white \
+            -gravity center \
+            -resize 48x48 \
+            -extent 48x48 \
+            android-pioca/app/src/main/res/mipmap-mdpi/ic_launcher.png
+
+          convert "icono-pioca.png" \
+            -background white \
+            -gravity center \
+            -resize 72x72 \
+            -extent 72x72 \
+            android-pioca/app/src/main/res/mipmap-hdpi/ic_launcher.png
+
+          convert "icono-pioca.png" \
+            -background white \
+            -gravity center \
+            -resize 96x96 \
+            -extent 96x96 \
+            android-pioca/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+
+          convert "icono-pioca.png" \
+            -background white \
+            -gravity center \
+            -resize 144x144 \
+            -extent 144x144 \
+            android-pioca/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+
+          convert "icono-pioca.png" \
+            -background white \
+            -gravity center \
+            -resize 192x192 \
+            -extent 192x192 \
+            android-pioca/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
           cat > android-pioca/app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
@@ -90,7 +145,7 @@ jobs:
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-            <application android:theme="@style/AppTheme" android:label="piOca Seguimiento" android:usesCleartextTraffic="false">
+            <application android:theme="@style/AppTheme" android:label="piOca Seguimiento" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:usesCleartextTraffic="false">
               <activity android:name=".MainActivity" android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
@@ -1390,11 +1445,11 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Preparar APK
-        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-prueba-v4.apk
+        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-v4-icono.apk
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK-v4
-          path: piOca-Seguimiento-prueba-v4.apk
+          name: piOca-Seguimiento-APK-v4-icono
+          path: piOca-Seguimiento-v4-icono.apk
           retention-days: 90
