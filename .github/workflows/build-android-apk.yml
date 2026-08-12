@@ -33,7 +33,7 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Crear proyecto Android v2
+      - name: Crear proyecto Android v3
         shell: bash
         run: |
           set -e
@@ -60,8 +60,8 @@ jobs:
                   applicationId "ar.com.pioca.seguimiento"
                   minSdk 26
                   targetSdk 35
-                  versionCode 2
-                  versionName "0.2-prueba"
+                  versionCode 3
+                  versionName "0.3-prueba"
               }
           }
           EOF
@@ -532,6 +532,10 @@ jobs:
                                               accessToken);
                           }
 
+                          if (r == 299) {
+                              return;
+                          }
+
                           if (r >= 200
                                   && r < 300) {
 
@@ -612,6 +616,9 @@ jobs:
                       int status =
                               c.getResponseCode();
 
+                      StringBuilder responseBody =
+                              new StringBuilder();
+
                       try (
                               InputStream in =
                                       status >= 400
@@ -619,8 +626,33 @@ jobs:
                                               : c.getInputStream()) {
 
                           if (in != null) {
-                              while (in.read() != -1) {
+                              int ch;
+                              while ((ch = in.read()) != -1) {
+                                  responseBody.append((char) ch);
                               }
+                          }
+                      }
+
+                      /*
+                        push_tracking_position devuelve TRUE
+                        mientras el seguimiento es válido.
+                        Si devuelve FALSE o NULL, el seguimiento
+                        terminó/venció y detenemos el servicio nativo.
+                      */
+                      if (status >= 200 && status < 300) {
+
+                          String bodyText =
+                                  responseBody
+                                          .toString()
+                                          .trim()
+                                          .toLowerCase();
+
+                          if ("false".equals(bodyText)
+                                  || "null".equals(bodyText)
+                                  || bodyText.isEmpty()) {
+
+                              stopSelf();
+                              return 299;
                           }
                       }
 
@@ -780,11 +812,11 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Preparar APK
-        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-prueba-v2.apk
+        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-prueba-v3.apk
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK-v2
-          path: piOca-Seguimiento-prueba-v2.apk
+          name: piOca-Seguimiento-APK-v3
+          path: piOca-Seguimiento-prueba-v3.apk
           retention-days: 30
