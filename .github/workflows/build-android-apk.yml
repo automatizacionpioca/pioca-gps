@@ -33,7 +33,7 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Crear proyecto Android v4 con icono
+      - name: Crear proyecto Android v5 con persistencia
         shell: bash
         run: |
           set -e
@@ -65,8 +65,8 @@ jobs:
                   applicationId "ar.com.pioca.seguimiento"
                   minSdk 26
                   targetSdk 35
-                  versionCode 4
-                  versionName "0.4-prueba"
+                  versionCode 5
+                  versionName "0.5"
               }
           }
           EOF
@@ -201,9 +201,7 @@ jobs:
                   web = new WebView(this);
                   setContentView(web);
 
-                  WebSettings settings =
-                          web.getSettings();
-
+                  WebSettings settings = web.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
@@ -215,7 +213,6 @@ jobs:
 
                   web.setWebChromeClient(
                           new WebChromeClient() {
-
                               @Override
                               public void onGeolocationPermissionsShowPrompt(
                                       String origin,
@@ -226,10 +223,7 @@ jobs:
                                                   Manifest.permission.ACCESS_FINE_LOCATION)
                                           == PackageManager.PERMISSION_GRANTED;
 
-                                  callback.invoke(
-                                          origin,
-                                          ok,
-                                          false);
+                                  callback.invoke(origin, ok, false);
                               }
                           });
 
@@ -241,26 +235,20 @@ jobs:
                                       WebView view,
                                       WebResourceRequest request) {
 
-                                  Uri uri =
-                                          request.getUrl();
-
+                                  Uri uri = request.getUrl();
                                   String scheme =
                                           uri.getScheme() == null
                                                   ? ""
                                                   : uri.getScheme();
 
                                   if ("intent".equalsIgnoreCase(scheme)) {
-
                                       try {
-
                                           startActivity(
                                                   Intent.parseUri(
                                                           uri.toString(),
                                                           Intent.URI_INTENT_SCHEME));
-
                                       } catch (Exception ignored) {
                                       }
-
                                       return true;
                                   }
 
@@ -272,27 +260,20 @@ jobs:
                                       WebView view,
                                       String url) {
 
-                                  super.onPageFinished(
-                                          view,
-                                          url);
+                                  super.onPageFinished(view, url);
 
-                                  Uri uri =
-                                          Uri.parse(url);
+                                  Uri uri = Uri.parse(url);
 
-                                  if (url.contains(
-                                          "/pioca-gps/index.html")) {
+                                  if (url.contains("/pioca-gps/index.html")) {
 
                                       String code =
-                                              uri.getQueryParameter(
-                                                      "tracking");
+                                              uri.getQueryParameter("tracking");
 
-                                      if (code != null
-                                              && !code.trim().isEmpty()) {
+                                      if (code != null && !code.trim().isEmpty()) {
 
                                           String safeCode =
                                                   JSONObject.quote(
-                                                          code.trim()
-                                                                  .toUpperCase());
+                                                          code.trim().toUpperCase());
 
                                           String js =
                                                   "(function(){try{"
@@ -311,22 +292,19 @@ jobs:
                                                   + "}"
                                                   + "}catch(e){}})();";
 
-                                          view.evaluateJavascript(
-                                                  js,
-                                                  null);
+                                          view.evaluateJavascript(js, null);
                                       }
                                   }
 
-                                  if (url.contains(
-                                          "/pioca-gps/admin.html")) {
+                                  /*
+                                    V5 IMPORTANTE:
+                                    NO detenemos el GPS por falta de localStorage
+                                    al entrar a admin.html.
 
-                                      view.evaluateJavascript(
-                                              "(function(){try{"
-                                              + "if(!localStorage.getItem('pioca_tracking_active'))"
-                                              + "PiocaNative.stopTracking();"
-                                              + "}catch(e){}})();",
-                                              null);
-                                  }
+                                    admin.html consulta primero al servidor y solo
+                                    detiene el servicio nativo si el servidor confirma
+                                    que NO existe ningun seguimiento activo.
+                                  */
                               }
                           });
 
@@ -336,7 +314,6 @@ jobs:
 
               @Override
               protected void onResume() {
-
                   super.onResume();
 
                   if (web != null) {
@@ -349,7 +326,6 @@ jobs:
               private void requestRuntimePermissions() {
 
                   if (Build.VERSION.SDK_INT >= 33) {
-
                       requestPermissions(
                               new String[]{
                                       Manifest.permission.ACCESS_FINE_LOCATION,
@@ -357,9 +333,7 @@ jobs:
                                       Manifest.permission.POST_NOTIFICATIONS
                               },
                               REQ_PERMISSIONS);
-
                   } else {
-
                       requestPermissions(
                               new String[]{
                                       Manifest.permission.ACCESS_FINE_LOCATION,
@@ -370,22 +344,15 @@ jobs:
               }
 
               private void launchContactPicker() {
-
                   try {
+                      Intent i = new Intent(
+                              Intent.ACTION_PICK,
+                              ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
 
-                      Intent i =
-                              new Intent(
-                                      Intent.ACTION_PICK,
-                                      ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
-
-                      startActivityForResult(
-                              i,
-                              REQ_CONTACT);
+                      startActivityForResult(i, REQ_CONTACT);
 
                   } catch (Exception e) {
-
                       if (web != null) {
-
                           web.evaluateJavascript(
                                   "(function(){"
                                   + "var e=document.getElementById('contactoEstado');"
@@ -403,80 +370,59 @@ jobs:
                       int resultCode,
                       Intent data) {
 
-                  super.onActivityResult(
-                          requestCode,
-                          resultCode,
-                          data);
+                  super.onActivityResult(requestCode, resultCode, data);
 
                   if (requestCode != REQ_CONTACT
                           || resultCode != RESULT_OK
                           || data == null
                           || data.getData() == null) {
-
                       return;
                   }
 
-                  Uri uri =
-                          data.getData();
-
+                  Uri uri = data.getData();
                   String name = "";
                   String phone = "";
-
                   Cursor cursor = null;
 
                   try {
+                      cursor = getContentResolver().query(
+                              uri,
+                              new String[]{
+                                      ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                                      ContactsContract.CommonDataKinds.Phone.NUMBER
+                              },
+                              null,
+                              null,
+                              null);
 
-                      cursor =
-                              getContentResolver().query(
-                                      uri,
-                                      new String[]{
-                                              ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                                              ContactsContract.CommonDataKinds.Phone.NUMBER
-                                      },
-                                      null,
-                                      null,
-                                      null);
+                      if (cursor != null && cursor.moveToFirst()) {
+                          int nameIndex = cursor.getColumnIndex(
+                                  ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
 
-                      if (cursor != null
-                              && cursor.moveToFirst()) {
-
-                          int nameIndex =
-                                  cursor.getColumnIndex(
-                                          ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
-
-                          int phoneIndex =
-                                  cursor.getColumnIndex(
-                                          ContactsContract.CommonDataKinds.Phone.NUMBER);
+                          int phoneIndex = cursor.getColumnIndex(
+                                  ContactsContract.CommonDataKinds.Phone.NUMBER);
 
                           if (nameIndex >= 0) {
-                              name =
-                                      cursor.getString(
-                                              nameIndex);
+                              name = cursor.getString(nameIndex);
                           }
 
                           if (phoneIndex >= 0) {
-                              phone =
-                                      cursor.getString(
-                                              phoneIndex);
+                              phone = cursor.getString(phoneIndex);
                           }
                       }
 
                   } catch (Exception ignored) {
-
                   } finally {
-
                       if (cursor != null) {
                           cursor.close();
                       }
                   }
 
                   final String safeName =
-                          JSONObject.quote(
-                                  name == null ? "" : name);
+                          JSONObject.quote(name == null ? "" : name);
 
                   final String safePhone =
-                          JSONObject.quote(
-                                  phone == null ? "" : phone);
+                          JSONObject.quote(phone == null ? "" : phone);
 
                   web.evaluateJavascript(
                           "(function(){"
@@ -513,8 +459,7 @@ jobs:
                                   "");
 
                   String who =
-                          name == null
-                                  || name.trim().isEmpty()
+                          name == null || name.trim().isEmpty()
                                   ? "Este cliente"
                                   : name.trim();
 
@@ -525,16 +470,13 @@ jobs:
                           .apply();
 
                   new AlertDialog.Builder(this)
-                          .setTitle(
-                                  "Seguimiento finalizado")
+                          .setTitle("Seguimiento finalizado")
                           .setMessage(
                                   "El seguimiento de "
                                   + who
                                   + " ya no está activo.\n\n"
                                   + "El cliente ya no puede ver la ubicación de la camioneta.")
-                          .setPositiveButton(
-                                  "ACEPTAR",
-                                  null)
+                          .setPositiveButton("ACEPTAR", null)
                           .show();
               }
 
@@ -542,7 +484,6 @@ jobs:
 
                   @JavascriptInterface
                   public void pickContact() {
-
                       runOnUiThread(
                               MainActivity.this::launchContactPicker);
                   }
@@ -560,35 +501,19 @@ jobs:
                           if (checkSelfPermission(
                                   Manifest.permission.ACCESS_FINE_LOCATION)
                                   != PackageManager.PERMISSION_GRANTED) {
-
                               requestRuntimePermissions();
                               return;
                           }
 
-                          Intent service =
-                                  new Intent(
-                                          MainActivity.this,
-                                          TrackingService.class);
+                          Intent service = new Intent(
+                                  MainActivity.this,
+                                  TrackingService.class);
 
-                          service.putExtra(
-                                  "tracking",
-                                  code);
-
-                          service.putExtra(
-                                  "access_token",
-                                  accessToken);
-
-                          service.putExtra(
-                                  "refresh_token",
-                                  refreshToken);
-
-                          service.putExtra(
-                                  "client_name",
-                                  clientName);
-
-                          service.putExtra(
-                                  "expires_at",
-                                  expiresAt);
+                          service.putExtra("tracking", code);
+                          service.putExtra("access_token", accessToken);
+                          service.putExtra("refresh_token", refreshToken);
+                          service.putExtra("client_name", clientName);
+                          service.putExtra("expires_at", expiresAt);
 
                           if (Build.VERSION.SDK_INT >= 26) {
                               startForegroundService(service);
@@ -601,24 +526,35 @@ jobs:
                   @JavascriptInterface
                   public void stopTracking() {
 
-                      runOnUiThread(() ->
-                              stopService(
-                                      new Intent(
-                                              MainActivity.this,
-                                              TrackingService.class)));
+                      runOnUiThread(() -> {
+
+                          SharedPreferences prefs =
+                                  getSharedPreferences(
+                                          "pioca_tracking",
+                                          MODE_PRIVATE);
+
+                          prefs.edit()
+                                  .putBoolean("service_active", false)
+                                  .remove("tracking_code")
+                                  .remove("access_token")
+                                  .remove("refresh_token")
+                                  .remove("client_name")
+                                  .remove("expires_at")
+                                  .apply();
+
+                          stopService(
+                                  new Intent(
+                                          MainActivity.this,
+                                          TrackingService.class));
+                      });
                   }
               }
 
               @Override
               public void onBackPressed() {
-
-                  if (web != null
-                          && web.canGoBack()) {
-
+                  if (web != null && web.canGoBack()) {
                       web.goBack();
-
                   } else {
-
                       super.onBackPressed();
                   }
               }
@@ -648,7 +584,6 @@ jobs:
           import java.io.OutputStream;
           import java.net.HttpURLConnection;
           import java.net.URL;
-          import java.net.URLEncoder;
           import java.nio.charset.StandardCharsets;
           import java.time.Instant;
           import java.util.concurrent.atomic.AtomicBoolean;
@@ -657,8 +592,7 @@ jobs:
                   extends Service
                   implements LocationListener {
 
-              private static final String CH =
-                      "pioca_tracking";
+              private static final String CH = "pioca_tracking";
 
               private static final String BASE =
                       "https://apxrmkdegjnblkbyjsbp.supabase.co";
@@ -666,13 +600,13 @@ jobs:
               private static final String KEY =
                       "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
-              private volatile String code;
-              private volatile String accessToken;
-              private volatile String refreshToken;
-              private volatile String clientName;
-
+              private volatile String code = "";
+              private volatile String accessToken = "";
+              private volatile String refreshToken = "";
+              private volatile String clientName = "";
               private volatile long expiresAtMillis = 0L;
 
+              private SharedPreferences prefs;
               private LocationManager lm;
               private Location last;
 
@@ -680,8 +614,7 @@ jobs:
               private long lastRemoteCheck = 0L;
 
               private final Handler handler =
-                      new Handler(
-                              Looper.getMainLooper());
+                      new Handler(Looper.getMainLooper());
 
               private final AtomicBoolean sending =
                       new AtomicBoolean(false);
@@ -701,43 +634,42 @@ jobs:
                                   return;
                               }
 
-                              long now =
-                                      System.currentTimeMillis();
+                              long now = System.currentTimeMillis();
 
+                              /*
+                                El vencimiento local detiene el GPS en el telefono.
+                                El servidor usa el MISMO expires_at y rechaza el ID
+                                desde ese mismo instante.
+                              */
                               if (expiresAtMillis > 0
                                       && now >= expiresAtMillis) {
-
                                   finishExpired();
                                   return;
                               }
 
-                              if (now - lastRemoteCheck
-                                      >= 5000L) {
-
+                              if (now - lastRemoteCheck >= 5000L) {
                                   validateRemoteAsync();
                               }
 
                               if (last != null
-                                      && now - lastOk
-                                      >= 10000L) {
-
+                                      && now - lastOk >= 10000L) {
                                   sendAsync(last);
                               }
 
-                              handler.postDelayed(
-                                      this,
-                                      2000L);
+                              handler.postDelayed(this, 2000L);
                           }
                       };
 
               @Override
               public void onCreate() {
-
                   super.onCreate();
 
+                  prefs = getSharedPreferences(
+                          "pioca_tracking",
+                          MODE_PRIVATE);
+
                   NotificationManager nm =
-                          getSystemService(
-                                  NotificationManager.class);
+                          getSystemService(NotificationManager.class);
 
                   nm.createNotificationChannel(
                           new NotificationChannel(
@@ -752,38 +684,38 @@ jobs:
                       int flags,
                       int startId) {
 
+                  ending = false;
+
+                  boolean loaded = false;
+
                   if (i != null) {
+                      String incoming =
+                              norm(i.getStringExtra("tracking"));
 
-                      code =
-                              norm(
-                                      i.getStringExtra(
-                                              "tracking"));
+                      if (!incoming.isEmpty()) {
+                          code = incoming;
+                          accessToken = nz(i.getStringExtra("access_token"));
+                          refreshToken = nz(i.getStringExtra("refresh_token"));
+                          clientName = nz(i.getStringExtra("client_name"));
+                          expiresAtMillis = parseTime(
+                                  i.getStringExtra("expires_at"));
 
-                      accessToken =
-                              nz(
-                                      i.getStringExtra(
-                                              "access_token"));
+                          saveActiveConfig();
+                          loaded = true;
+                      }
+                  }
 
-                      refreshToken =
-                              nz(
-                                      i.getStringExtra(
-                                              "refresh_token"));
+                  if (!loaded) {
+                      loaded = restoreActiveConfig();
+                  }
 
-                      clientName =
-                              nz(
-                                      i.getStringExtra(
-                                              "client_name"));
-
-                      expiresAtMillis =
-                              parseTime(
-                                      i.getStringExtra(
-                                              "expires_at"));
+                  if (!loaded || code.isEmpty()) {
+                      stopSelf();
+                      return START_NOT_STICKY;
                   }
 
                   Notification n =
-                          new Notification.Builder(
-                                  this,
-                                  CH)
+                          new Notification.Builder(this, CH)
                                   .setContentTitle(
                                           "piOca · Seguimiento GPS activo")
                                   .setContentText(
@@ -797,65 +729,86 @@ jobs:
                                   .setOnlyAlertOnce(true)
                                   .build();
 
-                  startForeground(
-                          1001,
-                          n);
-
+                  startForeground(1001, n);
                   startLocations();
 
-                  handler.removeCallbacks(
-                          heartbeat);
-
-                  handler.postDelayed(
-                          heartbeat,
-                          1000L);
+                  handler.removeCallbacks(heartbeat);
+                  handler.postDelayed(heartbeat, 1000L);
 
                   return START_STICKY;
               }
 
+              private void saveActiveConfig() {
+                  prefs.edit()
+                          .putBoolean("service_active", true)
+                          .putString("tracking_code", code)
+                          .putString("access_token", accessToken)
+                          .putString("refresh_token", refreshToken)
+                          .putString("client_name", clientName)
+                          .putLong("expires_at", expiresAtMillis)
+                          .apply();
+              }
+
+              private boolean restoreActiveConfig() {
+                  if (!prefs.getBoolean("service_active", false)) {
+                      return false;
+                  }
+
+                  code = norm(prefs.getString("tracking_code", ""));
+                  accessToken = nz(prefs.getString("access_token", ""));
+                  refreshToken = nz(prefs.getString("refresh_token", ""));
+                  clientName = nz(prefs.getString("client_name", ""));
+                  expiresAtMillis = prefs.getLong("expires_at", 0L);
+
+                  return !code.isEmpty();
+              }
+
+              private void clearActiveConfig() {
+                  prefs.edit()
+                          .putBoolean("service_active", false)
+                          .remove("tracking_code")
+                          .remove("access_token")
+                          .remove("refresh_token")
+                          .remove("client_name")
+                          .remove("expires_at")
+                          .apply();
+              }
+
               private void startLocations() {
 
-                  lm =
-                          (LocationManager)
-                                  getSystemService(
-                                          LOCATION_SERVICE);
+                  lm = (LocationManager)
+                          getSystemService(LOCATION_SERVICE);
 
                   if (checkSelfPermission(
                           Manifest.permission.ACCESS_FINE_LOCATION)
                           != PackageManager.PERMISSION_GRANTED) {
-
                       stopSelf();
                       return;
                   }
 
                   try {
-
                       lm.requestLocationUpdates(
                               LocationManager.GPS_PROVIDER,
                               5000L,
                               0f,
                               this,
                               Looper.getMainLooper());
-
                   } catch (Exception ignored) {
                   }
 
                   try {
-
                       lm.requestLocationUpdates(
                               LocationManager.NETWORK_PROVIDER,
                               10000L,
                               0f,
                               this,
                               Looper.getMainLooper());
-
                   } catch (Exception ignored) {
                   }
               }
 
               @Override
-              public void onLocationChanged(
-                      Location l) {
+              public void onLocationChanged(Location l) {
 
                   if (ending) {
                       return;
@@ -864,16 +817,12 @@ jobs:
                   last = l;
 
                   if (expiresAtMillis > 0
-                          && System.currentTimeMillis()
-                          >= expiresAtMillis) {
-
+                          && System.currentTimeMillis() >= expiresAtMillis) {
                       finishExpired();
                       return;
                   }
 
-                  if (System.currentTimeMillis()
-                          - lastOk >= 5000L) {
-
+                  if (System.currentTimeMillis() - lastOk >= 5000L) {
                       sendAsync(l);
                   }
               }
@@ -881,326 +830,248 @@ jobs:
               private void validateRemoteAsync() {
 
                   if (ending
-                          || code == null
                           || code.isEmpty()
-                          || accessToken == null
                           || accessToken.isEmpty()) {
-
                       return;
                   }
 
-                  if (!checking.compareAndSet(
-                          false,
-                          true)) {
-
+                  if (!checking.compareAndSet(false, true)) {
                       return;
                   }
 
-                  lastRemoteCheck =
-                          System.currentTimeMillis();
+                  lastRemoteCheck = System.currentTimeMillis();
 
                   new Thread(() -> {
-
                       try {
+                          RemoteResult r = loadRemoteState(accessToken);
 
-                          RemoteState state =
-                                  loadRemoteState(
-                                          accessToken);
-
-                          if (state == RemoteState.UNAUTHORIZED
+                          if (r.state == RemoteState.UNAUTHORIZED
                                   && refresh()) {
-
-                              state =
-                                      loadRemoteState(
-                                              accessToken);
+                              r = loadRemoteState(accessToken);
                           }
 
-                          if (state == RemoteState.FINISHED) {
+                          if (r.state == RemoteState.ACTIVE) {
+                              if (r.expiresAt > 0) {
+                                  expiresAtMillis = r.expiresAt;
+                                  saveActiveConfig();
+                              }
 
+                              if (r.clientName != null
+                                      && !r.clientName.trim().isEmpty()) {
+                                  clientName = r.clientName;
+                                  saveActiveConfig();
+                              }
+
+                          } else if (
+                                  r.state == RemoteState.FINISHED
+                                  || r.state == RemoteState.INVALID) {
                               finishExpired();
                           }
 
                       } finally {
-
                           checking.set(false);
                       }
-
                   }).start();
               }
 
-              private RemoteState loadRemoteState(
-                      String token) {
+              private RemoteResult loadRemoteState(String token) {
 
                   HttpURLConnection c = null;
 
                   try {
+                      URL url = new URL(
+                              BASE
+                              + "/rest/v1/rpc/get_tracking_runtime_state");
 
-                      String encodedCode =
-                              URLEncoder.encode(
-                                      code,
-                                      "UTF-8");
-
-                      URL url =
-                              new URL(
-                                      BASE
-                                      + "/rest/v1/services"
-                                      + "?select=status,expires_at"
-                                      + "&tracking_code=eq."
-                                      + encodedCode
-                                      + "&limit=1");
-
-                      c =
-                              (HttpURLConnection)
-                                      url.openConnection();
-
-                      c.setRequestMethod(
-                              "GET");
-
-                      c.setConnectTimeout(
-                              10000);
-
-                      c.setReadTimeout(
-                              10000);
-
-                      c.setRequestProperty(
-                              "apikey",
-                              KEY);
-
+                      c = (HttpURLConnection) url.openConnection();
+                      c.setRequestMethod("POST");
+                      c.setDoOutput(true);
+                      c.setConnectTimeout(10000);
+                      c.setReadTimeout(10000);
+                      c.setRequestProperty("apikey", KEY);
                       c.setRequestProperty(
                               "Authorization",
                               "Bearer " + token);
+                      c.setRequestProperty(
+                              "Content-Type",
+                              "application/json");
 
-                      int status =
-                              c.getResponseCode();
+                      JSONObject body = new JSONObject();
+                      body.put("p_code", code);
+
+                      try (OutputStream os = c.getOutputStream()) {
+                          os.write(
+                                  body.toString()
+                                          .getBytes(StandardCharsets.UTF_8));
+                      }
+
+                      int status = c.getResponseCode();
 
                       if (status == 401) {
-                          return RemoteState.UNAUTHORIZED;
+                          return new RemoteResult(
+                                  RemoteState.UNAUTHORIZED,
+                                  0L,
+                                  "");
                       }
 
-                      if (status < 200
-                              || status >= 300) {
-
-                          return RemoteState.UNKNOWN;
+                      if (status < 200 || status >= 300) {
+                          return new RemoteResult(
+                                  RemoteState.UNKNOWN,
+                                  0L,
+                                  "");
                       }
 
-                      String body =
-                              readBody(
-                                      c.getInputStream());
-
-                      JSONArray arr =
-                              new JSONArray(body);
+                      String raw = readBody(c.getInputStream());
+                      JSONArray arr = new JSONArray(raw);
 
                       if (arr.length() == 0) {
-                          return RemoteState.FINISHED;
+                          return new RemoteResult(
+                                  RemoteState.INVALID,
+                                  0L,
+                                  "");
                       }
 
-                      JSONObject row =
-                              arr.getJSONObject(0);
+                      JSONObject row = arr.getJSONObject(0);
+                      String state = row.optString("state", "");
+                      long exp = parseTime(row.optString("expires_at", ""));
+                      String name = row.optString("client_name", "");
 
-                      String remoteStatus =
-                              row.optString(
-                                      "status",
-                                      "");
-
-                      long remoteExpiry =
-                              parseTime(
-                                      row.optString(
-                                              "expires_at",
-                                              ""));
-
-                      if (!"active".equalsIgnoreCase(
-                              remoteStatus)) {
-
-                          return RemoteState.FINISHED;
+                      if ("active".equalsIgnoreCase(state)) {
+                          return new RemoteResult(
+                                  RemoteState.ACTIVE,
+                                  exp,
+                                  name);
                       }
 
-                      if (remoteExpiry > 0
-                              && System.currentTimeMillis()
-                              >= remoteExpiry) {
-
-                          return RemoteState.FINISHED;
+                      if ("finished".equalsIgnoreCase(state)) {
+                          return new RemoteResult(
+                                  RemoteState.FINISHED,
+                                  exp,
+                                  name);
                       }
 
-                      if (remoteExpiry > 0) {
-                          expiresAtMillis =
-                                  remoteExpiry;
-                      }
-
-                      return RemoteState.ACTIVE;
+                      return new RemoteResult(
+                              RemoteState.INVALID,
+                              exp,
+                              name);
 
                   } catch (Exception e) {
-
-                      return RemoteState.UNKNOWN;
+                      return new RemoteResult(
+                              RemoteState.UNKNOWN,
+                              0L,
+                              "");
 
                   } finally {
-
                       if (c != null) {
                           c.disconnect();
                       }
                   }
               }
 
-              private void sendAsync(
-                      Location l) {
+              private void sendAsync(Location l) {
 
                   if (ending
-                          || code == null
                           || code.isEmpty()
-                          || accessToken == null
                           || accessToken.isEmpty()) {
-
                       return;
                   }
 
-                  if (!sending.compareAndSet(
-                          false,
-                          true)) {
-
+                  if (!sending.compareAndSet(false, true)) {
                       return;
                   }
 
                   new Thread(() -> {
-
                       try {
+                          SendResult r = send(l, accessToken);
 
-                          int r =
-                                  send(
-                                          l,
-                                          accessToken);
-
-                          if (r == 401
-                                  && refresh()) {
-
-                              r =
-                                      send(
-                                              l,
-                                              accessToken);
+                          if (r.status == 401 && refresh()) {
+                              r = send(l, accessToken);
                           }
 
-                          if (r >= 200
-                                  && r < 300) {
-
-                              lastOk =
-                                      System.currentTimeMillis();
+                          if (r.ok) {
+                              lastOk = System.currentTimeMillis();
 
                           } else if (
-                                  r == 400
-                                  || r == 403
-                                  || r == 404) {
-
+                                  r.status == 400
+                                  || r.status == 403
+                                  || r.status == 404
+                                  || r.explicitFalse) {
                               validateRemoteAsync();
                           }
 
                       } finally {
-
                           sending.set(false);
                       }
-
                   }).start();
               }
 
-              private int send(
-                      Location l,
-                      String token) {
+              private SendResult send(Location l, String token) {
 
                   HttpURLConnection c = null;
 
                   try {
-
-                      c =
-                              (HttpURLConnection)
-                                      new URL(
-                                              BASE
-                                              + "/rest/v1/rpc/"
-                                              + "push_tracking_position")
+                      c = (HttpURLConnection)
+                              new URL(
+                                      BASE
+                                      + "/rest/v1/rpc/push_tracking_position")
                                       .openConnection();
 
-                      c.setRequestMethod(
-                              "POST");
-
-                      c.setDoOutput(
-                              true);
-
-                      c.setConnectTimeout(
-                              10000);
-
-                      c.setReadTimeout(
-                              10000);
-
-                      c.setRequestProperty(
-                              "apikey",
-                              KEY);
-
+                      c.setRequestMethod("POST");
+                      c.setDoOutput(true);
+                      c.setConnectTimeout(10000);
+                      c.setReadTimeout(10000);
+                      c.setRequestProperty("apikey", KEY);
                       c.setRequestProperty(
                               "Authorization",
                               "Bearer " + token);
-
                       c.setRequestProperty(
                               "Content-Type",
                               "application/json");
 
-                      JSONObject b =
-                              new JSONObject();
+                      JSONObject b = new JSONObject();
+                      b.put("p_code", code);
+                      b.put("p_lat", l.getLatitude());
+                      b.put("p_lon", l.getLongitude());
+                      b.put("p_accuracy", l.getAccuracy());
 
-                      b.put(
-                              "p_code",
-                              code);
-
-                      b.put(
-                              "p_lat",
-                              l.getLatitude());
-
-                      b.put(
-                              "p_lon",
-                              l.getLongitude());
-
-                      b.put(
-                              "p_accuracy",
-                              l.getAccuracy());
-
-                      try (
-                              OutputStream os =
-                                      c.getOutputStream()) {
-
+                      try (OutputStream os = c.getOutputStream()) {
                           os.write(
                                   b.toString()
-                                          .getBytes(
-                                                  StandardCharsets.UTF_8));
+                                          .getBytes(StandardCharsets.UTF_8));
                       }
 
-                      int status =
-                              c.getResponseCode();
+                      int status = c.getResponseCode();
+                      String body = readBody(
+                              status >= 400
+                                      ? c.getErrorStream()
+                                      : c.getInputStream());
 
-                      String body =
-                              readBody(
-                                      status >= 400
-                                              ? c.getErrorStream()
-                                              : c.getInputStream());
+                      boolean explicitFalse = false;
 
-                      if (status >= 200
-                              && status < 300) {
+                      if (status >= 200 && status < 300) {
+                          String t = body == null
+                                  ? ""
+                                  : body.trim().toLowerCase();
 
-                          String t =
-                                  body == null
-                                          ? ""
-                                          : body.trim()
-                                                  .toLowerCase();
+                          explicitFalse =
+                                  "false".equals(t)
+                                  || "null".equals(t);
 
-                          if ("false".equals(t)
-                                  || "null".equals(t)) {
-
-                              validateRemoteAsync();
-                          }
+                          return new SendResult(
+                                  !explicitFalse,
+                                  status,
+                                  explicitFalse);
                       }
 
-                      return status;
+                      return new SendResult(
+                              false,
+                              status,
+                              false);
 
                   } catch (Exception e) {
-
-                      return 0;
+                      return new SendResult(false, 0, false);
 
                   } finally {
-
                       if (c != null) {
                           c.disconnect();
                       }
@@ -1209,91 +1080,62 @@ jobs:
 
               private boolean refresh() {
 
-                  if (refreshToken == null
-                          || refreshToken.isEmpty()) {
-
+                  if (refreshToken.isEmpty()) {
                       return false;
                   }
 
                   HttpURLConnection c = null;
 
                   try {
-
-                      c =
-                              (HttpURLConnection)
-                                      new URL(
-                                              BASE
-                                              + "/auth/v1/token"
-                                              + "?grant_type=refresh_token")
+                      c = (HttpURLConnection)
+                              new URL(
+                                      BASE
+                                      + "/auth/v1/token?grant_type=refresh_token")
                                       .openConnection();
 
-                      c.setRequestMethod(
-                              "POST");
-
-                      c.setDoOutput(
-                              true);
-
-                      c.setConnectTimeout(
-                              10000);
-
-                      c.setReadTimeout(
-                              10000);
-
-                      c.setRequestProperty(
-                              "apikey",
-                              KEY);
-
+                      c.setRequestMethod("POST");
+                      c.setDoOutput(true);
+                      c.setConnectTimeout(10000);
+                      c.setReadTimeout(10000);
+                      c.setRequestProperty("apikey", KEY);
                       c.setRequestProperty(
                               "Content-Type",
                               "application/json");
 
-                      JSONObject b =
-                              new JSONObject();
+                      JSONObject b = new JSONObject();
+                      b.put("refresh_token", refreshToken);
 
-                      b.put(
-                              "refresh_token",
-                              refreshToken);
-
-                      try (
-                              OutputStream os =
-                                      c.getOutputStream()) {
-
+                      try (OutputStream os = c.getOutputStream()) {
                           os.write(
                                   b.toString()
-                                          .getBytes(
-                                                  StandardCharsets.UTF_8));
+                                          .getBytes(StandardCharsets.UTF_8));
                       }
 
-                      if (c.getResponseCode() < 200
-                              || c.getResponseCode() >= 300) {
+                      int status = c.getResponseCode();
 
+                      if (status < 200 || status >= 300) {
                           return false;
                       }
 
-                      JSONObject r =
-                              new JSONObject(
-                                      readBody(
-                                              c.getInputStream()));
+                      JSONObject r = new JSONObject(
+                              readBody(c.getInputStream()));
 
-                      accessToken =
-                              r.optString(
-                                      "access_token",
-                                      accessToken);
+                      accessToken = r.optString(
+                              "access_token",
+                              accessToken);
 
-                      refreshToken =
-                              r.optString(
-                                      "refresh_token",
-                                      refreshToken);
+                      refreshToken = r.optString(
+                              "refresh_token",
+                              refreshToken);
 
-                      return accessToken != null
-                              && !accessToken.isEmpty();
+                      saveActiveConfig();
+
+                      return !accessToken.isEmpty();
 
                   } catch (Exception e) {
-
                       return false;
 
                   } finally {
-
                       if (c != null) {
                           c.disconnect();
                       }
@@ -1307,23 +1149,16 @@ jobs:
                   }
 
                   ending = true;
-
-                  handler.removeCallbacks(
-                          heartbeat);
+                  handler.removeCallbacks(heartbeat);
 
                   if (lm != null) {
-
                       try {
-                          lm.removeUpdates(
-                                  this);
+                          lm.removeUpdates(this);
                       } catch (Exception ignored) {
                       }
                   }
 
-                  SharedPreferences prefs =
-                          getSharedPreferences(
-                                  "pioca_tracking",
-                                  MODE_PRIVATE);
+                  clearActiveConfig();
 
                   prefs.edit()
                           .putBoolean(
@@ -1337,86 +1172,59 @@ jobs:
                           .apply();
 
                   try {
-
-                      stopForeground(
-                              STOP_FOREGROUND_REMOVE);
-
+                      stopForeground(STOP_FOREGROUND_REMOVE);
                   } catch (Exception ignored) {
                   }
 
                   stopSelf();
               }
 
-              private static long parseTime(
-                      String value) {
-
-                  if (value == null
-                          || value.trim().isEmpty()) {
-
+              private static long parseTime(String value) {
+                  if (value == null || value.trim().isEmpty()) {
                       return 0L;
                   }
 
                   try {
-
-                      return Instant.parse(
-                              value.trim())
-                              .toEpochMilli();
-
+                      return Instant.parse(value.trim()).toEpochMilli();
                   } catch (Exception e) {
-
                       return 0L;
                   }
               }
 
-              private static String readBody(
-                      InputStream in)
+              private static String readBody(InputStream in)
                       throws Exception {
 
                   if (in == null) {
                       return "";
                   }
 
-                  StringBuilder sb =
-                          new StringBuilder();
-
+                  StringBuilder sb = new StringBuilder();
                   int x;
 
                   while ((x = in.read()) != -1) {
-                      sb.append(
-                              (char)x);
+                      sb.append((char)x);
                   }
 
                   return sb.toString();
               }
 
-              private static String norm(
-                      String s) {
-
+              private static String norm(String s) {
                   return s == null
                           ? ""
-                          : s.trim()
-                                  .toUpperCase();
+                          : s.trim().toUpperCase();
               }
 
-              private static String nz(
-                      String s) {
-
-                  return s == null
-                          ? ""
-                          : s;
+              private static String nz(String s) {
+                  return s == null ? "" : s;
               }
 
               @Override
               public void onDestroy() {
-
-                  handler.removeCallbacks(
-                          heartbeat);
+                  handler.removeCallbacks(heartbeat);
 
                   if (lm != null) {
-
                       try {
-                          lm.removeUpdates(
-                                  this);
+                          lm.removeUpdates(this);
                       } catch (Exception ignored) {
                       }
                   }
@@ -1425,17 +1233,46 @@ jobs:
               }
 
               @Override
-              public IBinder onBind(
-                      Intent i) {
-
+              public IBinder onBind(Intent i) {
                   return null;
               }
 
               private enum RemoteState {
                   ACTIVE,
                   FINISHED,
+                  INVALID,
                   UNAUTHORIZED,
                   UNKNOWN
+              }
+
+              private static class RemoteResult {
+                  final RemoteState state;
+                  final long expiresAt;
+                  final String clientName;
+
+                  RemoteResult(
+                          RemoteState state,
+                          long expiresAt,
+                          String clientName) {
+                      this.state = state;
+                      this.expiresAt = expiresAt;
+                      this.clientName = clientName;
+                  }
+              }
+
+              private static class SendResult {
+                  final boolean ok;
+                  final int status;
+                  final boolean explicitFalse;
+
+                  SendResult(
+                          boolean ok,
+                          int status,
+                          boolean explicitFalse) {
+                      this.ok = ok;
+                      this.status = status;
+                      this.explicitFalse = explicitFalse;
+                  }
               }
           }
           EOF
@@ -1445,11 +1282,11 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Preparar APK
-        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-v4-icono.apk
+        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-v5.apk
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK-v4-icono
-          path: piOca-Seguimiento-v4-icono.apk
+          name: piOca-Seguimiento-APK-v5
+          path: piOca-Seguimiento-v5.apk
           retention-days: 90
