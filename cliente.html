@@ -12,90 +12,145 @@
 
   <title>piOca® Seguimiento de Visita</title>
 
+
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   >
 
+
   <style>
 
     html,
     body{
+
       margin:0;
       padding:0;
-      font-family:Arial,sans-serif;
+
+      font-family:
+        Arial,
+        sans-serif;
+
       background:#fff;
+
     }
+
 
     body{
+
       padding:18px;
-      box-sizing:border-box;
+
+      box-sizing:
+        border-box;
+
     }
+
 
     .panel{
+
       max-width:620px;
+
       margin:0 auto;
+
       background:#fff;
+
     }
+
 
     .titulo{
+
       text-align:center;
+
       font-size:25px;
+
       font-weight:700;
+
       margin-bottom:5px;
+
     }
+
 
     .subtitulo{
+
       text-align:center;
+
       font-size:16px;
+
       color:#444;
+
       margin-bottom:18px;
+
     }
+
 
     #estado{
-      padding:13px 10px;
-      background:#eee;
+
+      padding:14px 10px;
+
+      background:#eeeeee;
+
       border-radius:9px;
+
       text-align:center;
+
       font-size:15px;
+
       font-weight:700;
+
       margin-bottom:14px;
+
     }
+
 
     #mapa{
-      width:100%;
-      height:420px;
-      border-radius:14px;
-      overflow:hidden;
-      border:1px solid #d7d7d7;
-      box-sizing:border-box;
-    }
 
-    .ultima{
-      text-align:center;
-      margin-top:13px;
-      font-size:14px;
-      color:#555;
-    }
-
-    #error{
       display:none;
-      margin-top:15px;
-      padding:12px;
-      background:#fff1f1;
-      border:1px solid #e4aaaa;
-      border-radius:8px;
-      font-size:13px;
+
+      width:100%;
+
+      height:420px;
+
+      border-radius:14px;
+
+      overflow:hidden;
+
+      border:1px solid #d7d7d7;
+
+      box-sizing:border-box;
+
     }
 
-    @media(max-width:600px){
+
+    #ultima{
+
+      display:none;
+
+      text-align:center;
+
+      margin-top:13px;
+
+      font-size:14px;
+
+      color:#555;
+
+    }
+
+
+    @media(
+      max-width:600px
+    ){
 
       body{
+
         padding:10px;
+
       }
 
+
       #mapa{
+
         height:430px;
+
       }
 
     }
@@ -110,26 +165,35 @@
 
 <div class="panel">
 
+
   <div class="titulo">
     piOca®
   </div>
+
 
   <div class="subtitulo">
     SEGUIMIENTO DE VISITA
   </div>
 
+
   <div id="estado">
-    Verificando seguimiento...
+    Seguimiento no disponible
   </div>
+
 
   <div id="mapa"></div>
 
-  <div class="ultima">
+
+  <div id="ultima">
+
     Última actualización:
-    <strong id="hora">-</strong>
+
+    <strong id="hora">
+      -
+    </strong>
+
   </div>
 
-  <div id="error"></div>
 
 </div>
 
@@ -143,118 +207,103 @@
 
 (function(){
 
-  var SUPABASE_URL =
+
+  const SUPABASE_URL =
     "https://apxrmkdegjnblkbyjsbp.supabase.co";
 
-  var SUPABASE_KEY =
+
+  const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
 
-  var parametros =
+  const estado =
+    document.getElementById(
+      "estado"
+    );
+
+
+  const mapaDiv =
+    document.getElementById(
+      "mapa"
+    );
+
+
+  const ultimaDiv =
+    document.getElementById(
+      "ultima"
+    );
+
+
+  const hora =
+    document.getElementById(
+      "hora"
+    );
+
+
+  const parametros =
     new URLSearchParams(
       window.location.search
     );
 
 
-  var trackingCode =
-    parametros.get("id");
-
-
-  if(trackingCode){
-
-    trackingCode =
-      trackingCode
-      .trim()
-      .toUpperCase();
-
-  }
-
-
-  var estado =
-    document.getElementById("estado");
-
-  var hora =
-    document.getElementById("hora");
-
-  var errorBox =
-    document.getElementById("error");
-
-
-  var mapa =
-    L.map(
-      "mapa",
-      {
-        zoomControl:true
-      }
-    )
-    .setView(
-      [-34.5146, -58.5796],
-      16
+  let codigo =
+    parametros.get(
+      "id"
     );
 
 
-  L.tileLayer(
-
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-
-    {
-      maxZoom:19,
-
-      attribution:
-        '&copy; OpenStreetMap contributors'
-    }
-
-  ).addTo(mapa);
+  let mapa =
+    null;
 
 
-  var marcador = null;
-  var primeraPosicion = true;
-  var seguimientoValido = false;
+  let marcador =
+    null;
 
 
-  function mostrarError(texto){
+  /*
+    ------------------------------------------------------
+    ESTADO NEUTRO
 
-    errorBox.innerHTML =
-      texto;
+    Misma respuesta para:
+    - sin código
+    - código falso
+    - código vencido
+    - código finalizado
+    ------------------------------------------------------
+  */
 
-    errorBox.style.display =
-      "block";
-
-  }
-
-
-  function ocultarError(){
-
-    errorBox.innerHTML =
-      "";
-
-    errorBox.style.display =
-      "none";
-
-  }
+  function ocultarTodo(){
 
 
-  function seguimientoFinalizado(){
-
-    seguimientoValido =
-      false;
-
-    estado.innerHTML =
+    estado.textContent =
       "Seguimiento no disponible";
+
 
     estado.style.background =
       "#eeeeee";
 
-    hora.innerHTML =
+
+    mapaDiv.style.display =
+      "none";
+
+
+    ultimaDiv.style.display =
+      "none";
+
+
+    hora.textContent =
       "-";
 
-    ocultarError();
 
-    if(marcador){
+    if(
+      mapa &&
+      marcador
+    ){
 
       mapa.removeLayer(
         marcador
       );
+
 
       marcador =
         null;
@@ -264,288 +313,322 @@
   }
 
 
-  function verificarSeguimiento(){
+  /*
+    ------------------------------------------------------
+    MAPA
 
-    if(!trackingCode){
+    Sólo se crea cuando Supabase
+    ya confirmó seguimiento válido.
+    ------------------------------------------------------
+  */
 
-      seguimientoFinalizado();
+  function crearMapa(
+    lat,
+    lon
+  ){
 
-      mostrarError(
-        "Código de seguimiento inexistente."
-      );
 
-      return Promise.resolve(
-        false
+    mapaDiv.style.display =
+      "block";
+
+
+    ultimaDiv.style.display =
+      "block";
+
+
+    if(!mapa){
+
+
+      mapa =
+
+        L.map(
+          "mapa",
+          {
+            zoomControl:true
+          }
+        )
+
+        .setView(
+          [lat,lon],
+          16
+        );
+
+
+      L.tileLayer(
+
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+        {
+
+          maxZoom:19,
+
+          attribution:
+            '&copy; OpenStreetMap contributors'
+
+        }
+
+      )
+
+      .addTo(
+        mapa
       );
 
     }
 
-
-    var consulta =
-
-      SUPABASE_URL +
-
-      "/rest/v1/tracking_public" +
-
-      "?select=tracking_code,status,expires_at" +
-
-      "&tracking_code=eq." +
-
-      encodeURIComponent(
-        trackingCode
-      ) +
-
-      "&limit=1";
+  }
 
 
-    return fetch(
-
-      consulta,
-
-      {
-
-        method:"GET",
-
-        headers:{
-          "apikey":
-            SUPABASE_KEY
-        }
-
-      }
-
-    )
+  function actualizarMarcador(
+    lat,
+    lon
+  ){
 
 
-    .then(function(respuesta){
-
-      if(!respuesta.ok){
-
-        throw new Error(
-          "No se pudo validar el seguimiento."
-        );
-
-      }
-
-      return respuesta.json();
-
-    })
+    crearMapa(
+      lat,
+      lon
+    );
 
 
-    .then(function(datos){
-
-      if(
-        !datos ||
-        datos.length === 0
-      ){
-
-        seguimientoFinalizado();
-
-        return false;
-
-      }
+    if(!marcador){
 
 
-      var seguimiento =
-        datos[0];
+      marcador =
 
+        L.marker(
+          [lat,lon]
+        )
 
-      var vencimiento =
-        new Date(
-          seguimiento.expires_at
+        .addTo(
+          mapa
+        )
+
+        .bindPopup(
+
+          "<strong>piOca®</strong><br>Técnico en camino"
+
         );
 
 
-      var vencido =
-        Date.now() >=
-        vencimiento.getTime();
+      marcador.openPopup();
 
 
-      if(
-        seguimiento.status !== "active" ||
-        vencido
-      ){
-
-        seguimientoFinalizado();
-
-        return false;
-
-      }
+    }else{
 
 
-      seguimientoValido =
-        true;
-
-      ocultarError();
-
-      return true;
-
-    })
-
-
-    .catch(function(error){
-
-      seguimientoValido =
-        false;
-
-      estado.innerHTML =
-        "Ubicación momentáneamente no disponible";
-
-      estado.style.background =
-        "#ffe0e0";
-
-      mostrarError(
-        error.message
+      marcador.setLatLng(
+        [lat,lon]
       );
 
-      return false;
-
-    });
+    }
 
   }
 
 
-  function cargarPosicion(){
+  /*
+    ------------------------------------------------------
+    CONSULTA SEGURA
 
-    if(
-      !seguimientoValido ||
-      !trackingCode
-    ){
+    cliente.html NO consulta tablas.
+
+    Sólo llama a una función
+    controlada de Supabase.
+    ------------------------------------------------------
+  */
+
+  async function consultar(){
+
+
+    if(!codigo){
+
+
+      ocultarTodo();
 
       return;
 
     }
 
 
-    var consulta =
+    codigo =
 
-      SUPABASE_URL +
-
-      "/rest/v1/gps_test" +
-
-      "?select=latitude,longitude,accuracy,created_at" +
-
-      "&tracking_code=eq." +
-
-      encodeURIComponent(
-        trackingCode
-      ) +
-
-      "&order=created_at.desc" +
-
-      "&limit=1";
+      codigo
+      .trim()
+      .toUpperCase();
 
 
-    fetch(
+    /*
+      Una longitud absurda tampoco
+      merece siquiera consulta.
+    */
 
-      consulta,
+    if(
+      codigo.length < 8 ||
+      codigo.length > 32
+    ){
 
-      {
+      ocultarTodo();
 
-        method:"GET",
+      return;
 
-        headers:{
-          "apikey":
-            SUPABASE_KEY
-        }
-
-      }
-
-    )
+    }
 
 
-    .then(function(respuesta){
+    try{
 
-      if(!respuesta.ok){
 
-        throw new Error(
-          "Supabase respondió " +
-          respuesta.status
+      const respuesta =
+
+        await fetch(
+
+          SUPABASE_URL +
+
+          "/rest/v1/rpc/get_tracking_snapshot",
+
+          {
+
+            method:
+              "POST",
+
+            headers:{
+
+              "apikey":
+                SUPABASE_KEY,
+
+              "Content-Type":
+                "application/json"
+
+            },
+
+            body:
+              JSON.stringify({
+
+                p_code:
+                  codigo
+
+              })
+
+          }
+
         );
 
-      }
-
-      return respuesta.json();
-
-    })
-
-
-    .then(function(datos){
 
       if(
-        !datos ||
-        datos.length === 0
+        !respuesta.ok
       ){
 
-        estado.innerHTML =
-          "Esperando ubicación del técnico...";
-
-        estado.style.background =
-          "#fff3cd";
+        ocultarTodo();
 
         return;
 
       }
 
 
-      var p =
+      const datos =
+        await respuesta.json();
+
+
+      /*
+        Vacío significa:
+
+        - inexistente
+        - finalizado
+        - vencido
+
+        Todos reciben exactamente
+        la misma pantalla.
+      */
+
+      if(
+        !Array.isArray(
+          datos
+        ) ||
+
+        datos.length === 0
+      ){
+
+        ocultarTodo();
+
+        return;
+
+      }
+
+
+      const p =
         datos[0];
 
 
-      var lat =
+      /*
+        El seguimiento es válido,
+        pero todavía no llegó
+        la primera posición GPS.
+      */
+
+      if(
+        p.latitude === null ||
+        p.longitude === null
+      ){
+
+
+        estado.textContent =
+          "Esperando ubicación del técnico...";
+
+
+        estado.style.background =
+          "#fff3cd";
+
+
+        mapaDiv.style.display =
+          "none";
+
+
+        ultimaDiv.style.display =
+          "none";
+
+
+        return;
+
+      }
+
+
+      const lat =
         Number(
           p.latitude
         );
 
 
-      var lon =
+      const lon =
         Number(
           p.longitude
         );
 
 
-      if(!marcador){
-
-        marcador =
-
-          L.marker(
-            [lat,lon]
-          )
-
-          .addTo(
-            mapa
-          )
-
-          .bindPopup(
-            "<strong>piOca®</strong><br>Técnico en camino"
-          );
-
-      }else{
-
-        marcador.setLatLng(
-          [lat,lon]
-        );
-
-      }
-
-
       if(
-        primeraPosicion
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon)
       ){
 
-        mapa.setView(
-          [lat,lon],
-          16
-        );
+        ocultarTodo();
 
-        marcador.openPopup();
-
-        primeraPosicion =
-          false;
+        return;
 
       }
 
 
-      hora.innerHTML =
+      actualizarMarcador(
+        lat,
+        lon
+      );
+
+
+      estado.textContent =
+        "🟢 Técnico en camino";
+
+
+      estado.style.background =
+        "#dff5e1";
+
+
+      hora.textContent =
 
         new Date(
           p.created_at
@@ -556,60 +639,46 @@
         );
 
 
-      estado.innerHTML =
-        "🟢 Técnico en camino";
+    }
+
+    catch(error){
 
 
-      estado.style.background =
-        "#dff5e1";
+      /*
+        Tampoco mostramos
+        mensajes técnicos al público.
+      */
 
+      ocultarTodo();
 
-      ocultarError();
-
-    })
-
-
-    .catch(function(error){
-
-      estado.innerHTML =
-        "Ubicación momentáneamente no disponible";
-
-      estado.style.background =
-        "#ffe0e0";
-
-      mostrarError(
-        error.message
-      );
-
-    });
+    }
 
   }
 
 
-  function actualizar(){
+  /*
+    Sin ID no hacemos
+    absolutamente ninguna consulta.
+  */
 
-    verificarSeguimiento()
+  if(!codigo){
 
-    .then(function(ok){
 
-      if(ok){
+    ocultarTodo();
 
-        cargarPosicion();
 
-      }
+  }else{
 
-    });
+
+    consultar();
+
+
+    setInterval(
+      consultar,
+      3000
+    );
 
   }
-
-
-  actualizar();
-
-
-  setInterval(
-    actualizar,
-    3000
-  );
 
 
 })();
