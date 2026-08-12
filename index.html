@@ -247,6 +247,7 @@
     </div>
 
     <div class="datos">
+
       <div>
         <strong>Cliente:</strong>
         <span id="clienteTxt">-</span>
@@ -281,9 +282,11 @@
         <strong>Envíos:</strong>
         <span id="gpsEnvios">0</span>
       </div>
+
     </div>
 
     <div id="horaClienteBox">
+
       <div class="horaClienteTitulo">
         EL CLIENTE ESTÁ VIENDO
       </div>
@@ -297,6 +300,7 @@
       </div>
 
       <div id="controlesHora">
+
         <button
           id="btnRestar5"
           type="button">
@@ -308,9 +312,11 @@
           type="button">
           + 5 min
         </button>
+
       </div>
 
       <div id="horaEstado"></div>
+
     </div>
 
     <button
@@ -332,6 +338,7 @@
     </button>
 
     <div id="gpsError"></div>
+
   </div>
 
 </div>
@@ -450,190 +457,442 @@
   function mostrarEstadoHora(texto,ok){
     horaEstado.textContent = texto;
     horaEstado.style.display = "block";
-    horaEstado.style.color = ok ? "#2d7a38" : "#b00020";
+    horaEstado.style.color =
+      ok
+        ? "#2d7a38"
+        : "#b00020";
   }
 
   function negarAcceso(){
-    bloqueGPS.style.display = "none";
-    bloqueFinalizado.style.display = "none";
-    bloqueDenegado.style.display = "block";
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueFinalizado.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "block";
   }
 
   function limpiarEstadoLocal(){
-    localStorage.removeItem("pioca_tracking_code");
-    localStorage.removeItem("pioca_tracking_active");
-    localStorage.removeItem("pioca_tracking_expires_at");
-    localStorage.removeItem("pioca_client_name");
-    localStorage.removeItem("pioca_client_phone");
-    localStorage.removeItem("pioca_client_link");
-    localStorage.removeItem("pioca_additional_info");
+
+    localStorage.removeItem(
+      "pioca_tracking_code"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_active"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_expires_at"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_name"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_phone"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_link"
+    );
+
+    localStorage.removeItem(
+      "pioca_additional_info"
+    );
   }
 
   function detenerNativo(){
+
     if(
       window.PiocaNative &&
-      typeof window.PiocaNative.stopTracking === "function"
+      typeof window.PiocaNative.stopTracking ===
+        "function"
     ){
+
       try{
-        window.PiocaNative.stopTracking();
+
+        window.PiocaNative
+        .stopTracking();
+
       }catch(e){}
     }
   }
 
   function detenerRelojes(){
-    if(syncId !== null){
-      clearInterval(syncId);
+
+    if(
+      syncId !== null
+    ){
+
+      clearInterval(
+        syncId
+      );
+
       syncId = null;
     }
 
-    if(heartbeatId !== null){
-      clearInterval(heartbeatId);
+    if(
+      heartbeatId !== null
+    ){
+
+      clearInterval(
+        heartbeatId
+      );
+
       heartbeatId = null;
     }
   }
 
-  function mostrarFinalizado(nombre){
-    if(seguimientoFinalizado){
-      return;
-    }
+  function mostrarFinalizado(
+    nombre
+  ){
 
-    seguimientoFinalizado = true;
-
-    if(watchId !== null){
-      try{
-        navigator.geolocation.clearWatch(watchId);
-      }catch(e){}
-      watchId = null;
-    }
-
-    detenerRelojes();
-    detenerNativo();
-    limpiarEstadoLocal();
-
-    bloqueGPS.style.display = "none";
-    bloqueDenegado.style.display = "none";
-    bloqueFinalizado.style.display = "block";
-
-    finalizadoTexto.textContent =
-      (nombre ? "El seguimiento de " + nombre + " ha finalizado. " : "El seguimiento ha finalizado. ") +
-      "El cliente ya no puede ver la ubicación de la camioneta.";
-  }
-
-  function formatearHora(fechaMs){
-    if(!fechaMs || !Number.isFinite(fechaMs)){
-      return "--:--";
-    }
-
-    return new Date(fechaMs)
-      .toLocaleTimeString(
-        "es-AR",
-        {
-          hour:"2-digit",
-          minute:"2-digit",
-          hour12:false
-        }
-      );
-  }
-
-  function formatearFechaHora(valor){
-    if(!valor){
-      return "-";
-    }
-
-    const d = new Date(valor);
-
-    if(!Number.isFinite(d.getTime())){
-      return "-";
-    }
-
-    return d.toLocaleTimeString("es-AR");
-  }
-
-  function pintarHoraCliente(){
-    horaCliente.textContent =
-      formatearHora(llegadaClienteMs);
-  }
-
-  function guardarServidorEnLocal(s){
-    trackingCode = String(s.tracking_code || "")
-      .trim()
-      .toUpperCase();
-
-    serviceId = s.id || serviceId;
-    nombreCliente = s.client_name || "";
-    telefonoCliente = s.client_phone || "";
-    informacionAdicional = s.additional_info || "";
-
-    linkCliente =
-      "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
-      encodeURIComponent(trackingCode);
-
-    localStorage.setItem("pioca_tracking_code",trackingCode);
-    localStorage.setItem("pioca_tracking_active","1");
-    localStorage.setItem("pioca_tracking_expires_at",s.expires_at || "");
-    localStorage.setItem("pioca_client_name",nombreCliente);
-    localStorage.setItem("pioca_client_phone",telefonoCliente);
-    localStorage.setItem("pioca_client_link",linkCliente);
-    localStorage.setItem("pioca_additional_info",informacionAdicional);
-
-    clienteTxt.textContent = nombreCliente || "-";
-    trackingBox.textContent = "Seguimiento: " + trackingCode;
-
-    if(s.client_arrival){
-      llegadaClienteMs = new Date(s.client_arrival).getTime();
-      pintarHoraCliente();
-    }
-
-    if(s.latitude !== null && s.latitude !== undefined){
-      lat.textContent = Number(s.latitude).toFixed(6);
-    }
-
-    if(s.longitude !== null && s.longitude !== undefined){
-      lon.textContent = Number(s.longitude).toFixed(6);
-    }
-
-    if(s.accuracy !== null && s.accuracy !== undefined){
-      acc.textContent = Math.round(Number(s.accuracy)) + " metros";
-    }
-
-    if(s.last_position_at){
-      hora.textContent = formatearFechaHora(s.last_position_at);
-    }
-  }
-
-  async function iniciarNativoConServidor(s){
     if(
-      !window.PiocaNative ||
-      typeof window.PiocaNative.startTracking !== "function"
+      seguimientoFinalizado
     ){
       return;
     }
 
-    try{
-      const {data} =
-        await supabaseClient.auth.getSession();
+    seguimientoFinalizado =
+      true;
 
-      if(data && data.session){
-        window.PiocaNative.startTracking(
+    if(
+      watchId !== null
+    ){
+
+      try{
+
+        navigator.geolocation
+        .clearWatch(
+          watchId
+        );
+
+      }catch(e){}
+
+      watchId =
+        null;
+    }
+
+    detenerRelojes();
+
+    detenerNativo();
+
+    limpiarEstadoLocal();
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "none";
+
+    bloqueFinalizado.style.display =
+      "block";
+
+    finalizadoTexto.textContent =
+
+      (
+        nombre
+          ? "El seguimiento de " +
+            nombre +
+            " ha finalizado. "
+          : "El seguimiento ha finalizado. "
+      ) +
+
+      "El cliente ya no puede ver la ubicación de la camioneta.";
+  }
+
+  function formatearHora(
+    fechaMs
+  ){
+
+    if(
+      !fechaMs ||
+      !Number.isFinite(
+        fechaMs
+      )
+    ){
+
+      return "--:--";
+    }
+
+    return new Date(
+      fechaMs
+    )
+    .toLocaleTimeString(
+      "es-AR",
+      {
+        hour:"2-digit",
+        minute:"2-digit",
+        hour12:false
+      }
+    );
+  }
+
+  function formatearFechaHora(
+    valor
+  ){
+
+    if(
+      !valor
+    ){
+
+      return "-";
+    }
+
+    const d =
+      new Date(
+        valor
+      );
+
+    if(
+      !Number.isFinite(
+        d.getTime()
+      )
+    ){
+
+      return "-";
+    }
+
+    return d.toLocaleTimeString(
+      "es-AR"
+    );
+  }
+
+  function pintarHoraCliente(){
+
+    horaCliente.textContent =
+      formatearHora(
+        llegadaClienteMs
+      );
+  }
+
+  function guardarServidorEnLocal(
+    s
+  ){
+
+    trackingCode =
+      String(
+        s.tracking_code || ""
+      )
+      .trim()
+      .toUpperCase();
+
+    serviceId =
+      s.id ||
+      serviceId;
+
+    nombreCliente =
+      s.client_name ||
+      "";
+
+    telefonoCliente =
+      s.client_phone ||
+      "";
+
+    informacionAdicional =
+      s.additional_info ||
+      "";
+
+    linkCliente =
+
+      "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
+
+      encodeURIComponent(
+        trackingCode
+      );
+
+    localStorage.setItem(
+      "pioca_tracking_code",
+      trackingCode
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_active",
+      "1"
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_expires_at",
+      s.expires_at ||
+      ""
+    );
+
+    localStorage.setItem(
+      "pioca_client_name",
+      nombreCliente
+    );
+
+    localStorage.setItem(
+      "pioca_client_phone",
+      telefonoCliente
+    );
+
+    localStorage.setItem(
+      "pioca_client_link",
+      linkCliente
+    );
+
+    localStorage.setItem(
+      "pioca_additional_info",
+      informacionAdicional
+    );
+
+    clienteTxt.textContent =
+      nombreCliente ||
+      "-";
+
+    trackingBox.textContent =
+      "Seguimiento: " +
+      trackingCode;
+
+    if(
+      s.client_arrival
+    ){
+
+      llegadaClienteMs =
+        new Date(
+          s.client_arrival
+        )
+        .getTime();
+
+      pintarHoraCliente();
+    }
+
+    if(
+      s.latitude !== null &&
+      s.latitude !== undefined
+    ){
+
+      lat.textContent =
+        Number(
+          s.latitude
+        )
+        .toFixed(
+          6
+        );
+    }
+
+    if(
+      s.longitude !== null &&
+      s.longitude !== undefined
+    ){
+
+      lon.textContent =
+        Number(
+          s.longitude
+        )
+        .toFixed(
+          6
+        );
+    }
+
+    if(
+      s.accuracy !== null &&
+      s.accuracy !== undefined
+    ){
+
+      acc.textContent =
+
+        Math.round(
+          Number(
+            s.accuracy
+          )
+        ) +
+
+        " metros";
+    }
+
+    if(
+      s.last_position_at
+    ){
+
+      hora.textContent =
+        formatearFechaHora(
+          s.last_position_at
+        );
+    }
+  }
+
+  async function iniciarNativoConServidor(
+    s
+  ){
+
+    if(
+      !window.PiocaNative ||
+      typeof window.PiocaNative.startTracking !==
+        "function"
+    ){
+
+      return;
+    }
+
+    try{
+
+      const {
+        data
+      } =
+        await supabaseClient.auth
+        .getSession();
+
+      if(
+        data &&
+        data.session
+      ){
+
+        window.PiocaNative
+        .startTracking(
+
           trackingCode,
-          String(data.session.access_token || ""),
-          String(data.session.refresh_token || ""),
+
+          String(
+            data.session.access_token ||
+            ""
+          ),
+
+          String(
+            data.session.refresh_token ||
+            ""
+          ),
+
           nombreCliente,
-          s.expires_at || ""
+
+          s.expires_at ||
+          ""
         );
       }
+
     }catch(e){}
   }
 
   async function recuperarSeguimientoSinCodigo(){
-    const {data,error} =
-      await supabaseClient.rpc("get_my_active_tracking");
 
-    if(error){
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.rpc(
+        "get_my_active_tracking"
+      );
+
+    if(
+      error
+    ){
+
       throw error;
     }
 
-    if(!Array.isArray(data) || data.length === 0){
+    if(
+      !Array.isArray(
+        data
+      ) ||
+      data.length === 0
+    ){
+
       return null;
     }
 
@@ -641,21 +900,40 @@
   }
 
   async function obtenerEstadoServidor(){
-    if(!trackingCode){
+
+    if(
+      !trackingCode
+    ){
+
       return null;
     }
 
-    const {data,error} =
+    const {
+      data,
+      error
+    } =
       await supabaseClient.rpc(
         "get_my_tracking",
-        {p_code:trackingCode}
+        {
+          p_code:
+            trackingCode
+        }
       );
 
-    if(error){
+    if(
+      error
+    ){
+
       throw error;
     }
 
-    if(!Array.isArray(data) || data.length === 0){
+    if(
+      !Array.isArray(
+        data
+      ) ||
+      data.length === 0
+    ){
+
       return null;
     }
 
@@ -663,322 +941,649 @@
   }
 
   async function validarAcceso(){
-    const {data:sessionData} =
-      await supabaseClient.auth.getSession();
 
-    if(!sessionData || !sessionData.session){
+    const {
+      data:
+      sessionData
+    } =
+      await supabaseClient.auth
+      .getSession();
+
+    if(
+      !sessionData ||
+      !sessionData.session
+    ){
+
       negarAcceso();
+
       return false;
     }
 
     const params =
-      new URLSearchParams(window.location.search);
+      new URLSearchParams(
+        window.location.search
+      );
 
-    trackingCode = params.get("tracking");
+    trackingCode =
+      params.get(
+        "tracking"
+      );
 
-    if(!trackingCode){
+    if(
+      !trackingCode
+    ){
+
       trackingCode =
-        localStorage.getItem("pioca_tracking_code");
+        localStorage.getItem(
+          "pioca_tracking_code"
+        );
     }
 
     try{
-      let s = null;
 
-      if(trackingCode){
-        trackingCode = trackingCode.trim().toUpperCase();
-        s = await obtenerEstadoServidor();
+      let s =
+        null;
+
+      if(
+        trackingCode
+      ){
+
+        trackingCode =
+          trackingCode
+          .trim()
+          .toUpperCase();
+
+        s =
+          await obtenerEstadoServidor();
       }
 
-      if(!s){
-        s = await recuperarSeguimientoSinCodigo();
+      if(
+        !s
+      ){
+
+        s =
+          await recuperarSeguimientoSinCodigo();
       }
 
-      if(!s){
+      if(
+        !s
+      ){
+
         negarAcceso();
+
         return false;
       }
 
-      if(s.state && s.state !== "active"){
-        mostrarFinalizado(s.client_name || "");
+      if(
+        s.state &&
+        s.state !==
+          "active"
+      ){
+
+        mostrarFinalizado(
+          s.client_name ||
+          ""
+        );
+
         return false;
       }
 
-      if(s.status && s.status !== "active"){
-        mostrarFinalizado(s.client_name || "");
+      if(
+        s.status &&
+        s.status !==
+          "active"
+      ){
+
+        mostrarFinalizado(
+          s.client_name ||
+          ""
+        );
+
         return false;
       }
 
-      guardarServidorEnLocal(s);
+      guardarServidorEnLocal(
+        s
+      );
 
-      bloqueDenegado.style.display = "none";
-      bloqueFinalizado.style.display = "none";
-      bloqueGPS.style.display = "block";
+      bloqueDenegado.style.display =
+        "none";
 
-      await iniciarNativoConServidor(s);
+      bloqueFinalizado.style.display =
+        "none";
+
+      bloqueGPS.style.display =
+        "block";
+
+      await iniciarNativoConServidor(
+        s
+      );
 
       return true;
 
     }catch(error){
+
       mostrarError(
+
         "No se pudo recuperar el seguimiento desde el servidor. Reintentá con conexión antes de asumir que está detenido."
+
       );
-      bloqueGPS.style.display = "block";
+
+      bloqueGPS.style.display =
+        "block";
+
       return false;
     }
   }
 
   async function sincronizarServidor(){
-    if(seguimientoFinalizado || !trackingCode){
+
+    if(
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+
       return;
     }
 
     try{
-      const s = await obtenerEstadoServidor();
 
-      if(!s){
+      const s =
+        await obtenerEstadoServidor();
+
+      if(
+        !s
+      ){
+
         return;
       }
 
-      if(s.state !== "active" || s.status !== "active"){
-        mostrarFinalizado(s.client_name || nombreCliente);
+      if(
+        s.state !==
+          "active" ||
+        s.status !==
+          "active"
+      ){
+
+        mostrarFinalizado(
+          s.client_name ||
+          nombreCliente
+        );
+
         return;
       }
 
-      guardarServidorEnLocal(s);
+      guardarServidorEnLocal(
+        s
+      );
+
       ocultarError();
 
     }catch(error){
+
       /*
-        Una falla de consulta NO borra el panel.
-        Conservamos controles y estado visible.
+        Si falla temporalmente la consulta,
+        NO borramos ni ocultamos el panel.
       */
+
     }
   }
 
-  async function moverHoraCliente(minutos){
+  async function moverHoraCliente(
+    minutos
+  ){
+
     if(
       modificandoHora ||
       seguimientoFinalizado ||
       !trackingCode
     ){
+
       return;
     }
 
-    modificandoHora = true;
-    btnRestar5.disabled = true;
-    btnSumar5.disabled = true;
-    horaEstado.style.display = "none";
+    modificandoHora =
+      true;
+
+    btnRestar5.disabled =
+      true;
+
+    btnSumar5.disabled =
+      true;
+
+    horaEstado.style.display =
+      "none";
 
     try{
-      const {data,error} =
+
+      const {
+        data,
+        error
+      } =
         await supabaseClient.rpc(
           "update_tracking_eta",
           {
-            p_code:trackingCode,
-            p_delta_minutes:minutos
+
+            p_code:
+              trackingCode,
+
+            p_delta_minutes:
+              minutos
+
           }
         );
 
-      if(error){
+      if(
+        error
+      ){
+
         throw error;
       }
 
       const r =
-        Array.isArray(data) && data.length
+
+        Array.isArray(
+          data
+        ) &&
+        data.length
+
           ? data[0]
           : null;
 
-      if(!r || r.success !== true){
-        if(r && r.state === "finished"){
-          mostrarFinalizado(nombreCliente);
+      if(
+        !r ||
+        r.success !==
+          true
+      ){
+
+        if(
+          r &&
+          r.state ===
+            "finished"
+        ){
+
+          mostrarFinalizado(
+            nombreCliente
+          );
+
           return;
         }
 
-        throw new Error("No se pudo actualizar.");
+        throw new Error(
+          "No se pudo actualizar."
+        );
       }
 
       llegadaClienteMs =
-        new Date(r.client_arrival).getTime();
+        new Date(
+          r.client_arrival
+        )
+        .getTime();
 
       pintarHoraCliente();
 
       localStorage.setItem(
         "pioca_tracking_expires_at",
-        r.expires_at || ""
+        r.expires_at ||
+        ""
       );
 
       await iniciarNativoConServidor({
-        expires_at:r.expires_at
+        expires_at:
+          r.expires_at
       });
 
       mostrarEstadoHora(
+
         "✓ Hora actualizada. El cliente ya ve " +
-        formatearHora(llegadaClienteMs),
+
+        formatearHora(
+          llegadaClienteMs
+        ),
+
         true
       );
 
     }catch(error){
+
       mostrarEstadoHora(
         "No se pudo actualizar la hora. La hora anterior sigue vigente.",
         false
       );
 
     }finally{
-      btnRestar5.disabled = false;
-      btnSumar5.disabled = false;
-      modificandoHora = false;
+
+      btnRestar5.disabled =
+        false;
+
+      btnSumar5.disabled =
+        false;
+
+      modificandoHora =
+        false;
     }
   }
 
-  function telefonoWhatsAppArgentina(numero){
-    let n = String(numero || "").replace(/\D/g,"");
+  function telefonoWhatsAppArgentina(
+    numero
+  ){
 
-    if(n.startsWith("549")){
+    let n =
+      String(
+        numero ||
+        ""
+      )
+      .replace(
+        /\D/g,
+        ""
+      );
+
+    if(
+      n.startsWith(
+        "549"
+      )
+    ){
+
       return n;
     }
 
-    if(n.startsWith("54")){
+    if(
+      n.startsWith(
+        "54"
+      )
+    ){
+
       return n;
     }
 
-    if(n.startsWith("0")){
-      n = n.substring(1);
+    if(
+      n.startsWith(
+        "0"
+      )
+    ){
+
+      n =
+        n.substring(
+          1
+        );
     }
 
     return "549" + n;
   }
 
   function abrirWhatsApp(){
-    if(!telefonoCliente || !linkCliente){
+
+    if(
+      !telefonoCliente ||
+      !linkCliente
+    ){
+
       mostrarError(
         "No están disponibles los datos del cliente."
       );
+
       return;
     }
 
-    const saludo = "\uD83D\uDC4B";
-    const tecnico = "\uD83D\uDC68\u200D\uD83D\uDD27";
-    const ubicacion = "\uD83D\uDCCD";
+    const saludo =
+      "\uD83D\uDC4B";
+
+    const tecnico =
+      "\uD83D\uDC68\u200D\uD83D\uDD27";
+
+    const ubicacion =
+      "\uD83D\uDCCD";
 
     let mensaje =
-      saludo + " Hola " + nombreCliente + "." +
-      "\n\n" +
-      tecnico + " El técnico de piOca ya se encuentra en camino." +
-      "\n\n" +
-      "Podés seguir nuestra llegada en tiempo real." +
-      "\n\n" +
-      ubicacion + " *Ver ubicación de la camioneta:*" +
-      "\n" + linkCliente;
 
-    if(informacionAdicional.trim() !== ""){
+      saludo +
+      " Hola " +
+      nombreCliente +
+      "." +
+
+      "\n\n" +
+
+      tecnico +
+      " El técnico de piOca ya se encuentra en camino." +
+
+      "\n\n" +
+
+      "Podés seguir nuestra llegada en tiempo real." +
+
+      "\n\n" +
+
+      ubicacion +
+      " *Ver ubicación de la camioneta:*" +
+
+      "\n" +
+
+      linkCliente;
+
+    if(
+      informacionAdicional.trim() !==
+        ""
+    ){
+
       mensaje +=
+
         "\n\n" +
-        "\u2139\uFE0F" + " *Información adicional:*" +
-        "\n" + informacionAdicional.trim();
+
+        "\u2139\uFE0F" +
+        " *Información adicional:*" +
+
+        "\n" +
+
+        informacionAdicional.trim();
     }
 
     mensaje +=
+
       "\n\n" +
+
       "_Este es un mensaje automático y no es necesario responderlo._";
 
     const numero =
-      telefonoWhatsAppArgentina(telefonoCliente);
+      telefonoWhatsAppArgentina(
+        telefonoCliente
+      );
 
-    const texto = encodeURIComponent(mensaje);
+    const texto =
+      encodeURIComponent(
+        mensaje
+      );
 
     const ua =
       navigator.userAgent ||
       navigator.vendor ||
       window.opera;
 
-    if(/android/i.test(ua)){
+    if(
+      /android/i.test(
+        ua
+      )
+    ){
+
       window.location.href =
+
         "intent://send" +
-        "?phone=" + numero +
-        "&text=" + texto +
+
+        "?phone=" +
+        numero +
+
+        "&text=" +
+        texto +
+
         "#Intent;" +
+
         "scheme=whatsapp;" +
+
         "package=com.whatsapp.w4b;" +
+
         "end";
+
       return;
     }
 
     window.location.href =
-      "https://wa.me/" + numero + "?text=" + texto;
+
+      "https://wa.me/" +
+      numero +
+      "?text=" +
+      texto;
   }
 
-  async function enviarPosicion(posicion,intento){
-    if(!posicion || seguimientoFinalizado){
+  async function enviarPosicion(
+    posicion,
+    intento
+  ){
+
+    if(
+      !posicion ||
+      seguimientoFinalizado
+    ){
+
       return;
     }
 
-    intento = intento || 0;
+    intento =
+      intento ||
+      0;
 
-    if(enviando && intento === 0){
+    if(
+      enviando &&
+      intento ===
+        0
+    ){
+
       return;
     }
 
-    enviando = true;
+    enviando =
+      true;
 
     try{
-      const {data,error} =
+
+      const {
+        data,
+        error
+      } =
         await supabaseClient.rpc(
           "push_tracking_position",
           {
-            p_code:trackingCode,
-            p_lat:posicion.coords.latitude,
-            p_lon:posicion.coords.longitude,
-            p_accuracy:posicion.coords.accuracy
+
+            p_code:
+              trackingCode,
+
+            p_lat:
+              posicion.coords.latitude,
+
+            p_lon:
+              posicion.coords.longitude,
+
+            p_accuracy:
+              posicion.coords.accuracy
+
           }
         );
 
-      if(error || data !== true){
-        const s = await obtenerEstadoServidor();
+      if(
+        error ||
+        data !==
+          true
+      ){
 
-        if(s && s.state !== "active"){
-          mostrarFinalizado(s.client_name || nombreCliente);
+        const s =
+          await obtenerEstadoServidor();
+
+        if(
+          s &&
+          s.state !==
+            "active"
+        ){
+
+          mostrarFinalizado(
+            s.client_name ||
+            nombreCliente
+          );
+
           return;
         }
 
-        throw new Error("Seguimiento no disponible.");
+        throw new Error(
+          "Seguimiento no disponible."
+        );
       }
 
-      enviando = false;
-      envios++;
-      enviosTxt.textContent = envios;
-      envioHora.textContent =
-        new Date().toLocaleTimeString("es-AR");
+      enviando =
+        false;
 
-      if(envios >= 1){
-        btnWhatsapp.style.display = "block";
+      envios++;
+
+      enviosTxt.textContent =
+        envios;
+
+      envioHora.textContent =
+        new Date()
+        .toLocaleTimeString(
+          "es-AR"
+        );
+
+      if(
+        envios >=
+        1
+      ){
+
+        btnWhatsapp.style.display =
+          "block";
       }
 
       ocultarError();
 
     }catch(error){
-      enviando = false;
 
-      if(seguimientoFinalizado){
+      enviando =
+        false;
+
+      if(
+        seguimientoFinalizado
+      ){
+
         return;
       }
 
-      if(intento < 3){
-        const tiempos = [2000,4000,8000];
+      if(
+        intento <
+        3
+      ){
+
+        const tiempos =
+          [
+            2000,
+            4000,
+            8000
+          ];
 
         mostrarError(
           "Conexión interrumpida. Reintentando..."
         );
 
         setTimeout(
+
           function(){
+
             enviarPosicion(
               ultimaPosicion,
               intento + 1
             );
           },
-          tiempos[intento]
+
+          tiempos[
+            intento
+          ]
         );
+
       }else{
+
         mostrarError(
           "Sin conexión. El seguimiento sigue activo y el panel permanece disponible."
         );
@@ -987,152 +1592,311 @@
   }
 
   function iniciarHeartbeat(){
-    if(heartbeatId !== null){
+
+    if(
+      heartbeatId !==
+      null
+    ){
+
       return;
     }
 
-    heartbeatId = setInterval(
-      function(){
-        if(seguimientoFinalizado || !ultimaPosicion){
-          return;
-        }
+    heartbeatId =
+      setInterval(
 
-        const ahora = Date.now();
+        function(){
 
-        if(ahora - ultimoEnvio >= 10000){
-          ultimoEnvio = ahora;
-          enviarPosicion(ultimaPosicion,0);
-        }
-      },
-      2000
-    );
+          if(
+            seguimientoFinalizado ||
+            !ultimaPosicion
+          ){
+
+            return;
+          }
+
+          const ahora =
+            Date.now();
+
+          if(
+            ahora -
+            ultimoEnvio >=
+            10000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+            enviarPosicion(
+              ultimaPosicion,
+              0
+            );
+          }
+        },
+
+        2000
+      );
   }
 
   function iniciarGPS(){
-    if(seguimientoFinalizado || watchId !== null){
+
+    if(
+      seguimientoFinalizado ||
+      watchId !==
+        null
+    ){
+
       return;
     }
 
-    if(!navigator.geolocation){
-      estado.textContent = "GPS no disponible";
-      estado.style.background = "#ffe0e0";
-      btnReactivar.style.display = "block";
+    if(
+      !navigator.geolocation
+    ){
+
+      estado.textContent =
+        "GPS no disponible";
+
+      estado.style.background =
+        "#ffe0e0";
+
+      btnReactivar.style.display =
+        "block";
+
       return;
     }
 
-    estado.textContent = "Obteniendo ubicación...";
-    estado.style.background = "#fff3cd";
-    btnReactivar.style.display = "none";
+    estado.textContent =
+      "Obteniendo ubicación...";
 
-    watchId = navigator.geolocation.watchPosition(
-      function(posicion){
-        ultimaPosicion = posicion;
+    estado.style.background =
+      "#fff3cd";
 
-        lat.textContent =
-          posicion.coords.latitude.toFixed(6);
+    btnReactivar.style.display =
+      "none";
 
-        lon.textContent =
-          posicion.coords.longitude.toFixed(6);
+    watchId =
+      navigator.geolocation
+      .watchPosition(
 
-        acc.textContent =
-          Math.round(posicion.coords.accuracy) + " metros";
+        function(
+          posicion
+        ){
 
-        hora.textContent =
-          new Date().toLocaleTimeString("es-AR");
+          ultimaPosicion =
+            posicion;
 
-        estado.textContent = "🟢 GPS ACTIVO";
-        estado.style.background = "#dff5e1";
+          lat.textContent =
+            posicion.coords.latitude
+            .toFixed(
+              6
+            );
 
-        const ahora = Date.now();
+          lon.textContent =
+            posicion.coords.longitude
+            .toFixed(
+              6
+            );
 
-        if(envios === 0 || ahora - ultimoEnvio >= 5000){
-          ultimoEnvio = ahora;
-          enviarPosicion(posicion,0);
+          acc.textContent =
+
+            Math.round(
+              posicion.coords.accuracy
+            ) +
+
+            " metros";
+
+          hora.textContent =
+            new Date()
+            .toLocaleTimeString(
+              "es-AR"
+            );
+
+          estado.textContent =
+            "🟢 GPS ACTIVO";
+
+          estado.style.background =
+            "#dff5e1";
+
+          const ahora =
+            Date.now();
+
+          if(
+            envios ===
+              0 ||
+            ahora -
+            ultimoEnvio >=
+              5000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+            enviarPosicion(
+              posicion,
+              0
+            );
+          }
+        },
+
+        function(){
+
+          if(
+            watchId !==
+            null
+          ){
+
+            try{
+
+              navigator.geolocation
+              .clearWatch(
+                watchId
+              );
+
+            }catch(e){}
+
+            watchId =
+              null;
+          }
+
+          estado.textContent =
+            "GPS interrumpido";
+
+          estado.style.background =
+            "#ffe0e0";
+
+          btnReactivar.style.display =
+            "block";
+
+          /*
+            Si falla el GPS,
+            el panel NO desaparece.
+          */
+          setTimeout(
+
+            function(){
+
+              if(
+                !seguimientoFinalizado
+              ){
+
+                iniciarGPS();
+              }
+            },
+
+            3000
+          );
+        },
+
+        {
+          enableHighAccuracy:true,
+          maximumAge:1000,
+          timeout:10000
         }
-      },
-      function(){
-        if(watchId !== null){
-          try{
-            navigator.geolocation.clearWatch(watchId);
-          }catch(e){}
-          watchId = null;
-        }
-
-        estado.textContent = "GPS interrumpido";
-        estado.style.background = "#ffe0e0";
-        btnReactivar.style.display = "block";
-
-        /*
-          MUY IMPORTANTE:
-          una falla de GPS NO destruye el panel.
-        */
-        setTimeout(
-          function(){
-            if(!seguimientoFinalizado){
-              iniciarGPS();
-            }
-          },
-          3000
-        );
-      },
-      {
-        enableHighAccuracy:true,
-        maximumAge:1000,
-        timeout:10000
-      }
-    );
+      );
 
     iniciarHeartbeat();
   }
 
   async function finalizarSeguimiento(){
-    if(seguimientoFinalizado || !trackingCode){
+
+    if(
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+
       return;
     }
 
-    const confirmar = window.confirm(
-      "¿Querés finalizar este seguimiento?\n\nEl cliente dejará de ver la ubicación inmediatamente."
-    );
+    const confirmar =
+      window.confirm(
 
-    if(!confirmar){
+        "¿Querés finalizar este seguimiento?\n\nEl cliente dejará de ver la ubicación inmediatamente."
+
+      );
+
+    if(
+      !confirmar
+    ){
+
       return;
     }
 
-    btnFinalizar.disabled = true;
-    btnFinalizar.textContent = "FINALIZANDO...";
+    btnFinalizar.disabled =
+      true;
+
+    btnFinalizar.textContent =
+      "FINALIZANDO...";
 
     try{
-      const {data,error} =
+
+      const {
+        data,
+        error
+      } =
         await supabaseClient.rpc(
           "finish_tracking",
-          {p_code:trackingCode}
+          {
+            p_code:
+              trackingCode
+          }
         );
 
-      if(error){
+      if(
+        error
+      ){
+
         throw error;
       }
 
       const r =
-        Array.isArray(data) && data.length
+
+        Array.isArray(
+          data
+        ) &&
+        data.length
+
           ? data[0]
           : null;
 
-      if(!r || r.success !== true){
-        const s = await obtenerEstadoServidor();
+      if(
+        !r ||
+        r.success !==
+          true
+      ){
 
-        if(s && s.state !== "active"){
-          mostrarFinalizado(s.client_name || nombreCliente);
+        const s =
+          await obtenerEstadoServidor();
+
+        if(
+          s &&
+          s.state !==
+            "active"
+        ){
+
+          mostrarFinalizado(
+            s.client_name ||
+            nombreCliente
+          );
+
           return;
         }
 
-        throw new Error("No confirmado.");
+        throw new Error(
+          "No confirmado."
+        );
       }
 
-      mostrarFinalizado(r.client_name || nombreCliente);
+      mostrarFinalizado(
+        r.client_name ||
+        nombreCliente
+      );
 
     }catch(error){
-      btnFinalizar.disabled = false;
-      btnFinalizar.textContent = "⛔ FINALIZAR SEGUIMIENTO";
+
+      btnFinalizar.disabled =
+        false;
+
+      btnFinalizar.textContent =
+        "⛔ FINALIZAR SEGUIMIENTO";
 
       mostrarError(
         "No se pudo confirmar el cierre con el servidor. El seguimiento NO se considera detenido."
@@ -1140,36 +1904,65 @@
     }
   }
 
-  btnWhatsapp.addEventListener("click",abrirWhatsApp);
-  btnFinalizar.addEventListener("click",finalizarSeguimiento);
-  btnReactivar.addEventListener("click",iniciarGPS);
+  btnWhatsapp.addEventListener(
+    "click",
+    abrirWhatsApp
+  );
+
+  btnFinalizar.addEventListener(
+    "click",
+    finalizarSeguimiento
+  );
+
+  btnReactivar.addEventListener(
+    "click",
+    iniciarGPS
+  );
 
   btnRestar5.addEventListener(
     "click",
-    function(){moverHoraCliente(-5);}
+    function(){
+
+      moverHoraCliente(
+        -5
+      );
+    }
   );
 
   btnSumar5.addEventListener(
     "click",
-    function(){moverHoraCliente(5);}
+    function(){
+
+      moverHoraCliente(
+        5
+      );
+    }
   );
 
   btnVolver.addEventListener(
     "click",
     function(){
-      window.location.replace("admin.html");
+
+      window.location.replace(
+        "admin.html"
+      );
     }
   );
 
-  const acceso = await validarAcceso();
+  const acceso =
+    await validarAcceso();
 
-  if(acceso){
+  if(
+    acceso
+  ){
+
     iniciarGPS();
 
-    syncId = setInterval(
-      sincronizarServidor,
-      3000
-    );
+    syncId =
+      setInterval(
+        sincronizarServidor,
+        3000
+      );
   }
 
 })();
