@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>piOca Panel de Seguimiento</title>
 
@@ -123,6 +128,7 @@
   </style>
 </head>
 
+
 <body>
 
 <div class="panel">
@@ -179,8 +185,7 @@
     </button>
 
     <div class="ayuda">
-      Si el navegador no permite abrir contactos,
-      cargá los datos manualmente.
+      Si no está agendado, cargá los datos manualmente.
     </div>
 
     <div
@@ -281,49 +286,79 @@
 
 
   const loginBox =
-    document.getElementById("loginBox");
+    document.getElementById(
+      "loginBox"
+    );
 
   const panelAdmin =
-    document.getElementById("panelAdmin");
+    document.getElementById(
+      "panelAdmin"
+    );
 
   const email =
-    document.getElementById("email");
+    document.getElementById(
+      "email"
+    );
 
   const password =
-    document.getElementById("password");
+    document.getElementById(
+      "password"
+    );
 
   const btnLogin =
-    document.getElementById("btnLogin");
+    document.getElementById(
+      "btnLogin"
+    );
 
   const btnLogout =
-    document.getElementById("btnLogout");
+    document.getElementById(
+      "btnLogout"
+    );
 
   const btnContacto =
-    document.getElementById("btnContacto");
+    document.getElementById(
+      "btnContacto"
+    );
 
   const contactoEstado =
-    document.getElementById("contactoEstado");
+    document.getElementById(
+      "contactoEstado"
+    );
 
   const clientName =
-    document.getElementById("clientName");
+    document.getElementById(
+      "clientName"
+    );
 
   const clientPhone =
-    document.getElementById("clientPhone");
+    document.getElementById(
+      "clientPhone"
+    );
 
   const estimatedArrival =
-    document.getElementById("estimatedArrival");
+    document.getElementById(
+      "estimatedArrival"
+    );
 
   const additionalInfo =
-    document.getElementById("additionalInfo");
+    document.getElementById(
+      "additionalInfo"
+    );
 
   const btnCrear =
-    document.getElementById("btnCrear");
+    document.getElementById(
+      "btnCrear"
+    );
 
   const loginEstado =
-    document.getElementById("loginEstado");
+    document.getElementById(
+      "loginEstado"
+    );
 
   const adminEstado =
-    document.getElementById("adminEstado");
+    document.getElementById(
+      "adminEstado"
+    );
 
 
   function mostrarEstado(
@@ -344,7 +379,9 @@
   }
 
 
-  function ocultarEstado(el){
+  function ocultarEstado(
+    el
+  ){
 
     el.style.display =
       "none";
@@ -357,10 +394,17 @@
   ){
 
     const d =
-      new Date(fecha);
+      new Date(
+        fecha
+      );
 
-    d.setSeconds(0);
-    d.setMilliseconds(0);
+    d.setSeconds(
+      0
+    );
+
+    d.setMilliseconds(
+      0
+    );
 
     const minutos =
       d.getMinutes();
@@ -369,7 +413,9 @@
       minutos % 10;
 
 
-    if(resto === 0){
+    if(
+      resto === 0
+    ){
 
       d.setMinutes(
         minutos + 10
@@ -456,11 +502,30 @@
   }
 
 
+  /*
+    V4:
+    Dentro de la APK usamos el selector
+    NATIVO de contactos del Samsung.
+    Fuera de la APK queda el método web
+    como respaldo si el navegador lo soporta.
+  */
   async function seleccionarContacto(){
 
     ocultarEstado(
       contactoEstado
     );
+
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.pickContact ===
+        "function"
+    ){
+
+      window.PiocaNative.pickContact();
+
+      return;
+    }
 
 
     const soportado =
@@ -473,11 +538,13 @@
         "function";
 
 
-    if(!soportado){
+    if(
+      !soportado
+    ){
 
       mostrarEstado(
         contactoEstado,
-        "Este navegador no permite seleccionar contactos. Cargalo manualmente.",
+        "No se pudo abrir la agenda. Cargá los datos manualmente.",
         "error"
       );
 
@@ -486,7 +553,6 @@
 
 
     try{
-
 
       const contactos =
 
@@ -510,7 +576,6 @@
       ){
 
         return;
-
       }
 
 
@@ -549,7 +614,6 @@
 
     }catch(e){
 
-
       mostrarEstado(
         contactoEstado,
         "No se seleccionó ningún contacto.",
@@ -562,7 +626,6 @@
 
 
   async function comprobarSesion(){
-
 
     const {
       data
@@ -580,10 +643,8 @@
       loginBox.style.display =
         "none";
 
-
       panelAdmin.style.display =
         "block";
-
 
       cargarHorarios();
 
@@ -603,7 +664,6 @@
     "click",
 
     async function(){
-
 
       ocultarEstado(
         loginEstado
@@ -627,8 +687,9 @@
         });
 
 
-      if(error){
-
+      if(
+        error
+      ){
 
         mostrarEstado(
           loginEstado,
@@ -636,9 +697,7 @@
           "error"
         );
 
-
         return;
-
       }
 
 
@@ -649,14 +708,11 @@
         loginBox.style.display =
           "none";
 
-
         panelAdmin.style.display =
           "block";
 
-
         password.value =
           "";
-
 
         cargarHorarios();
 
@@ -673,14 +729,11 @@
 
     async function(){
 
-
       await supabaseClient.auth
         .signOut();
 
-
       panelAdmin.style.display =
         "none";
-
 
       loginBox.style.display =
         "block";
@@ -695,7 +748,6 @@
     "click",
 
     async function(){
-
 
       ocultarEstado(
         adminEstado
@@ -721,16 +773,13 @@
         !telefono
       ){
 
-
         mostrarEstado(
           adminEstado,
           "Completá nombre y teléfono.",
           "error"
         );
 
-
         return;
-
       }
 
 
@@ -748,10 +797,16 @@
         );
 
 
+      /*
+        V4:
+        el acceso del cliente vence
+        20 minutos después de la
+        hora estimada de llegada.
+      */
       const vence =
         new Date(
           llegada.getTime() +
-          10 * 60 * 1000
+          20 * 60 * 1000
         );
 
 
@@ -762,7 +817,9 @@
 
         await supabaseClient
 
-        .from("services")
+        .from(
+          "services"
+        )
 
         .insert({
 
@@ -788,16 +845,15 @@
         .single();
 
 
-      if(error){
-
+      if(
+        error
+      ){
 
         btnCrear.disabled =
           false;
 
-
         btnCrear.textContent =
           "🚐 INICIAR SEGUIMIENTO";
-
 
         mostrarEstado(
           adminEstado,
@@ -806,9 +862,7 @@
           "error"
         );
 
-
         return;
-
       }
 
 
@@ -828,6 +882,17 @@
       );
 
 
+      /*
+        La APK V4 usa este dato
+        para saber exactamente
+        cuándo detener el GPS.
+      */
+      localStorage.setItem(
+        "pioca_tracking_expires_at",
+        vence.toISOString()
+      );
+
+
       localStorage.setItem(
         "pioca_client_name",
         nombre
@@ -839,15 +904,6 @@
         telefono
       );
 
-
-      /*
-        INFORMACIÓN ADICIONAL
-
-        También la guardamos en el teléfono
-        para que index.html pueda incluirla
-        en el WhatsApp después de confirmar
-        la primera posición GPS.
-      */
 
       localStorage.setItem(
         "pioca_additional_info",
