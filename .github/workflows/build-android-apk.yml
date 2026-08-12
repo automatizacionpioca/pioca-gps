@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -33,7 +33,7 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Crear proyecto Android
+      - name: Crear proyecto Android v2
         shell: bash
         run: |
           set -e
@@ -41,102 +41,63 @@ jobs:
           mkdir -p android-pioca/app/src/main/res/values
 
           cat > android-pioca/settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "piOca Seguimiento"
           include ":app"
           EOF
 
           cat > android-pioca/build.gradle <<'EOF'
-          plugins {
-              id "com.android.application" version "8.7.3" apply false
-          }
+          plugins { id "com.android.application" version "8.7.3" apply false }
           EOF
 
           cat > android-pioca/app/build.gradle <<'EOF'
-          plugins {
-              id "com.android.application"
-          }
-
+          plugins { id "com.android.application" }
           android {
               namespace "ar.com.pioca.seguimiento"
               compileSdk 35
-
               defaultConfig {
                   applicationId "ar.com.pioca.seguimiento"
                   minSdk 26
                   targetSdk 35
-                  versionCode 1
-                  versionName "0.1-prueba"
+                  versionCode 2
+                  versionName "0.2-prueba"
               }
           }
           EOF
 
           cat > android-pioca/app/src/main/res/values/strings.xml <<'EOF'
-          <resources>
-              <string name="app_name">piOca Seguimiento</string>
-          </resources>
+          <resources><string name="app_name">piOca Seguimiento</string></resources>
           EOF
 
           cat > android-pioca/app/src/main/res/values/styles.xml <<'EOF'
           <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:colorAccent">#1769aa</item>
-                  <item name="android:navigationBarColor">#ffffff</item>
-                  <item name="android:statusBarColor">#1769aa</item>
-                  <item name="android:windowLightStatusBar">false</item>
-              </style>
+            <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+              <item name="android:fontFamily">sans</item>
+              <item name="android:colorAccent">#1769aa</item>
+              <item name="android:statusBarColor">#1769aa</item>
+              <item name="android:windowLightStatusBar">false</item>
+            </style>
           </resources>
           EOF
 
           cat > android-pioca/app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-
-              <application
-                  android:theme="@style/AppTheme"
-                  android:label="piOca Seguimiento"
-                  android:usesCleartextTraffic="false">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-
-                  </activity>
-
-                  <service
-                      android:name=".TrackingService"
-                      android:foregroundServiceType="location"
-                      android:exported="false"/>
-
-              </application>
-
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+            <application android:theme="@style/AppTheme" android:label="piOca Seguimiento" android:usesCleartextTraffic="false">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+              <service android:name=".TrackingService" android:foregroundServiceType="location" android:exported="false"/>
+            </application>
           </manifest>
           EOF
 
@@ -145,13 +106,14 @@ jobs:
 
           import android.Manifest;
           import android.app.Activity;
-          import android.content.ActivityNotFoundException;
           import android.content.Intent;
           import android.content.pm.PackageManager;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.webkit.GeolocationPermissions;
           import android.webkit.JavascriptInterface;
+          import android.webkit.WebChromeClient;
           import android.webkit.WebResourceRequest;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
@@ -159,19 +121,12 @@ jobs:
           import org.json.JSONObject;
 
           public class MainActivity extends Activity {
-
-              private static final String ADMIN =
-                      "https://automatizacionpioca.github.io/pioca-gps/admin.html";
-
-              private static final String AUTH_KEY =
-                      "sb-apxrmkdegjnblkbyjsbp-auth-token";
-
+              private static final String ADMIN = "https://automatizacionpioca.github.io/pioca-gps/admin.html";
+              private static final String AUTH_KEY = "sb-apxrmkdegjnblkbyjsbp-auth-token";
               private WebView web;
 
-              @Override
-              public void onCreate(Bundle state) {
+              @Override public void onCreate(Bundle state) {
                   super.onCreate(state);
-
                   web = new WebView(this);
                   setContentView(web);
 
@@ -179,8 +134,24 @@ jobs:
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
+                  settings.setGeolocationEnabled(true);
 
                   web.addJavascriptInterface(new NativeBridge(), "PiocaNative");
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onGeolocationPermissionsShowPrompt(
+                              String origin,
+                              GeolocationPermissions.Callback callback) {
+
+                          boolean ok =
+                                  checkSelfPermission(
+                                          Manifest.permission.ACCESS_FINE_LOCATION)
+                                  == PackageManager.PERMISSION_GRANTED;
+
+                          callback.invoke(origin, ok, false);
+                      }
+                  });
 
                   web.setWebViewClient(new WebViewClient() {
 
@@ -190,25 +161,18 @@ jobs:
                               WebResourceRequest request) {
 
                           Uri uri = request.getUrl();
-                          String scheme = uri.getScheme() == null ? "" : uri.getScheme();
-                          String host = uri.getHost() == null ? "" : uri.getHost();
+                          String scheme =
+                                  uri.getScheme() == null
+                                          ? ""
+                                          : uri.getScheme();
 
                           if ("intent".equalsIgnoreCase(scheme)) {
                               try {
-                                  Intent intent = Intent.parseUri(
-                                          uri.toString(),
-                                          Intent.URI_INTENT_SCHEME);
-                                  startActivity(intent);
+                                  startActivity(
+                                          Intent.parseUri(
+                                                  uri.toString(),
+                                                  Intent.URI_INTENT_SCHEME));
                               } catch (Exception ignored) {
-                              }
-                              return true;
-                          }
-
-                          if ("https".equalsIgnoreCase(scheme)
-                                  && !"automatizacionpioca.github.io".equalsIgnoreCase(host)) {
-                              try {
-                                  startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                              } catch (ActivityNotFoundException ignored) {
                               }
                               return true;
                           }
@@ -217,48 +181,53 @@ jobs:
                       }
 
                       @Override
-                      public void onPageFinished(WebView view, String url) {
+                      public void onPageFinished(
+                              WebView view,
+                              String url) {
+
                           super.onPageFinished(view, url);
 
                           Uri uri = Uri.parse(url);
 
                           if (url.contains("/pioca-gps/index.html")) {
-                              String code = uri.getQueryParameter("tracking");
 
-                              if (code != null && !code.trim().isEmpty()) {
-                                  String safeCode = JSONObject.quote(
-                                          code.trim().toUpperCase());
+                              String code =
+                                      uri.getQueryParameter("tracking");
+
+                              if (code != null
+                                      && !code.trim().isEmpty()) {
+
+                                  String safeCode =
+                                          JSONObject.quote(
+                                                  code.trim().toUpperCase());
 
                                   String js =
-                                          "(function(){"
-                                          + "try{"
+                                          "(function(){try{"
                                           + "var raw=localStorage.getItem("
-                                          + JSONObject.quote(AUTH_KEY) + ");"
-                                          + "if(!raw){return;}"
+                                          + JSONObject.quote(AUTH_KEY)
+                                          + ");"
+                                          + "if(!raw)return;"
                                           + "var s=JSON.parse(raw);"
-                                          + "if(s && s.access_token){"
+                                          + "if(s&&s.access_token){"
                                           + "PiocaNative.startTracking("
-                                          + safeCode + ","
-                                          + "String(s.access_token||''),"
+                                          + safeCode
+                                          + ",String(s.access_token||''),"
                                           + "String(s.refresh_token||''));"
                                           + "}"
-                                          + "}catch(e){}"
-                                          + "})();";
+                                          + "}catch(e){}})();";
 
                                   view.evaluateJavascript(js, null);
                               }
                           }
 
                           if (url.contains("/pioca-gps/admin.html")) {
-                              String js =
-                                      "(function(){"
-                                      + "try{"
-                                      + "var active=localStorage.getItem('pioca_tracking_active');"
-                                      + "if(!active){PiocaNative.stopTracking();}"
-                                      + "}catch(e){}"
-                                      + "})();";
 
-                              view.evaluateJavascript(js, null);
+                              view.evaluateJavascript(
+                                      "(function(){try{"
+                                      + "if(!localStorage.getItem('pioca_tracking_active'))"
+                                      + "PiocaNative.stopTracking();"
+                                      + "}catch(e){}})();",
+                                      null);
                           }
                       }
                   });
@@ -268,16 +237,22 @@ jobs:
               }
 
               private void requestRuntimePermissions() {
+
                   if (Build.VERSION.SDK_INT >= 33) {
+
                       requestPermissions(
                               new String[]{
                                       Manifest.permission.ACCESS_FINE_LOCATION,
                                       Manifest.permission.POST_NOTIFICATIONS
                               },
                               100);
+
                   } else {
+
                       requestPermissions(
-                              new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                              new String[]{
+                                      Manifest.permission.ACCESS_FINE_LOCATION
+                              },
                               100);
                   }
               }
@@ -291,6 +266,7 @@ jobs:
                           String refreshToken) {
 
                       runOnUiThread(() -> {
+
                           if (checkSelfPermission(
                                   Manifest.permission.ACCESS_FINE_LOCATION)
                                   != PackageManager.PERMISSION_GRANTED) {
@@ -318,6 +294,7 @@ jobs:
 
                   @JavascriptInterface
                   public void stopTracking() {
+
                       runOnUiThread(() ->
                               stopService(
                                       new Intent(
@@ -328,6 +305,7 @@ jobs:
 
               @Override
               public void onBackPressed() {
+
                   if (web != null && web.canGoBack()) {
                       web.goBack();
                   } else {
@@ -350,16 +328,11 @@ jobs:
           import android.location.Location;
           import android.location.LocationListener;
           import android.location.LocationManager;
-          import android.os.Bundle;
           import android.os.Handler;
           import android.os.IBinder;
           import android.os.Looper;
-
           import org.json.JSONObject;
-
-          import java.io.BufferedReader;
           import java.io.InputStream;
-          import java.io.InputStreamReader;
           import java.io.OutputStream;
           import java.net.HttpURLConnection;
           import java.net.URL;
@@ -370,23 +343,23 @@ jobs:
                   extends Service
                   implements LocationListener {
 
-              private static final String CHANNEL_ID =
+              private static final String CH =
                       "pioca_tracking";
 
-              private static final String SUPABASE_BASE =
+              private static final String BASE =
                       "https://apxrmkdegjnblkbyjsbp.supabase.co";
 
-              private static final String SUPABASE_KEY =
+              private static final String KEY =
                       "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
-              private volatile String trackingCode;
+              private volatile String code;
               private volatile String accessToken;
               private volatile String refreshToken;
 
-              private LocationManager locationManager;
-              private Location lastLocation;
+              private LocationManager lm;
+              private Location last;
 
-              private long lastSuccessfulSend = 0L;
+              private long lastOk = 0L;
 
               private final Handler handler =
                       new Handler(Looper.getMainLooper());
@@ -396,62 +369,62 @@ jobs:
 
               private final Runnable heartbeat =
                       new Runnable() {
+
                           @Override
                           public void run() {
 
-                              if (lastLocation != null
+                              if (last != null
                                       && System.currentTimeMillis()
-                                      - lastSuccessfulSend >= 10000L) {
+                                      - lastOk >= 10000L) {
 
-                                  sendAsync(lastLocation);
+                                  sendAsync(last);
                               }
 
-                              handler.postDelayed(this, 2000L);
+                              handler.postDelayed(
+                                      this,
+                                      2000L);
                           }
                       };
 
               @Override
               public void onCreate() {
+
                   super.onCreate();
 
-                  NotificationManager manager =
-                          getSystemService(NotificationManager.class);
+                  NotificationManager nm =
+                          getSystemService(
+                                  NotificationManager.class);
 
-                  NotificationChannel channel =
+                  nm.createNotificationChannel(
                           new NotificationChannel(
-                                  CHANNEL_ID,
+                                  CH,
                                   "Seguimiento GPS piOca",
-                                  NotificationManager.IMPORTANCE_LOW);
-
-                  channel.setDescription(
-                          "Mantiene activo el envío de ubicación durante el seguimiento.");
-
-                  manager.createNotificationChannel(channel);
+                                  NotificationManager.IMPORTANCE_LOW));
               }
 
               @Override
               public int onStartCommand(
-                      Intent intent,
+                      Intent i,
                       int flags,
                       int startId) {
 
-                  if (intent != null) {
-                      trackingCode =
-                              normalize(intent.getStringExtra("tracking"));
+                  if (i != null) {
+
+                      code =
+                              norm(
+                                      i.getStringExtra("tracking"));
 
                       accessToken =
-                              nullToEmpty(
-                                      intent.getStringExtra("access_token"));
+                              nz(
+                                      i.getStringExtra("access_token"));
 
                       refreshToken =
-                              nullToEmpty(
-                                      intent.getStringExtra("refresh_token"));
+                              nz(
+                                      i.getStringExtra("refresh_token"));
                   }
 
-                  Notification notification =
-                          new Notification.Builder(
-                                  this,
-                                  CHANNEL_ID)
+                  Notification n =
+                          new Notification.Builder(this, CH)
                                   .setContentTitle(
                                           "piOca · Seguimiento GPS activo")
                                   .setContentText(
@@ -462,23 +435,24 @@ jobs:
                                   .setOnlyAlertOnce(true)
                                   .build();
 
-                  startForeground(
-                          1001,
-                          notification);
+                  startForeground(1001, n);
 
-                  startLocationUpdates();
+                  startLocations();
 
                   handler.removeCallbacks(heartbeat);
-                  handler.postDelayed(heartbeat, 2000L);
+                  handler.postDelayed(
+                          heartbeat,
+                          2000L);
 
                   return START_STICKY;
               }
 
-              private void startLocationUpdates() {
+              private void startLocations() {
 
-                  locationManager =
+                  lm =
                           (LocationManager)
-                                  getSystemService(LOCATION_SERVICE);
+                                  getSystemService(
+                                          LOCATION_SERVICE);
 
                   if (checkSelfPermission(
                           Manifest.permission.ACCESS_FINE_LOCATION)
@@ -489,7 +463,7 @@ jobs:
                   }
 
                   try {
-                      locationManager.requestLocationUpdates(
+                      lm.requestLocationUpdates(
                               LocationManager.GPS_PROVIDER,
                               5000L,
                               0f,
@@ -499,7 +473,7 @@ jobs:
                   }
 
                   try {
-                      locationManager.requestLocationUpdates(
+                      lm.requestLocationUpdates(
                               LocationManager.NETWORK_PROVIDER,
                               10000L,
                               0f,
@@ -510,181 +484,161 @@ jobs:
               }
 
               @Override
-              public void onLocationChanged(Location location) {
+              public void onLocationChanged(
+                      Location l) {
 
-                  lastLocation = location;
+                  last = l;
 
                   if (System.currentTimeMillis()
-                          - lastSuccessfulSend >= 5000L) {
+                          - lastOk >= 5000L) {
 
-                      sendAsync(location);
+                      sendAsync(l);
                   }
               }
 
-              @Override
-              public void onProviderEnabled(String provider) {
-              }
+              private void sendAsync(
+                      Location l) {
 
-              @Override
-              public void onProviderDisabled(String provider) {
-              }
-
-              @Override
-              public void onStatusChanged(
-                      String provider,
-                      int status,
-                      Bundle extras) {
-              }
-
-              private void sendAsync(Location location) {
-
-                  if (trackingCode == null
-                          || trackingCode.isEmpty()
+                  if (code == null
+                          || code.isEmpty()
                           || accessToken == null
                           || accessToken.isEmpty()) {
 
                       return;
                   }
 
-                  if (!sending.compareAndSet(false, true)) {
+                  if (!sending.compareAndSet(
+                          false,
+                          true)) {
+
                       return;
                   }
 
                   new Thread(() -> {
+
                       try {
-                          SendResult result =
-                                  sendPosition(location, accessToken);
 
-                          if (result.unauthorized
-                                  && refreshSession()) {
+                          int r =
+                                  send(
+                                          l,
+                                          accessToken);
 
-                              result =
-                                      sendPosition(
-                                              location,
+                          if (r == 401
+                                  && refresh()) {
+
+                              r =
+                                      send(
+                                              l,
                                               accessToken);
                           }
 
-                          if (result.finished) {
-                              stopSelf();
-                              return;
-                          }
+                          if (r >= 200
+                                  && r < 300) {
 
-                          if (result.success) {
-                              lastSuccessfulSend =
+                              lastOk =
                                       System.currentTimeMillis();
                           }
 
                       } finally {
+
                           sending.set(false);
                       }
+
                   }).start();
               }
 
-              private SendResult sendPosition(
-                      Location location,
+              private int send(
+                      Location l,
                       String token) {
 
-                  HttpURLConnection connection = null;
+                  HttpURLConnection c = null;
 
                   try {
-                      URL endpoint =
-                              new URL(
-                                      SUPABASE_BASE
-                                              + "/rest/v1/rpc/"
-                                              + "push_tracking_position");
 
-                      connection =
+                      c =
                               (HttpURLConnection)
-                                      endpoint.openConnection();
+                                      new URL(
+                                              BASE
+                                              + "/rest/v1/rpc/"
+                                              + "push_tracking_position")
+                                      .openConnection();
 
-                      connection.setRequestMethod("POST");
-                      connection.setDoOutput(true);
-                      connection.setConnectTimeout(10000);
-                      connection.setReadTimeout(10000);
+                      c.setRequestMethod("POST");
+                      c.setDoOutput(true);
+                      c.setConnectTimeout(10000);
+                      c.setReadTimeout(10000);
 
-                      connection.setRequestProperty(
+                      c.setRequestProperty(
                               "apikey",
-                              SUPABASE_KEY);
+                              KEY);
 
-                      connection.setRequestProperty(
+                      c.setRequestProperty(
                               "Authorization",
                               "Bearer " + token);
 
-                      connection.setRequestProperty(
+                      c.setRequestProperty(
                               "Content-Type",
                               "application/json");
 
-                      JSONObject body =
+                      JSONObject b =
                               new JSONObject();
 
-                      body.put(
+                      b.put(
                               "p_code",
-                              trackingCode);
+                              code);
 
-                      body.put(
+                      b.put(
                               "p_lat",
-                              location.getLatitude());
+                              l.getLatitude());
 
-                      body.put(
+                      b.put(
                               "p_lon",
-                              location.getLongitude());
+                              l.getLongitude());
 
-                      body.put(
+                      b.put(
                               "p_accuracy",
-                              location.getAccuracy());
+                              l.getAccuracy());
 
-                      byte[] bytes =
-                              body.toString()
-                                      .getBytes(StandardCharsets.UTF_8);
+                      try (
+                              OutputStream os =
+                                      c.getOutputStream()) {
 
-                      try (OutputStream output =
-                                   connection.getOutputStream()) {
-
-                          output.write(bytes);
+                          os.write(
+                                  b.toString()
+                                          .getBytes(
+                                                  StandardCharsets.UTF_8));
                       }
 
                       int status =
-                              connection.getResponseCode();
+                              c.getResponseCode();
 
-                      String response =
-                              readBody(
-                                      status >= 200
-                                              && status < 400
-                                              ? connection.getInputStream()
-                                              : connection.getErrorStream());
+                      try (
+                              InputStream in =
+                                      status >= 400
+                                              ? c.getErrorStream()
+                                              : c.getInputStream()) {
 
-                      if (status == 401
-                              || status == 403) {
-
-                          return SendResult.unauthorized();
-                      }
-
-                      if (status >= 200
-                              && status < 300) {
-
-                          String clean =
-                                  response == null
-                                          ? ""
-                                          : response.trim();
-
-                          if ("false".equalsIgnoreCase(clean)) {
-                              return SendResult.finished();
+                          if (in != null) {
+                              while (in.read() != -1) {
+                              }
                           }
-
-                          return SendResult.success();
                       }
 
-                  } catch (Exception ignored) {
+                      return status;
+
+                  } catch (Exception e) {
+
+                      return 0;
+
                   } finally {
-                      if (connection != null) {
-                          connection.disconnect();
+
+                      if (c != null) {
+                          c.disconnect();
                       }
                   }
-
-                  return SendResult.failure();
               }
 
-              private boolean refreshSession() {
+              private boolean refresh() {
 
                   if (refreshToken == null
                           || refreshToken.isEmpty()) {
@@ -692,215 +646,145 @@ jobs:
                       return false;
                   }
 
-                  HttpURLConnection connection = null;
+                  HttpURLConnection c = null;
 
                   try {
-                      URL endpoint =
-                              new URL(
-                                      SUPABASE_BASE
-                                              + "/auth/v1/token"
-                                              + "?grant_type=refresh_token");
 
-                      connection =
+                      c =
                               (HttpURLConnection)
-                                      endpoint.openConnection();
+                                      new URL(
+                                              BASE
+                                              + "/auth/v1/token"
+                                              + "?grant_type=refresh_token")
+                                      .openConnection();
 
-                      connection.setRequestMethod("POST");
-                      connection.setDoOutput(true);
-                      connection.setConnectTimeout(10000);
-                      connection.setReadTimeout(10000);
+                      c.setRequestMethod("POST");
+                      c.setDoOutput(true);
+                      c.setConnectTimeout(10000);
+                      c.setReadTimeout(10000);
 
-                      connection.setRequestProperty(
+                      c.setRequestProperty(
                               "apikey",
-                              SUPABASE_KEY);
+                              KEY);
 
-                      connection.setRequestProperty(
+                      c.setRequestProperty(
                               "Content-Type",
                               "application/json");
 
-                      JSONObject body =
+                      JSONObject b =
                               new JSONObject();
 
-                      body.put(
+                      b.put(
                               "refresh_token",
                               refreshToken);
 
-                      try (OutputStream output =
-                                   connection.getOutputStream()) {
+                      try (
+                              OutputStream os =
+                                      c.getOutputStream()) {
 
-                          output.write(
-                                  body.toString()
+                          os.write(
+                                  b.toString()
                                           .getBytes(
                                                   StandardCharsets.UTF_8));
                       }
 
-                      int status =
-                              connection.getResponseCode();
-
-                      if (status < 200
-                              || status >= 300) {
+                      if (c.getResponseCode() < 200
+                              || c.getResponseCode() >= 300) {
 
                           return false;
                       }
 
-                      String response =
-                              readBody(
-                                      connection.getInputStream());
+                      StringBuilder sb =
+                              new StringBuilder();
 
-                      JSONObject data =
-                              new JSONObject(response);
+                      try (
+                              InputStream in =
+                                      c.getInputStream()) {
 
-                      String newAccess =
-                              data.optString(
+                          int x;
+
+                          while ((x = in.read()) != -1) {
+                              sb.append((char)x);
+                          }
+                      }
+
+                      JSONObject r =
+                              new JSONObject(
+                                      sb.toString());
+
+                      accessToken =
+                              r.optString(
                                       "access_token",
-                                      "");
+                                      accessToken);
 
-                      String newRefresh =
-                              data.optString(
+                      refreshToken =
+                              r.optString(
                                       "refresh_token",
                                       refreshToken);
 
-                      if (newAccess.isEmpty()) {
-                          return false;
-                      }
+                      return accessToken != null
+                              && !accessToken.isEmpty();
 
-                      accessToken =
-                              newAccess;
+                  } catch (Exception e) {
 
-                      refreshToken =
-                              newRefresh;
-
-                      return true;
-
-                  } catch (Exception ignored) {
                       return false;
 
                   } finally {
-                      if (connection != null) {
-                          connection.disconnect();
+
+                      if (c != null) {
+                          c.disconnect();
                       }
                   }
               }
 
-              private String readBody(InputStream stream)
-                      throws Exception {
+              private static String norm(
+                      String s) {
 
-                  if (stream == null) {
-                      return "";
-                  }
-
-                  StringBuilder builder =
-                          new StringBuilder();
-
-                  try (BufferedReader reader =
-                               new BufferedReader(
-                                       new InputStreamReader(
-                                               stream,
-                                               StandardCharsets.UTF_8))) {
-
-                      String line;
-
-                      while ((line = reader.readLine()) != null) {
-                          builder.append(line);
-                      }
-                  }
-
-                  return builder.toString();
+                  return s == null
+                          ? ""
+                          : s.trim().toUpperCase();
               }
 
-              private String normalize(String value) {
+              private static String nz(
+                      String s) {
 
-                  if (value == null) {
-                      return "";
-                  }
-
-                  return value.trim().toUpperCase();
-              }
-
-              private String nullToEmpty(String value) {
-                  return value == null ? "" : value;
+                  return s == null
+                          ? ""
+                          : s;
               }
 
               @Override
               public void onDestroy() {
 
-                  handler.removeCallbacks(heartbeat);
+                  handler.removeCallbacks(
+                          heartbeat);
 
-                  if (locationManager != null) {
-                      try {
-                          locationManager.removeUpdates(this);
-                      } catch (Exception ignored) {
-                      }
+                  if (lm != null) {
+                      lm.removeUpdates(this);
                   }
 
                   super.onDestroy();
               }
 
               @Override
-              public IBinder onBind(Intent intent) {
+              public IBinder onBind(
+                      Intent i) {
+
                   return null;
-              }
-
-              private static class SendResult {
-
-                  final boolean success;
-                  final boolean unauthorized;
-                  final boolean finished;
-
-                  private SendResult(
-                          boolean success,
-                          boolean unauthorized,
-                          boolean finished) {
-
-                      this.success = success;
-                      this.unauthorized = unauthorized;
-                      this.finished = finished;
-                  }
-
-                  static SendResult success() {
-                      return new SendResult(
-                              true,
-                              false,
-                              false);
-                  }
-
-                  static SendResult unauthorized() {
-                      return new SendResult(
-                              false,
-                              true,
-                              false);
-                  }
-
-                  static SendResult finished() {
-                      return new SendResult(
-                              false,
-                              false,
-                              true);
-                  }
-
-                  static SendResult failure() {
-                      return new SendResult(
-                              false,
-                              false,
-                              false);
-                  }
               }
           }
           EOF
 
-      - name: Compilar APK
+      - name: Compilar APK debug
         working-directory: android-pioca
-        run: gradle assembleDebug --stacktrace
+        run: gradle :app:assembleDebug --no-daemon
 
       - name: Preparar APK
-        run: |
-          mkdir -p salida
-          cp android-pioca/app/build/outputs/apk/debug/app-debug.apk \
-             salida/piOca-Seguimiento-prueba.apk
+        run: cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-prueba-v2.apk
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK
-          path: salida/piOca-Seguimiento-prueba.apk
+          name: piOca-Seguimiento-APK-v2
+          path: piOca-Seguimiento-prueba-v2.apk
           retention-days: 30
