@@ -368,6 +368,12 @@
     ) || "";
 
 
+  const informacionAdicional =
+    localStorage.getItem(
+      "pioca_additional_info"
+    ) || "";
+
+
   function mostrarError(texto){
 
     errorBox.textContent =
@@ -465,7 +471,7 @@
       "\uD83D\uDCCD";
 
 
-    const mensaje =
+    let mensaje =
 
       saludo +
       " Hola " +
@@ -479,13 +485,41 @@
 
       "\n\n" +
 
-      "Podés seguir nuestra llegada en tiempo real desde este enlace:" +
+      "Podés seguir nuestra llegada en tiempo real." +
 
       "\n\n" +
 
       ubicacion +
-      " " +
+      " *Ver ubicación de la camioneta:*" +
+
+      "\n" +
+
       linkCliente;
+
+
+    if(
+      informacionAdicional.trim() !== ""
+    ){
+
+      mensaje +=
+
+        "\n\n" +
+
+        "\u2139\uFE0F" +
+        " *Información adicional:*" +
+
+        "\n" +
+
+        informacionAdicional.trim();
+
+    }
+
+
+    mensaje +=
+
+      "\n\n" +
+
+      "_Este es un mensaje automático y no es necesario responderlo._";
 
 
     const numero =
@@ -864,12 +898,6 @@
             Date.now();
 
 
-          /*
-            Si en los últimos 10 segundos
-            watchPosition no generó un envío,
-            reenviamos la última posición válida.
-          */
-
           if(
             ahora -
             ultimoEnvio
@@ -1013,13 +1041,6 @@
           const ahora =
             Date.now();
 
-
-          /*
-            Primer envío inmediato.
-
-            Después, si hay nuevas posiciones,
-            enviamos como máximo cada 5 segundos.
-          */
 
           if(
             envios === 0 ||
@@ -1203,6 +1224,11 @@
 
     localStorage.removeItem(
       "pioca_client_link"
+    );
+
+
+    localStorage.removeItem(
+      "pioca_additional_info"
     );
 
 
