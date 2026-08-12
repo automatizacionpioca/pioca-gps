@@ -189,7 +189,7 @@
       autocomplete="username"
     >
 
-    <label>ContraseÃ±a</label>
+    <label>Contraseña</label>
 
     <input
       id="password"
@@ -223,11 +223,11 @@
         id="btnContacto"
         class="btnAzul"
         type="button">
-        ðŸ‘¤ SELECCIONAR CONTACTO
+        👤 SELECCIONAR CONTACTO
       </button>
 
       <div class="ayuda">
-        Si no estÃ¡ agendado, cargÃ¡ los datos manualmente.
+        Si no está agendado, cargá los datos manualmente.
       </div>
 
       <div
@@ -247,7 +247,7 @@
       >
 
       <label>
-        TelÃ©fono
+        Teléfono
       </label>
 
       <input
@@ -265,23 +265,23 @@
       <select id="estimatedArrival"></select>
 
       <label>
-        InformaciÃ³n adicional
+        Información adicional
       </label>
 
       <textarea
         id="additionalInfo"
-        placeholder="Opcional. Ej: Por favor dejar libre el acceso al portÃ³n."
+        placeholder="Opcional. Ej: Por favor dejar libre el acceso al portón."
         maxlength="500"></textarea>
 
       <div class="ayuda">
-        Si lo dejÃ¡s vacÃ­o, no se agrega nada al mensaje de WhatsApp.
+        Si lo dejás vacío, no se agrega nada al mensaje de WhatsApp.
       </div>
 
       <button
         id="btnCrear"
         class="btnVerde"
         type="button">
-        ðŸš INICIAR SEGUIMIENTO
+        🚐 INICIAR SEGUIMIENTO
       </button>
 
       <div
@@ -294,11 +294,11 @@
     <button
       id="btnEmergencia"
       type="button">
-      â›” DETENER SEGUIMIENTO
+      ⛔ DETENER SEGUIMIENTO
     </button>
 
     <div id="emergenciaAyuda">
-      BotÃ³n de seguridad. Busca y finaliza el Ãºltimo seguimiento que todavÃ­a figure activo.
+      Botón de seguridad. Busca y finaliza el último seguimiento que todavía figure activo.
     </div>
 
     <div
@@ -310,7 +310,7 @@
       id="btnLogout"
       class="btnOscuro"
       type="button">
-      CERRAR SESIÃ“N
+      CERRAR SESIÓN
     </button>
 
   </div>
@@ -404,35 +404,56 @@
 
   function redondearProximo10(fecha){
     const d = new Date(fecha);
+
     d.setSeconds(0);
     d.setMilliseconds(0);
 
-    const minutos = d.getMinutes();
-    const resto = minutos % 10;
+    const minutos =
+      d.getMinutes();
+
+    const resto =
+      minutos % 10;
 
     if(resto === 0){
-      d.setMinutes(minutos + 10);
+      d.setMinutes(
+        minutos + 10
+      );
     }else{
-      d.setMinutes(minutos + (10 - resto));
+      d.setMinutes(
+        minutos +
+        (10 - resto)
+      );
     }
 
     return d;
   }
 
   function cargarHorarios(){
-    estimatedArrival.innerHTML = "";
+
+    estimatedArrival.innerHTML =
+      "";
 
     const inicio =
-      redondearProximo10(new Date());
-
-    for(let i = 0; i <= 9; i++){
-      const h = new Date(
-        inicio.getTime() +
-        i * 10 * 60 * 1000
+      redondearProximo10(
+        new Date()
       );
 
+    for(
+      let i = 0;
+      i <= 9;
+      i++
+    ){
+
+      const h =
+        new Date(
+          inicio.getTime() +
+          i * 10 * 60 * 1000
+        );
+
       const option =
-        document.createElement("option");
+        document.createElement(
+          "option"
+        );
 
       option.value =
         h.toISOString();
@@ -447,27 +468,64 @@
           }
         );
 
-      estimatedArrival.appendChild(option);
+      estimatedArrival.appendChild(
+        option
+      );
     }
   }
 
-  function limpiarTelefono(numero){
-    return String(numero || "")
-      .replace(/\D/g,"");
+  function limpiarTelefono(
+    numero
+  ){
+
+    return String(
+      numero || ""
+    )
+    .replace(
+      /\D/g,
+      ""
+    );
   }
 
   function limpiarEstadoLocal(){
-    localStorage.removeItem("pioca_tracking_code");
-    localStorage.removeItem("pioca_tracking_active");
-    localStorage.removeItem("pioca_tracking_expires_at");
-    localStorage.removeItem("pioca_client_name");
-    localStorage.removeItem("pioca_client_phone");
-    localStorage.removeItem("pioca_client_link");
-    localStorage.removeItem("pioca_additional_info");
+
+    localStorage.removeItem(
+      "pioca_tracking_code"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_active"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_expires_at"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_name"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_phone"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_link"
+    );
+
+    localStorage.removeItem(
+      "pioca_additional_info"
+    );
   }
 
-  function guardarSeguimientoLocal(s){
-    const codigo = String(s.tracking_code || "")
+  function guardarSeguimientoLocal(
+    s
+  ){
+
+    const codigo =
+      String(
+        s.tracking_code || ""
+      )
       .trim()
       .toUpperCase();
 
@@ -504,149 +562,254 @@
     localStorage.setItem(
       "pioca_client_link",
       "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
-      encodeURIComponent(codigo)
+      encodeURIComponent(
+        codigo
+      )
     );
   }
 
-  function abrirPanelActivo(s){
-    guardarSeguimientoLocal(s);
+  function abrirPanelActivo(
+    s
+  ){
+
+    guardarSeguimientoLocal(
+      s
+    );
 
     window.location.replace(
       "index.html?tracking=" +
       encodeURIComponent(
-        String(s.tracking_code || "")
-          .trim()
-          .toUpperCase()
+        String(
+          s.tracking_code || ""
+        )
+        .trim()
+        .toUpperCase()
       )
     );
   }
 
   async function seleccionarContacto(){
-    ocultarEstado(contactoEstado);
+
+    ocultarEstado(
+      contactoEstado
+    );
 
     if(
       window.PiocaNative &&
-      typeof window.PiocaNative.pickContact === "function"
+      typeof window.PiocaNative.pickContact ===
+        "function"
     ){
-      window.PiocaNative.pickContact();
+
+      window.PiocaNative
+      .pickContact();
+
       return;
     }
 
     const soportado =
       ("contacts" in navigator) &&
       navigator.contacts &&
-      typeof navigator.contacts.select === "function";
+      typeof navigator.contacts.select ===
+        "function";
 
-    if(!soportado){
+    if(
+      !soportado
+    ){
+
       mostrarEstado(
         contactoEstado,
-        "No se pudo abrir la agenda. CargÃ¡ los datos manualmente.",
+        "No se pudo abrir la agenda. Cargá los datos manualmente.",
         "error"
       );
+
       return;
     }
 
     try{
+
       const contactos =
         await navigator.contacts.select(
-          ["name","tel"],
-          {multiple:false}
+          [
+            "name",
+            "tel"
+          ],
+          {
+            multiple:false
+          }
         );
 
-      if(!contactos || contactos.length === 0){
+      if(
+        !contactos ||
+        contactos.length === 0
+      ){
         return;
       }
 
-      const contacto = contactos[0];
+      const contacto =
+        contactos[0];
 
-      if(contacto.name && contacto.name.length){
-        clientName.value = contacto.name[0];
+      if(
+        contacto.name &&
+        contacto.name.length
+      ){
+
+        clientName.value =
+          contacto.name[0];
       }
 
-      if(contacto.tel && contacto.tel.length){
-        clientPhone.value = contacto.tel[0];
+      if(
+        contacto.tel &&
+        contacto.tel.length
+      ){
+
+        clientPhone.value =
+          contacto.tel[0];
       }
 
       mostrarEstado(
         contactoEstado,
-        "âœ… Contacto cargado.",
+        "✅ Contacto cargado.",
         "ok"
       );
 
     }catch(e){
+
       mostrarEstado(
         contactoEstado,
-        "No se seleccionÃ³ ningÃºn contacto.",
+        "No se seleccionó ningún contacto.",
         "error"
       );
     }
   }
 
   async function verificarSeguimientoActivo(){
-    formNuevo.style.display = "none";
-    verificandoBox.style.display = "block";
+
+    formNuevo.style.display =
+      "none";
+
+    verificandoBox.style.display =
+      "block";
+
     verificandoBox.textContent =
       "Verificando si existe un seguimiento activo...";
 
+    ocultarEstado(
+      emergenciaEstado
+    );
+
     try{
-      const {data,error} =
+
+      const {
+        data,
+        error
+      } =
         await supabaseClient.rpc(
           "get_my_active_tracking"
         );
 
-      if(error){
+      if(
+        error
+      ){
+
         throw error;
       }
 
-      if(Array.isArray(data) && data.length > 0){
-        abrirPanelActivo(data[0]);
+      if(
+        Array.isArray(data) &&
+        data.length > 0
+      ){
+
+        abrirPanelActivo(
+          data[0]
+        );
+
         return;
       }
 
       limpiarEstadoLocal();
 
-      /*
-        SOLO despues de confirmar con el servidor
-        que no hay seguimiento activo, detenemos
-        cualquier servicio GPS nativo residual.
-      */
       if(
         window.PiocaNative &&
-        typeof window.PiocaNative.stopTracking === "function"
+        typeof window.PiocaNative.stopTracking ===
+          "function"
       ){
+
         try{
-          window.PiocaNative.stopTracking();
+
+          window.PiocaNative
+          .stopTracking();
+
         }catch(e){}
       }
 
-      verificandoBox.style.display = "none";
-      formNuevo.style.display = "block";
+      verificandoBox.style.display =
+        "none";
+
+      formNuevo.style.display =
+        "block";
+
       cargarHorarios();
 
     }catch(error){
-      verificandoBox.style.display = "block";
+
+      verificandoBox.style.display =
+        "block";
+
       verificandoBox.textContent =
-        "No se pudo verificar el estado del seguimiento. No se habilita un seguimiento nuevo hasta recuperar conexiÃ³n con el servidor.";
+        "No se pudo verificar el estado del seguimiento.";
+
+      const detalle =
+        error &&
+        (
+          error.message ||
+          error.details ||
+          error.hint ||
+          error.code
+        )
+          ? (
+              " Error del servidor: " +
+              String(
+                error.message ||
+                error.details ||
+                error.hint ||
+                error.code
+              )
+            )
+          : "";
 
       mostrarEstado(
         emergenciaEstado,
-        "PodÃ©s usar el botÃ³n rojo de seguridad si necesitÃ¡s intentar detener un seguimiento activo.",
-        "info"
+        "No se habilita un seguimiento nuevo hasta recuperar conexión con el servidor." +
+        detalle,
+        "error"
       );
     }
   }
 
   async function mostrarPanelAutenticado(){
-    loginBox.style.display = "none";
-    panelAdmin.style.display = "block";
+
+    loginBox.style.display =
+      "none";
+
+    panelAdmin.style.display =
+      "block";
+
     await verificarSeguimientoActivo();
   }
 
   async function comprobarSesion(){
-    const {data} =
-      await supabaseClient.auth.getSession();
 
-    if(data && data.session){
+    const {
+      data
+    } =
+      await supabaseClient.auth
+      .getSession();
+
+    if(
+      data &&
+      data.session
+    ){
+
       await mostrarPanelAutenticado();
     }
   }
@@ -659,25 +822,46 @@
   btnLogin.addEventListener(
     "click",
     async function(){
-      ocultarEstado(loginEstado);
 
-      const {data,error} =
-        await supabaseClient.auth.signInWithPassword({
-          email:email.value.trim(),
-          password:password.value
+      ocultarEstado(
+        loginEstado
+      );
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.auth
+        .signInWithPassword({
+
+          email:
+            email.value.trim(),
+
+          password:
+            password.value
+
         });
 
-      if(error){
+      if(
+        error
+      ){
+
         mostrarEstado(
           loginEstado,
-          "Usuario o contraseÃ±a incorrectos.",
+          "Usuario o contraseña incorrectos.",
           "error"
         );
+
         return;
       }
 
-      if(data.session){
-        password.value = "";
+      if(
+        data.session
+      ){
+
+        password.value =
+          "";
+
         await mostrarPanelAutenticado();
       }
     }
@@ -686,85 +870,158 @@
   btnLogout.addEventListener(
     "click",
     async function(){
-      await supabaseClient.auth.signOut();
-      panelAdmin.style.display = "none";
-      formNuevo.style.display = "none";
-      verificandoBox.style.display = "none";
-      loginBox.style.display = "block";
+
+      await supabaseClient.auth
+      .signOut();
+
+      panelAdmin.style.display =
+        "none";
+
+      formNuevo.style.display =
+        "none";
+
+      verificandoBox.style.display =
+        "none";
+
+      loginBox.style.display =
+        "block";
     }
   );
 
   btnCrear.addEventListener(
     "click",
     async function(){
-      ocultarEstado(adminEstado);
 
-      const nombre = clientName.value.trim();
-      const telefono = limpiarTelefono(clientPhone.value);
-      const informacion = additionalInfo.value.trim();
+      ocultarEstado(
+        adminEstado
+      );
 
-      if(!nombre || !telefono){
+      const nombre =
+        clientName.value.trim();
+
+      const telefono =
+        limpiarTelefono(
+          clientPhone.value
+        );
+
+      const informacion =
+        additionalInfo.value.trim();
+
+      if(
+        !nombre ||
+        !telefono
+      ){
+
         mostrarEstado(
           adminEstado,
-          "CompletÃ¡ nombre y telÃ©fono.",
+          "Completá nombre y teléfono.",
           "error"
         );
+
         return;
       }
 
-      btnCrear.disabled = true;
-      btnCrear.textContent = "CREANDO SEGUIMIENTO...";
+      btnCrear.disabled =
+        true;
+
+      btnCrear.textContent =
+        "CREANDO SEGUIMIENTO...";
 
       try{
-        /*
-          Doble proteccion:
-          antes de crear, el servidor vuelve a verificar
-          que no exista otro seguimiento activo.
-        */
-        const {data,error} =
+
+        const {
+          data,
+          error
+        } =
           await supabaseClient.rpc(
             "create_tracking_service",
             {
-              p_client_name:nombre,
-              p_client_phone:telefono,
-              p_estimated_arrival:new Date(
-                estimatedArrival.value
-              ).toISOString(),
-              p_additional_info:informacion || null
+
+              p_client_name:
+                nombre,
+
+              p_client_phone:
+                telefono,
+
+              p_estimated_arrival:
+                new Date(
+                  estimatedArrival.value
+                )
+                .toISOString(),
+
+              p_additional_info:
+                informacion || null
+
             }
           );
 
-        if(error){
+        if(
+          error
+        ){
+
           throw error;
         }
 
-        if(!Array.isArray(data) || data.length === 0){
-          throw new Error("Respuesta vacÃ­a del servidor.");
+        if(
+          !Array.isArray(data) ||
+          data.length === 0
+        ){
+
+          throw new Error(
+            "Respuesta vacía del servidor."
+          );
         }
 
-        const s = data[0];
+        const s =
+          data[0];
 
         if(
           s.success === false &&
-          s.message === "ACTIVE_EXISTS"
+          s.message ===
+            "ACTIVE_EXISTS"
         ){
-          abrirPanelActivo(s);
+
+          abrirPanelActivo(
+            s
+          );
+
           return;
         }
 
-        if(s.success !== true){
-          throw new Error("No se pudo crear el seguimiento.");
+        if(
+          s.success !== true
+        ){
+
+          throw new Error(
+            "No se pudo crear el seguimiento."
+          );
         }
 
-        abrirPanelActivo(s);
+        abrirPanelActivo(
+          s
+        );
 
       }catch(error){
-        btnCrear.disabled = false;
-        btnCrear.textContent = "ðŸš INICIAR SEGUIMIENTO";
+
+        btnCrear.disabled =
+          false;
+
+        btnCrear.textContent =
+          "🚐 INICIAR SEGUIMIENTO";
+
+        const detalle =
+          error &&
+          error.message
+            ? (
+                " " +
+                error.message
+              )
+            : "";
 
         mostrarEstado(
           adminEstado,
-          "No se pudo crear el seguimiento. VolvÃ© a intentar cuando haya conexiÃ³n con el servidor.",
+          "No se pudo crear el seguimiento." +
+          detalle,
           "error"
         );
       }
@@ -774,35 +1031,56 @@
   btnEmergencia.addEventListener(
     "click",
     async function(){
-      ocultarEstado(emergenciaEstado);
 
-      const confirmar = window.confirm(
-        "Â¿QuerÃ©s detener el seguimiento activo?\n\nEsto invalidarÃ¡ el link del cliente y detendrÃ¡ la transmisiÃ³n GPS asociada."
+      ocultarEstado(
+        emergenciaEstado
       );
 
-      if(!confirmar){
+      const confirmar =
+        window.confirm(
+          "¿Querés detener el seguimiento activo?\n\nEsto invalidará el link del cliente y detendrá la transmisión GPS asociada."
+        );
+
+      if(
+        !confirmar
+      ){
         return;
       }
 
-      btnEmergencia.disabled = true;
-      btnEmergencia.textContent = "DETENIENDO...";
+      btnEmergencia.disabled =
+        true;
+
+      btnEmergencia.textContent =
+        "DETENIENDO...";
 
       try{
-        const {data,error} =
+
+        const {
+          data,
+          error
+        } =
           await supabaseClient.rpc(
             "finish_latest_active_tracking"
           );
 
-        if(error){
+        if(
+          error
+        ){
+
           throw error;
         }
 
         const r =
-          Array.isArray(data) && data.length
+          Array.isArray(data) &&
+          data.length
             ? data[0]
             : null;
 
-        if(!r || r.success !== true){
+        if(
+          !r ||
+          r.success !== true
+        ){
+
           mostrarEstado(
             emergenciaEstado,
             "No hay seguimientos activos para detener.",
@@ -813,45 +1091,73 @@
 
           if(
             window.PiocaNative &&
-            typeof window.PiocaNative.stopTracking === "function"
+            typeof window.PiocaNative.stopTracking ===
+              "function"
           ){
+
             try{
-              window.PiocaNative.stopTracking();
+
+              window.PiocaNative
+              .stopTracking();
+
             }catch(e){}
           }
 
         }else{
+
           limpiarEstadoLocal();
 
           if(
             window.PiocaNative &&
-            typeof window.PiocaNative.stopTracking === "function"
+            typeof window.PiocaNative.stopTracking ===
+              "function"
           ){
+
             try{
-              window.PiocaNative.stopTracking();
+
+              window.PiocaNative
+              .stopTracking();
+
             }catch(e){}
           }
 
           mostrarEstado(
             emergenciaEstado,
-            "Seguimiento detenido. El cliente ya no puede ver la ubicaciÃ³n de la camioneta.",
+            "Seguimiento detenido. El cliente ya no puede ver la ubicación de la camioneta.",
             "ok"
           );
 
-          formNuevo.style.display = "block";
+          formNuevo.style.display =
+            "block";
+
           cargarHorarios();
         }
 
       }catch(error){
+
+        const detalle =
+          error &&
+          error.message
+            ? (
+                " Error del servidor: " +
+                error.message
+              )
+            : "";
+
         mostrarEstado(
           emergenciaEstado,
-          "No se pudo confirmar el cierre con el servidor. No asumas que el seguimiento estÃ¡ detenido hasta obtener confirmaciÃ³n.",
+          "No se pudo confirmar el cierre con el servidor. No asumas que el seguimiento está detenido." +
+          detalle,
           "error"
         );
 
       }finally{
-        btnEmergencia.disabled = false;
-        btnEmergencia.textContent = "â›” DETENER SEGUIMIENTO";
+
+        btnEmergencia.disabled =
+          false;
+
+        btnEmergencia.textContent =
+          "⛔ DETENER SEGUIMIENTO";
       }
     }
   );
