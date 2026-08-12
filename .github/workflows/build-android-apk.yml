@@ -1,0 +1,906 @@
+name: Compilar piOca Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-android-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Crear proyecto Android
+        shell: bash
+        run: |
+          set -e
+          mkdir -p android-pioca/app/src/main/java/ar/com/pioca/seguimiento
+          mkdir -p android-pioca/app/src/main/res/values
+
+          cat > android-pioca/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "piOca Seguimiento"
+          include ":app"
+          EOF
+
+          cat > android-pioca/build.gradle <<'EOF'
+          plugins {
+              id "com.android.application" version "8.7.3" apply false
+          }
+          EOF
+
+          cat > android-pioca/app/build.gradle <<'EOF'
+          plugins {
+              id "com.android.application"
+          }
+
+          android {
+              namespace "ar.com.pioca.seguimiento"
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId "ar.com.pioca.seguimiento"
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 1
+                  versionName "0.1-prueba"
+              }
+          }
+          EOF
+
+          cat > android-pioca/app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">piOca Seguimiento</string>
+          </resources>
+          EOF
+
+          cat > android-pioca/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#1769aa</item>
+                  <item name="android:navigationBarColor">#ffffff</item>
+                  <item name="android:statusBarColor">#1769aa</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > android-pioca/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="piOca Seguimiento"
+                  android:usesCleartextTraffic="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+
+                  </activity>
+
+                  <service
+                      android:name=".TrackingService"
+                      android:foregroundServiceType="location"
+                      android:exported="false"/>
+
+              </application>
+
+          </manifest>
+          EOF
+
+          cat > android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java <<'EOF'
+          package ar.com.pioca.seguimiento;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.ActivityNotFoundException;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import org.json.JSONObject;
+
+          public class MainActivity extends Activity {
+
+              private static final String ADMIN =
+                      "https://automatizacionpioca.github.io/pioca-gps/admin.html";
+
+              private static final String AUTH_KEY =
+                      "sb-apxrmkdegjnblkbyjsbp-auth-token";
+
+              private WebView web;
+
+              @Override
+              public void onCreate(Bundle state) {
+                  super.onCreate(state);
+
+                  web = new WebView(this);
+                  setContentView(web);
+
+                  WebSettings settings = web.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+
+                  web.addJavascriptInterface(new NativeBridge(), "PiocaNative");
+
+                  web.setWebViewClient(new WebViewClient() {
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(
+                              WebView view,
+                              WebResourceRequest request) {
+
+                          Uri uri = request.getUrl();
+                          String scheme = uri.getScheme() == null ? "" : uri.getScheme();
+                          String host = uri.getHost() == null ? "" : uri.getHost();
+
+                          if ("intent".equalsIgnoreCase(scheme)) {
+                              try {
+                                  Intent intent = Intent.parseUri(
+                                          uri.toString(),
+                                          Intent.URI_INTENT_SCHEME);
+                                  startActivity(intent);
+                              } catch (Exception ignored) {
+                              }
+                              return true;
+                          }
+
+                          if ("https".equalsIgnoreCase(scheme)
+                                  && !"automatizacionpioca.github.io".equalsIgnoreCase(host)) {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                              } catch (ActivityNotFoundException ignored) {
+                              }
+                              return true;
+                          }
+
+                          return false;
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          super.onPageFinished(view, url);
+
+                          Uri uri = Uri.parse(url);
+
+                          if (url.contains("/pioca-gps/index.html")) {
+                              String code = uri.getQueryParameter("tracking");
+
+                              if (code != null && !code.trim().isEmpty()) {
+                                  String safeCode = JSONObject.quote(
+                                          code.trim().toUpperCase());
+
+                                  String js =
+                                          "(function(){"
+                                          + "try{"
+                                          + "var raw=localStorage.getItem("
+                                          + JSONObject.quote(AUTH_KEY) + ");"
+                                          + "if(!raw){return;}"
+                                          + "var s=JSON.parse(raw);"
+                                          + "if(s && s.access_token){"
+                                          + "PiocaNative.startTracking("
+                                          + safeCode + ","
+                                          + "String(s.access_token||''),"
+                                          + "String(s.refresh_token||''));"
+                                          + "}"
+                                          + "}catch(e){}"
+                                          + "})();";
+
+                                  view.evaluateJavascript(js, null);
+                              }
+                          }
+
+                          if (url.contains("/pioca-gps/admin.html")) {
+                              String js =
+                                      "(function(){"
+                                      + "try{"
+                                      + "var active=localStorage.getItem('pioca_tracking_active');"
+                                      + "if(!active){PiocaNative.stopTracking();}"
+                                      + "}catch(e){}"
+                                      + "})();";
+
+                              view.evaluateJavascript(js, null);
+                          }
+                      }
+                  });
+
+                  requestRuntimePermissions();
+                  web.loadUrl(ADMIN);
+              }
+
+              private void requestRuntimePermissions() {
+                  if (Build.VERSION.SDK_INT >= 33) {
+                      requestPermissions(
+                              new String[]{
+                                      Manifest.permission.ACCESS_FINE_LOCATION,
+                                      Manifest.permission.POST_NOTIFICATIONS
+                              },
+                              100);
+                  } else {
+                      requestPermissions(
+                              new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                              100);
+                  }
+              }
+
+              public class NativeBridge {
+
+                  @JavascriptInterface
+                  public void startTracking(
+                          String code,
+                          String accessToken,
+                          String refreshToken) {
+
+                      runOnUiThread(() -> {
+                          if (checkSelfPermission(
+                                  Manifest.permission.ACCESS_FINE_LOCATION)
+                                  != PackageManager.PERMISSION_GRANTED) {
+
+                              requestRuntimePermissions();
+                              return;
+                          }
+
+                          Intent service =
+                                  new Intent(
+                                          MainActivity.this,
+                                          TrackingService.class);
+
+                          service.putExtra("tracking", code);
+                          service.putExtra("access_token", accessToken);
+                          service.putExtra("refresh_token", refreshToken);
+
+                          if (Build.VERSION.SDK_INT >= 26) {
+                              startForegroundService(service);
+                          } else {
+                              startService(service);
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void stopTracking() {
+                      runOnUiThread(() ->
+                              stopService(
+                                      new Intent(
+                                              MainActivity.this,
+                                              TrackingService.class)));
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (web != null && web.canGoBack()) {
+                      web.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+          cat > android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java <<'EOF'
+          package ar.com.pioca.seguimiento;
+
+          import android.Manifest;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+
+          import org.json.JSONObject;
+
+          import java.io.BufferedReader;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.nio.charset.StandardCharsets;
+          import java.util.concurrent.atomic.AtomicBoolean;
+
+          public class TrackingService
+                  extends Service
+                  implements LocationListener {
+
+              private static final String CHANNEL_ID =
+                      "pioca_tracking";
+
+              private static final String SUPABASE_BASE =
+                      "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+              private static final String SUPABASE_KEY =
+                      "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+              private volatile String trackingCode;
+              private volatile String accessToken;
+              private volatile String refreshToken;
+
+              private LocationManager locationManager;
+              private Location lastLocation;
+
+              private long lastSuccessfulSend = 0L;
+
+              private final Handler handler =
+                      new Handler(Looper.getMainLooper());
+
+              private final AtomicBoolean sending =
+                      new AtomicBoolean(false);
+
+              private final Runnable heartbeat =
+                      new Runnable() {
+                          @Override
+                          public void run() {
+
+                              if (lastLocation != null
+                                      && System.currentTimeMillis()
+                                      - lastSuccessfulSend >= 10000L) {
+
+                                  sendAsync(lastLocation);
+                              }
+
+                              handler.postDelayed(this, 2000L);
+                          }
+                      };
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+
+                  NotificationManager manager =
+                          getSystemService(NotificationManager.class);
+
+                  NotificationChannel channel =
+                          new NotificationChannel(
+                                  CHANNEL_ID,
+                                  "Seguimiento GPS piOca",
+                                  NotificationManager.IMPORTANCE_LOW);
+
+                  channel.setDescription(
+                          "Mantiene activo el envío de ubicación durante el seguimiento.");
+
+                  manager.createNotificationChannel(channel);
+              }
+
+              @Override
+              public int onStartCommand(
+                      Intent intent,
+                      int flags,
+                      int startId) {
+
+                  if (intent != null) {
+                      trackingCode =
+                              normalize(intent.getStringExtra("tracking"));
+
+                      accessToken =
+                              nullToEmpty(
+                                      intent.getStringExtra("access_token"));
+
+                      refreshToken =
+                              nullToEmpty(
+                                      intent.getStringExtra("refresh_token"));
+                  }
+
+                  Notification notification =
+                          new Notification.Builder(
+                                  this,
+                                  CHANNEL_ID)
+                                  .setContentTitle(
+                                          "piOca · Seguimiento GPS activo")
+                                  .setContentText(
+                                          "La ubicación se está enviando al cliente")
+                                  .setSmallIcon(
+                                          android.R.drawable.ic_menu_mylocation)
+                                  .setOngoing(true)
+                                  .setOnlyAlertOnce(true)
+                                  .build();
+
+                  startForeground(
+                          1001,
+                          notification);
+
+                  startLocationUpdates();
+
+                  handler.removeCallbacks(heartbeat);
+                  handler.postDelayed(heartbeat, 2000L);
+
+                  return START_STICKY;
+              }
+
+              private void startLocationUpdates() {
+
+                  locationManager =
+                          (LocationManager)
+                                  getSystemService(LOCATION_SERVICE);
+
+                  if (checkSelfPermission(
+                          Manifest.permission.ACCESS_FINE_LOCATION)
+                          != PackageManager.PERMISSION_GRANTED) {
+
+                      stopSelf();
+                      return;
+                  }
+
+                  try {
+                      locationManager.requestLocationUpdates(
+                              LocationManager.GPS_PROVIDER,
+                              5000L,
+                              0f,
+                              this,
+                              Looper.getMainLooper());
+                  } catch (Exception ignored) {
+                  }
+
+                  try {
+                      locationManager.requestLocationUpdates(
+                              LocationManager.NETWORK_PROVIDER,
+                              10000L,
+                              0f,
+                              this,
+                              Looper.getMainLooper());
+                  } catch (Exception ignored) {
+                  }
+              }
+
+              @Override
+              public void onLocationChanged(Location location) {
+
+                  lastLocation = location;
+
+                  if (System.currentTimeMillis()
+                          - lastSuccessfulSend >= 5000L) {
+
+                      sendAsync(location);
+                  }
+              }
+
+              @Override
+              public void onProviderEnabled(String provider) {
+              }
+
+              @Override
+              public void onProviderDisabled(String provider) {
+              }
+
+              @Override
+              public void onStatusChanged(
+                      String provider,
+                      int status,
+                      Bundle extras) {
+              }
+
+              private void sendAsync(Location location) {
+
+                  if (trackingCode == null
+                          || trackingCode.isEmpty()
+                          || accessToken == null
+                          || accessToken.isEmpty()) {
+
+                      return;
+                  }
+
+                  if (!sending.compareAndSet(false, true)) {
+                      return;
+                  }
+
+                  new Thread(() -> {
+                      try {
+                          SendResult result =
+                                  sendPosition(location, accessToken);
+
+                          if (result.unauthorized
+                                  && refreshSession()) {
+
+                              result =
+                                      sendPosition(
+                                              location,
+                                              accessToken);
+                          }
+
+                          if (result.finished) {
+                              stopSelf();
+                              return;
+                          }
+
+                          if (result.success) {
+                              lastSuccessfulSend =
+                                      System.currentTimeMillis();
+                          }
+
+                      } finally {
+                          sending.set(false);
+                      }
+                  }).start();
+              }
+
+              private SendResult sendPosition(
+                      Location location,
+                      String token) {
+
+                  HttpURLConnection connection = null;
+
+                  try {
+                      URL endpoint =
+                              new URL(
+                                      SUPABASE_BASE
+                                              + "/rest/v1/rpc/"
+                                              + "push_tracking_position");
+
+                      connection =
+                              (HttpURLConnection)
+                                      endpoint.openConnection();
+
+                      connection.setRequestMethod("POST");
+                      connection.setDoOutput(true);
+                      connection.setConnectTimeout(10000);
+                      connection.setReadTimeout(10000);
+
+                      connection.setRequestProperty(
+                              "apikey",
+                              SUPABASE_KEY);
+
+                      connection.setRequestProperty(
+                              "Authorization",
+                              "Bearer " + token);
+
+                      connection.setRequestProperty(
+                              "Content-Type",
+                              "application/json");
+
+                      JSONObject body =
+                              new JSONObject();
+
+                      body.put(
+                              "p_code",
+                              trackingCode);
+
+                      body.put(
+                              "p_lat",
+                              location.getLatitude());
+
+                      body.put(
+                              "p_lon",
+                              location.getLongitude());
+
+                      body.put(
+                              "p_accuracy",
+                              location.getAccuracy());
+
+                      byte[] bytes =
+                              body.toString()
+                                      .getBytes(StandardCharsets.UTF_8);
+
+                      try (OutputStream output =
+                                   connection.getOutputStream()) {
+
+                          output.write(bytes);
+                      }
+
+                      int status =
+                              connection.getResponseCode();
+
+                      String response =
+                              readBody(
+                                      status >= 200
+                                              && status < 400
+                                              ? connection.getInputStream()
+                                              : connection.getErrorStream());
+
+                      if (status == 401
+                              || status == 403) {
+
+                          return SendResult.unauthorized();
+                      }
+
+                      if (status >= 200
+                              && status < 300) {
+
+                          String clean =
+                                  response == null
+                                          ? ""
+                                          : response.trim();
+
+                          if ("false".equalsIgnoreCase(clean)) {
+                              return SendResult.finished();
+                          }
+
+                          return SendResult.success();
+                      }
+
+                  } catch (Exception ignored) {
+                  } finally {
+                      if (connection != null) {
+                          connection.disconnect();
+                      }
+                  }
+
+                  return SendResult.failure();
+              }
+
+              private boolean refreshSession() {
+
+                  if (refreshToken == null
+                          || refreshToken.isEmpty()) {
+
+                      return false;
+                  }
+
+                  HttpURLConnection connection = null;
+
+                  try {
+                      URL endpoint =
+                              new URL(
+                                      SUPABASE_BASE
+                                              + "/auth/v1/token"
+                                              + "?grant_type=refresh_token");
+
+                      connection =
+                              (HttpURLConnection)
+                                      endpoint.openConnection();
+
+                      connection.setRequestMethod("POST");
+                      connection.setDoOutput(true);
+                      connection.setConnectTimeout(10000);
+                      connection.setReadTimeout(10000);
+
+                      connection.setRequestProperty(
+                              "apikey",
+                              SUPABASE_KEY);
+
+                      connection.setRequestProperty(
+                              "Content-Type",
+                              "application/json");
+
+                      JSONObject body =
+                              new JSONObject();
+
+                      body.put(
+                              "refresh_token",
+                              refreshToken);
+
+                      try (OutputStream output =
+                                   connection.getOutputStream()) {
+
+                          output.write(
+                                  body.toString()
+                                          .getBytes(
+                                                  StandardCharsets.UTF_8));
+                      }
+
+                      int status =
+                              connection.getResponseCode();
+
+                      if (status < 200
+                              || status >= 300) {
+
+                          return false;
+                      }
+
+                      String response =
+                              readBody(
+                                      connection.getInputStream());
+
+                      JSONObject data =
+                              new JSONObject(response);
+
+                      String newAccess =
+                              data.optString(
+                                      "access_token",
+                                      "");
+
+                      String newRefresh =
+                              data.optString(
+                                      "refresh_token",
+                                      refreshToken);
+
+                      if (newAccess.isEmpty()) {
+                          return false;
+                      }
+
+                      accessToken =
+                              newAccess;
+
+                      refreshToken =
+                              newRefresh;
+
+                      return true;
+
+                  } catch (Exception ignored) {
+                      return false;
+
+                  } finally {
+                      if (connection != null) {
+                          connection.disconnect();
+                      }
+                  }
+              }
+
+              private String readBody(InputStream stream)
+                      throws Exception {
+
+                  if (stream == null) {
+                      return "";
+                  }
+
+                  StringBuilder builder =
+                          new StringBuilder();
+
+                  try (BufferedReader reader =
+                               new BufferedReader(
+                                       new InputStreamReader(
+                                               stream,
+                                               StandardCharsets.UTF_8))) {
+
+                      String line;
+
+                      while ((line = reader.readLine()) != null) {
+                          builder.append(line);
+                      }
+                  }
+
+                  return builder.toString();
+              }
+
+              private String normalize(String value) {
+
+                  if (value == null) {
+                      return "";
+                  }
+
+                  return value.trim().toUpperCase();
+              }
+
+              private String nullToEmpty(String value) {
+                  return value == null ? "" : value;
+              }
+
+              @Override
+              public void onDestroy() {
+
+                  handler.removeCallbacks(heartbeat);
+
+                  if (locationManager != null) {
+                      try {
+                          locationManager.removeUpdates(this);
+                      } catch (Exception ignored) {
+                      }
+                  }
+
+                  super.onDestroy();
+              }
+
+              @Override
+              public IBinder onBind(Intent intent) {
+                  return null;
+              }
+
+              private static class SendResult {
+
+                  final boolean success;
+                  final boolean unauthorized;
+                  final boolean finished;
+
+                  private SendResult(
+                          boolean success,
+                          boolean unauthorized,
+                          boolean finished) {
+
+                      this.success = success;
+                      this.unauthorized = unauthorized;
+                      this.finished = finished;
+                  }
+
+                  static SendResult success() {
+                      return new SendResult(
+                              true,
+                              false,
+                              false);
+                  }
+
+                  static SendResult unauthorized() {
+                      return new SendResult(
+                              false,
+                              true,
+                              false);
+                  }
+
+                  static SendResult finished() {
+                      return new SendResult(
+                              false,
+                              false,
+                              true);
+                  }
+
+                  static SendResult failure() {
+                      return new SendResult(
+                              false,
+                              false,
+                              false);
+                  }
+              }
+          }
+          EOF
+
+      - name: Compilar APK
+        working-directory: android-pioca
+        run: gradle assembleDebug --stacktrace
+
+      - name: Preparar APK
+        run: |
+          mkdir -p salida
+          cp android-pioca/app/build/outputs/apk/debug/app-debug.apk \
+             salida/piOca-Seguimiento-prueba.apk
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-Seguimiento-APK
+          path: salida/piOca-Seguimiento-prueba.apk
+          retention-days: 30
