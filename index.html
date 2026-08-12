@@ -1,42 +1,80 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>piOca GPS</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>piOca® Rastreo</title>
+
 
   <style>
+
     body{
       margin:0;
       padding:20px;
       font-family:Arial,sans-serif;
-      background:#fff;
+      background:#f5f5f5;
       box-sizing:border-box;
     }
 
-    #pioca-gps{
+
+    .panel{
       max-width:520px;
       margin:0 auto;
+      background:#fff;
       padding:22px;
-      border:1px solid #d9d9d9;
       border-radius:14px;
       box-sizing:border-box;
-      background:#fff;
+      border:1px solid #ddd;
     }
+
 
     .titulo{
       text-align:center;
       font-size:24px;
       font-weight:700;
-      margin-bottom:8px;
+      margin-bottom:6px;
     }
+
 
     .subtitulo{
       text-align:center;
-      font-size:15px;
-      color:#444;
+      font-size:14px;
+      color:#555;
       margin-bottom:20px;
     }
+
+
+    #bloqueGPS{
+      display:none;
+    }
+
+
+    #bloqueDenegado{
+      display:none;
+      text-align:center;
+      padding:20px 10px;
+    }
+
+
+    .denegadoTitulo{
+      font-size:17px;
+      font-weight:700;
+      margin-bottom:7px;
+    }
+
+
+    .denegadoTexto{
+      font-size:14px;
+      color:#666;
+    }
+
 
     #trackingBox{
       padding:10px;
@@ -49,6 +87,7 @@
       letter-spacing:.5px;
     }
 
+
     #gpsEstado{
       background:#eee;
       padding:14px 10px;
@@ -59,7 +98,8 @@
       margin-bottom:18px;
     }
 
-    .boton{
+
+    button{
       width:100%;
       padding:16px 10px;
       border:0;
@@ -71,20 +111,24 @@
       margin-bottom:10px;
     }
 
+
     #gpsIniciar{
       background:#1769aa;
     }
+
 
     #gpsDetener{
       background:#333;
       display:none;
     }
 
+
     .datos{
       font-size:15px;
       line-height:2;
       color:#333;
     }
+
 
     #gpsError{
       display:none;
@@ -94,208 +138,270 @@
       border:1px solid #e4aaaa;
       border-radius:8px;
       font-size:13px;
+      line-height:1.5;
     }
+
   </style>
+
 </head>
+
 
 <body>
 
-<div id="pioca-gps">
 
-  <div class="titulo">piOca®</div>
+<div class="panel">
+
+  <div class="titulo">
+    piOca®
+  </div>
+
 
   <div class="subtitulo">
-    RASTREO DE VISITA
+    Rastreo de visita
   </div>
 
-  <div id="trackingBox">
-    Seguimiento: -
-  </div>
 
-  <div id="gpsEstado">
-    GPS detenido
-  </div>
+  <!-- ACCESO DENEGADO -->
 
-  <button id="gpsIniciar" class="boton" type="button">
-    INICIAR RASTREO
-  </button>
+  <div id="bloqueDenegado">
 
-  <button id="gpsDetener" class="boton" type="button">
-    DETENER RASTREO
-  </button>
-
-  <div class="datos">
-
-    <div>
-      <strong>Latitud:</strong>
-      <span id="gpsLat">-</span>
+    <div class="denegadoTitulo">
+      Acceso no autorizado
     </div>
 
-    <div>
-      <strong>Longitud:</strong>
-      <span id="gpsLon">-</span>
-    </div>
-
-    <div>
-      <strong>Precisión:</strong>
-      <span id="gpsAcc">-</span>
-    </div>
-
-    <div>
-      <strong>Última posición:</strong>
-      <span id="gpsHora">-</span>
-    </div>
-
-    <div>
-      <strong>Actualizaciones GPS:</strong>
-      <span id="gpsCantidad">0</span>
-    </div>
-
-    <div>
-      <strong>Último envío:</strong>
-      <span id="gpsEnvio">-</span>
-    </div>
-
-    <div>
-      <strong>Envíos a Supabase:</strong>
-      <span id="gpsEnvios">0</span>
+    <div class="denegadoTexto">
+      Esta función no se encuentra disponible.
     </div>
 
   </div>
 
-  <div id="gpsError"></div>
+
+  <!-- GPS -->
+
+  <div id="bloqueGPS">
+
+    <div id="trackingBox">
+      Seguimiento: -
+    </div>
+
+
+    <div id="gpsEstado">
+      GPS detenido
+    </div>
+
+
+    <button
+      id="gpsIniciar"
+      type="button">
+      INICIAR RASTREO
+    </button>
+
+
+    <button
+      id="gpsDetener"
+      type="button">
+      DETENER RASTREO
+    </button>
+
+
+    <div class="datos">
+
+      <div>
+        <strong>Latitud:</strong>
+        <span id="gpsLat">-</span>
+      </div>
+
+      <div>
+        <strong>Longitud:</strong>
+        <span id="gpsLon">-</span>
+      </div>
+
+      <div>
+        <strong>Precisión:</strong>
+        <span id="gpsAcc">-</span>
+      </div>
+
+      <div>
+        <strong>Última posición:</strong>
+        <span id="gpsHora">-</span>
+      </div>
+
+      <div>
+        <strong>Actualizaciones GPS:</strong>
+        <span id="gpsCantidad">0</span>
+      </div>
+
+      <div>
+        <strong>Último envío:</strong>
+        <span id="gpsEnvio">-</span>
+      </div>
+
+      <div>
+        <strong>Envíos:</strong>
+        <span id="gpsEnvios">0</span>
+      </div>
+
+    </div>
+
+
+    <div id="gpsError"></div>
+
+  </div>
 
 </div>
 
-<script>
-(function(){
 
-  var SUPABASE_URL =
+<script
+  src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+</script>
+
+
+<script>
+
+(async function(){
+
+
+  const SUPABASE_URL =
     "https://apxrmkdegjnblkbyjsbp.supabase.co";
 
-  var SUPABASE_KEY =
+
+  const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
 
-  var watchId = null;
-
-  var cantidad = 0;
-  var envios = 0;
-
-  var ultimoEnvio = 0;
-  var ultimaPosicion = null;
-
-  var enviando = false;
-  var detenidoManual = false;
-
-
-  var iniciar =
-    document.getElementById("gpsIniciar");
-
-  var detener =
-    document.getElementById("gpsDetener");
-
-  var estado =
-    document.getElementById("gpsEstado");
-
-  var trackingBox =
-    document.getElementById("trackingBox");
-
-  var lat =
-    document.getElementById("gpsLat");
-
-  var lon =
-    document.getElementById("gpsLon");
-
-  var acc =
-    document.getElementById("gpsAcc");
-
-  var hora =
-    document.getElementById("gpsHora");
-
-  var cantidadTxt =
-    document.getElementById("gpsCantidad");
-
-  var envioTxt =
-    document.getElementById("gpsEnvio");
-
-  var enviosTxt =
-    document.getElementById("gpsEnvios");
-
-  var errorBox =
-    document.getElementById("gpsError");
-
-
-  /*
-    LEEMOS EL CÓDIGO DEL SEGUIMIENTO
-
-    Prioridad:
-    1) ?tracking=XXXXXXXX
-    2) localStorage
-  */
-
-  var parametros =
-    new URLSearchParams(
-      window.location.search
+  const supabaseClient =
+    supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
     );
 
-  var trackingCode =
-    parametros.get("tracking");
 
-
-  if(trackingCode){
-
-    trackingCode =
-      trackingCode
-      .trim()
-      .toUpperCase();
-
-    localStorage.setItem(
-      "pioca_tracking_code",
-      trackingCode
+  const bloqueGPS =
+    document.getElementById(
+      "bloqueGPS"
     );
 
-    localStorage.setItem(
-      "pioca_tracking_active",
-      "1"
+
+  const bloqueDenegado =
+    document.getElementById(
+      "bloqueDenegado"
     );
 
-  }else{
 
-    trackingCode =
-      localStorage.getItem(
-        "pioca_tracking_code"
-      );
+  const trackingBox =
+    document.getElementById(
+      "trackingBox"
+    );
+
+
+  const iniciar =
+    document.getElementById(
+      "gpsIniciar"
+    );
+
+
+  const detener =
+    document.getElementById(
+      "gpsDetener"
+    );
+
+
+  const estado =
+    document.getElementById(
+      "gpsEstado"
+    );
+
+
+  const lat =
+    document.getElementById(
+      "gpsLat"
+    );
+
+
+  const lon =
+    document.getElementById(
+      "gpsLon"
+    );
+
+
+  const acc =
+    document.getElementById(
+      "gpsAcc"
+    );
+
+
+  const hora =
+    document.getElementById(
+      "gpsHora"
+    );
+
+
+  const cantidadTxt =
+    document.getElementById(
+      "gpsCantidad"
+    );
+
+
+  const envioTxt =
+    document.getElementById(
+      "gpsEnvio"
+    );
+
+
+  const enviosTxt =
+    document.getElementById(
+      "gpsEnvios"
+    );
+
+
+  const errorBox =
+    document.getElementById(
+      "gpsError"
+    );
+
+
+  let watchId = null;
+
+  let cantidad = 0;
+
+  let envios = 0;
+
+  let ultimoEnvio = 0;
+
+  let ultimaPosicion = null;
+
+  let detenidoManual = false;
+
+  let enviando = false;
+
+  let trackingCode = null;
+
+
+  function negarAcceso(){
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "block";
 
   }
 
 
-  if(trackingCode){
+  function permitirAcceso(){
 
-    trackingBox.textContent =
-      "Seguimiento: " +
-      trackingCode;
+    bloqueDenegado.style.display =
+      "none";
 
-  }else{
-
-    trackingBox.textContent =
-      "⚠️ No hay seguimiento activo";
-
-    trackingBox.style.background =
-      "#fff1c9";
-
-    iniciar.disabled =
-      true;
-
-    iniciar.style.opacity =
-      ".5";
+    bloqueGPS.style.display =
+      "block";
 
   }
 
 
   function mostrarError(texto){
 
-    errorBox.innerHTML =
+    errorBox.textContent =
       texto;
 
     errorBox.style.display =
@@ -304,9 +410,9 @@
   }
 
 
-  function limpiarError(){
+  function ocultarError(){
 
-    errorBox.innerHTML =
+    errorBox.textContent =
       "";
 
     errorBox.style.display =
@@ -315,24 +421,173 @@
   }
 
 
-  function enviarSupabase(
-    position,
-    intento
-  ){
+  /*
+    -------------------------------------------------------
+    VALIDAMOS SESION + SEGUIMIENTO
+    -------------------------------------------------------
+  */
+
+  async function validarAcceso(){
+
+
+    const {
+      data:
+      sessionData
+    } =
+
+      await supabaseClient
+      .auth
+      .getSession();
+
 
     if(
-      !position ||
-      !trackingCode
+      !sessionData ||
+      !sessionData.session
     ){
-      return;
+
+      negarAcceso();
+
+      return false;
+
+    }
+
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+
+    trackingCode =
+      params.get(
+        "tracking"
+      );
+
+
+    if(!trackingCode){
+
+      trackingCode =
+        localStorage.getItem(
+          "pioca_tracking_code"
+        );
+
+    }
+
+
+    if(!trackingCode){
+
+      negarAcceso();
+
+      return false;
+
+    }
+
+
+    trackingCode =
+      trackingCode
+      .trim()
+      .toUpperCase();
+
+
+    /*
+      Esta consulta está protegida
+      por RLS.
+
+      Sólo puede ver services
+      creados por el usuario logueado.
+    */
+
+    const {
+      data,
+      error
+    } =
+
+      await supabaseClient
+
+      .from("services")
+
+      .select(
+        "tracking_code,status,expires_at"
+      )
+
+      .eq(
+        "tracking_code",
+        trackingCode
+      )
+
+      .maybeSingle();
+
+
+    if(
+      error ||
+      !data
+    ){
+
+      negarAcceso();
+
+      return false;
+
     }
 
 
     if(
-      typeof intento ===
-      "undefined"
+      data.status !==
+      "active"
     ){
-      intento = 0;
+
+      negarAcceso();
+
+      return false;
+
+    }
+
+
+    if(
+      Date.now() >=
+      new Date(
+        data.expires_at
+      ).getTime()
+    ){
+
+      negarAcceso();
+
+      return false;
+
+    }
+
+
+    trackingBox.textContent =
+      "Seguimiento: " +
+      trackingCode;
+
+
+    permitirAcceso();
+
+
+    return true;
+
+  }
+
+
+  /*
+    -------------------------------------------------------
+    ENVIO SEGURO A SUPABASE
+    -------------------------------------------------------
+  */
+
+  async function enviarPosicion(
+    posicion,
+    intento = 0
+  ){
+
+
+    if(
+      !posicion ||
+      !trackingCode
+    ){
+
+      return;
+
     }
 
 
@@ -340,71 +595,52 @@
       enviando &&
       intento === 0
     ){
+
       return;
+
     }
 
 
-    enviando = true;
+    enviando =
+      true;
 
 
-    var datos = {
-
-      tracking_code:
-        trackingCode,
-
-      latitude:
-        position.coords.latitude,
-
-      longitude:
-        position.coords.longitude,
-
-      accuracy:
-        position.coords.accuracy
-
-    };
+    try{
 
 
-    fetch(
+      const {
+        data,
+        error
+      } =
 
-      SUPABASE_URL +
-      "/rest/v1/gps_test",
+        await supabaseClient
+        .rpc(
+          "push_tracking_position",
+          {
 
-      {
+            p_code:
+              trackingCode,
 
-        method:"POST",
+            p_lat:
+              posicion.coords.latitude,
 
-        headers:{
+            p_lon:
+              posicion.coords.longitude,
 
-          "apikey":
-            SUPABASE_KEY,
+            p_accuracy:
+              posicion.coords.accuracy
 
-          "Content-Type":
-            "application/json",
+          }
+        );
 
-          "Prefer":
-            "return=minimal"
-
-        },
-
-        body:
-          JSON.stringify(
-            datos
-          )
-
-      }
-
-    )
-
-
-    .then(function(respuesta){
 
       if(
-        !respuesta.ok
+        error ||
+        data !== true
       ){
 
         throw new Error(
-          "Supabase respondió " +
-          respuesta.status
+          "Seguimiento no autorizado o finalizado."
         );
 
       }
@@ -417,11 +653,11 @@
       envios++;
 
 
-      enviosTxt.innerHTML =
+      enviosTxt.textContent =
         envios;
 
 
-      envioTxt.innerHTML =
+      envioTxt.textContent =
 
         new Date()
         .toLocaleTimeString(
@@ -429,12 +665,13 @@
         );
 
 
-      limpiarError();
-
-    })
+      ocultarError();
 
 
-    .catch(function(error){
+    }
+
+    catch(error){
+
 
       enviando =
         false;
@@ -443,36 +680,51 @@
       if(
         detenidoManual
       ){
+
         return;
+
       }
 
+
+      /*
+        Si el backend rechazó
+        el seguimiento,
+        dejamos de enviar.
+      */
+
+      if(
+        String(
+          error.message
+        )
+        .includes(
+          "finalizado"
+        )
+      ){
+
+        detenerRastreo();
+
+        negarAcceso();
+
+        return;
+
+      }
+
+
+      /*
+        Microcorte:
+        reintentos 2 / 4 / 8 segundos.
+      */
 
       if(
         intento < 3
       ){
 
-        var espera;
-
-
-        if(
-          intento === 0
-        ){
-          espera = 2000;
-        }
-
-
-        if(
-          intento === 1
-        ){
-          espera = 4000;
-        }
-
-
-        if(
-          intento === 2
-        ){
-          espera = 8000;
-        }
+        const tiempos =
+          [
+            2000,
+            4000,
+            8000
+          ];
 
 
         mostrarError(
@@ -488,7 +740,7 @@
               !detenidoManual
             ){
 
-              enviarSupabase(
+              enviarPosicion(
                 ultimaPosicion,
                 intento + 1
               );
@@ -497,7 +749,9 @@
 
           },
 
-          espera
+          tiempos[
+            intento
+          ]
 
         );
 
@@ -506,22 +760,31 @@
 
 
         mostrarError(
-          "Sin conexión. El rastreo sigue activo y volverá a intentar."
+          "Sin conexión. El rastreo continuará intentando automáticamente."
         );
 
       }
 
-    });
+    }
 
   }
 
 
-  function iniciarGPS(){
+  /*
+    -------------------------------------------------------
+    GPS
+    -------------------------------------------------------
+  */
+
+  function iniciarRastreo(){
+
 
     if(
       watchId !== null
     ){
+
       return;
+
     }
 
 
@@ -529,7 +792,7 @@
       false;
 
 
-    estado.innerHTML =
+    estado.textContent =
       "Solicitando ubicación...";
 
 
@@ -543,40 +806,40 @@
       .watchPosition(
 
 
-        function(position){
+        function(posicion){
 
 
           ultimaPosicion =
-            position;
+            posicion;
 
 
           cantidad++;
 
 
-          lat.innerHTML =
+          lat.textContent =
 
-            position.coords
+            posicion.coords
             .latitude
             .toFixed(6);
 
 
-          lon.innerHTML =
+          lon.textContent =
 
-            position.coords
+            posicion.coords
             .longitude
             .toFixed(6);
 
 
-          acc.innerHTML =
+          acc.textContent =
 
             Math.round(
-              position.coords
+              posicion.coords
               .accuracy
             ) +
             " metros";
 
 
-          hora.innerHTML =
+          hora.textContent =
 
             new Date()
             .toLocaleTimeString(
@@ -584,11 +847,11 @@
             );
 
 
-          cantidadTxt.innerHTML =
+          cantidadTxt.textContent =
             cantidad;
 
 
-          estado.innerHTML =
+          estado.textContent =
             "🟢 GPS ACTIVO";
 
 
@@ -604,7 +867,7 @@
             "block";
 
 
-          var ahora =
+          const ahora =
             Date.now();
 
 
@@ -618,8 +881,8 @@
               ahora;
 
 
-            enviarSupabase(
-              position,
+            enviarPosicion(
+              posicion,
               0
             );
 
@@ -628,13 +891,15 @@
         },
 
 
-        function(error){
+        function(){
 
 
           if(
             detenidoManual
           ){
+
             return;
+
           }
 
 
@@ -667,7 +932,7 @@
                 !detenidoManual
               ){
 
-                iniciarGPS();
+                iniciarRastreo();
 
               }
 
@@ -698,125 +963,56 @@
   }
 
 
-  iniciar.addEventListener(
-
-    "click",
-
-    function(){
+  function detenerRastreo(){
 
 
-      if(
-        !trackingCode
-      ){
-
-        mostrarError(
-          "No hay un seguimiento activo."
-        );
-
-        return;
-
-      }
+    detenidoManual =
+      true;
 
 
-      if(
-        !navigator.geolocation
-      ){
+    if(
+      watchId !== null
+    ){
 
-        estado.innerHTML =
-          "❌ GPS no disponible";
-
-
-        estado.style.background =
-          "#ffe0e0";
+      navigator.geolocation
+      .clearWatch(
+        watchId
+      );
 
 
-        return;
-
-      }
-
-
-      cantidad =
-        0;
-
-
-      envios =
-        0;
-
-
-      ultimoEnvio =
-        0;
-
-
-      ultimaPosicion =
+      watchId =
         null;
-
-
-      cantidadTxt.innerHTML =
-        "0";
-
-
-      enviosTxt.innerHTML =
-        "0";
-
-
-      envioTxt.innerHTML =
-        "-";
-
-
-      limpiarError();
-
-
-      iniciarGPS();
 
     }
 
+
+    estado.textContent =
+      "GPS detenido";
+
+
+    estado.style.background =
+      "#eeeeee";
+
+
+    iniciar.style.display =
+      "block";
+
+
+    detener.style.display =
+      "none";
+
+  }
+
+
+  iniciar.addEventListener(
+    "click",
+    iniciarRastreo
   );
 
 
   detener.addEventListener(
-
     "click",
-
-    function(){
-
-
-      detenidoManual =
-        true;
-
-
-      if(
-        watchId !== null
-      ){
-
-        navigator.geolocation
-        .clearWatch(
-          watchId
-        );
-
-
-        watchId =
-          null;
-
-      }
-
-
-      estado.innerHTML =
-        "GPS detenido";
-
-
-      estado.style.background =
-        "#eeeeee";
-
-
-      iniciar.style.display =
-        "block";
-
-
-      detener.style.display =
-        "none";
-
-    }
-
+    detenerRastreo
   );
 
 
@@ -826,18 +1022,12 @@
 
     function(){
 
-
       if(
         !detenidoManual &&
         ultimaPosicion
       ){
 
-        mostrarError(
-          "Conexión recuperada. Reanudando envío..."
-        );
-
-
-        enviarSupabase(
+        enviarPosicion(
           ultimaPosicion,
           0
         );
@@ -849,9 +1039,21 @@
   );
 
 
+  const acceso =
+    await validarAcceso();
+
+
+  if(!acceso){
+
+    negarAcceso();
+
+  }
+
+
 })();
 
 </script>
 
 </body>
+
 </html>
