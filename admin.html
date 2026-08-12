@@ -7,7 +7,6 @@
   <title>piOca® Panel de Seguimiento</title>
 
   <style>
-
     body{
       margin:0;
       padding:20px;
@@ -48,8 +47,7 @@
       margin-bottom:6px;
     }
 
-    input,
-    select{
+    input, select{
       width:100%;
       padding:13px;
       font-size:16px;
@@ -147,7 +145,6 @@
       margin-top:6px;
       line-height:1.4;
     }
-
   </style>
 </head>
 
@@ -155,58 +152,29 @@
 
 <div class="panel">
 
-  <div class="titulo">
-    piOca®
-  </div>
-
-  <div class="subtitulo">
-    Panel de seguimiento
-  </div>
-
-
-  <!-- LOGIN -->
+  <div class="titulo">piOca®</div>
+  <div class="subtitulo">Panel de seguimiento</div>
 
   <div id="loginBox">
 
     <label>Email</label>
-
-    <input
-      id="email"
-      type="email"
-      autocomplete="username"
-    >
+    <input id="email" type="email" autocomplete="username">
 
     <label>Contraseña</label>
+    <input id="password" type="password" autocomplete="current-password">
 
-    <input
-      id="password"
-      type="password"
-      autocomplete="current-password"
-    >
-
-    <button
-      id="btnLogin"
-      class="btnAzul"
-      type="button">
+    <button id="btnLogin" class="btnAzul" type="button">
       INGRESAR
     </button>
 
-    <div
-      id="loginEstado"
-      class="estado">
-    </div>
+    <div id="loginEstado" class="estado"></div>
 
   </div>
 
 
-  <!-- PANEL -->
-
   <div id="panelAdmin">
 
-    <button
-      id="btnContacto"
-      class="btnAzul"
-      type="button">
+    <button id="btnContacto" class="btnAzul" type="button">
       👤 SELECCIONAR CONTACTO
     </button>
 
@@ -215,11 +183,7 @@
       cargá los datos manualmente.
     </div>
 
-    <div
-      id="contactoEstado"
-      class="estado">
-    </div>
-
+    <div id="contactoEstado" class="estado"></div>
 
     <label>Nombre del cliente</label>
 
@@ -229,7 +193,6 @@
       autocomplete="name"
       placeholder="Nombre del cliente"
     >
-
 
     <label>Teléfono</label>
 
@@ -241,39 +204,22 @@
       placeholder="Ej: 1155555555"
     >
 
-
     <label>Hora estimada de llegada</label>
 
     <select id="estimatedArrival"></select>
 
-
-    <button
-      id="btnCrear"
-      class="btnVerde"
-      type="button">
+    <button id="btnCrear" class="btnVerde" type="button">
       🚐 INICIAR SEGUIMIENTO
     </button>
 
-
-    <button
-      id="btnLogout"
-      class="btnOscuro"
-      type="button">
+    <button id="btnLogout" class="btnOscuro" type="button">
       CERRAR SESIÓN
     </button>
 
-
-    <div
-      id="adminEstado"
-      class="estado">
-    </div>
+    <div id="adminEstado" class="estado"></div>
 
 
-    <!-- SEGUIMIENTO ACTIVO -->
-
-    <div
-      id="seguimientoActivo"
-      class="seguimientoActivo">
+    <div id="seguimientoActivo" class="seguimientoActivo">
 
       <div class="dato">
         <strong>Cliente:</strong>
@@ -290,27 +236,19 @@
         <span id="activoVence"></span>
       </div>
 
-      <div
-        class="codigoBox"
-        id="activoCodigo">
-      </div>
+      <div class="codigoBox" id="activoCodigo"></div>
 
-      <div
-        class="linkBox"
-        id="activoLink">
-      </div>
+      <div class="linkBox" id="activoLink"></div>
 
-      <button
-        id="btnWhatsapp"
-        class="btnVerde"
-        type="button">
+      <button id="btnGPS" class="btnAzul" type="button">
+        📍 ABRIR GPS
+      </button>
+
+      <button id="btnWhatsapp" class="btnVerde" type="button">
         💬 ABRIR WHATSAPP
       </button>
 
-      <button
-        id="btnFinalizar"
-        class="btnOscuro"
-        type="button">
+      <button id="btnFinalizar" class="btnOscuro" type="button">
         ⛔ FINALIZAR SEGUIMIENTO
       </button>
 
@@ -324,7 +262,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-
 (function(){
 
   const SUPABASE_URL =
@@ -332,7 +269,6 @@
 
   const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
-
 
   const supabaseClient =
     supabase.createClient(
@@ -401,6 +337,9 @@
   const activoLink =
     document.getElementById("activoLink");
 
+  const btnGPS =
+    document.getElementById("btnGPS");
+
   const btnWhatsapp =
     document.getElementById("btnWhatsapp");
 
@@ -411,87 +350,50 @@
   let currentService = null;
 
 
-  function mostrarEstado(
-    elemento,
-    texto,
-    tipo
-  ){
-
-    elemento.textContent =
-      texto;
-
-    elemento.className =
-      "estado " + tipo;
-
-    elemento.style.display =
-      "block";
-
+  function mostrarEstado(el,texto,tipo){
+    el.textContent = texto;
+    el.className = "estado " + tipo;
+    el.style.display = "block";
   }
 
 
-  function ocultarEstado(
-    elemento
-  ){
-
-    elemento.style.display =
-      "none";
-
+  function ocultarEstado(el){
+    el.style.display = "none";
   }
 
 
-  function redondearProximo10(
-    fecha
-  ){
+  function redondearProximo10(fecha){
 
-    const d =
-      new Date(fecha);
+    const d = new Date(fecha);
 
     d.setSeconds(0);
     d.setMilliseconds(0);
 
-    const minutos =
-      d.getMinutes();
-
-    const resto =
-      minutos % 10;
-
+    const minutos = d.getMinutes();
+    const resto = minutos % 10;
 
     if(resto === 0){
-
-      d.setMinutes(
-        minutos + 10
-      );
-
+      d.setMinutes(minutos + 10);
     }else{
-
       d.setMinutes(
-        minutos +
-        (10 - resto)
+        minutos + (10 - resto)
       );
-
     }
 
     return d;
-
   }
 
 
   function cargarHorarios(){
 
-    estimatedArrival.innerHTML =
-      "";
+    estimatedArrival.innerHTML = "";
 
     const inicio =
       redondearProximo10(
         new Date()
       );
 
-
-    for(
-      let i = 0;
-      i <= 9;
-      i++
-    ){
+    for(let i = 0; i <= 9; i++){
 
       const hora =
         new Date(
@@ -499,16 +401,11 @@
           i * 10 * 60 * 1000
         );
 
-
       const option =
-        document.createElement(
-          "option"
-        );
-
+        document.createElement("option");
 
       option.value =
         hora.toISOString();
-
 
       option.textContent =
         hora.toLocaleTimeString(
@@ -519,19 +416,14 @@
           }
         );
 
-
       estimatedArrival.appendChild(
         option
       );
-
     }
-
   }
 
 
-  function limpiarTelefono(
-    numero
-  ){
+  function limpiarTelefono(numero){
 
     if(!numero){
       return "";
@@ -539,50 +431,27 @@
 
     return String(numero)
       .replace(/\D/g,"");
-
   }
 
 
-  function telefonoWhatsAppArgentina(
-    numero
-  ){
+  function telefonoWhatsAppArgentina(numero){
 
     let n =
-      limpiarTelefono(
-        numero
-      );
+      limpiarTelefono(numero);
 
-
-    if(
-      n.startsWith("549")
-    ){
-
+    if(n.startsWith("549")){
       return n;
-
     }
 
-
-    if(
-      n.startsWith("54")
-    ){
-
+    if(n.startsWith("54")){
       return n;
-
     }
 
-
-    if(
-      n.startsWith("0")
-    ){
-
-      n =
-        n.substring(1);
-
+    if(n.startsWith("0")){
+      n = n.substring(1);
     }
-
 
     return "549" + n;
-
   }
 
 
@@ -592,17 +461,13 @@
       contactoEstado
     );
 
-
     const soportado =
-
       ("contacts" in navigator) &&
-
       (
         typeof navigator
         .contacts
         .select === "function"
       );
-
 
     if(!soportado){
 
@@ -613,65 +478,45 @@
       );
 
       clientName.focus();
-
       return;
-
     }
 
 
     try{
 
       const contactos =
-
         await navigator.contacts.select(
-
-          [
-            "name",
-            "tel"
-          ],
-
+          ["name","tel"],
           {
             multiple:false
           }
-
         );
-
 
       if(
         !contactos ||
         contactos.length === 0
       ){
-
         return;
-
       }
-
 
       const contacto =
         contactos[0];
-
 
       if(
         contacto.name &&
         contacto.name.length
       ){
-
         clientName.value =
           contacto.name[0];
-
       }
-
 
       if(
         contacto.tel &&
         contacto.tel.length
       ){
-
         clientPhone.value =
           contacto.tel[0];
-
       }
-
 
       mostrarEstado(
         contactoEstado,
@@ -690,7 +535,6 @@
       );
 
     }
-
   }
 
 
@@ -704,74 +548,48 @@
         telefono
       );
 
-
     const texto =
       encodeURIComponent(
         mensaje
       );
-
 
     const ua =
       navigator.userAgent ||
       navigator.vendor ||
       window.opera;
 
-
-    if(
-      /android/i.test(ua)
-    ){
+    if(/android/i.test(ua)){
 
       const intent =
-
         "intent://send" +
-
         "?phone=" +
         numero +
-
         "&text=" +
         texto +
-
         "#Intent;" +
-
         "scheme=whatsapp;" +
-
         "package=com.whatsapp.w4b;" +
-
         "end";
-
 
       window.location.href =
         intent;
 
       return;
-
     }
 
-
-    const whatsappURL =
-
+    window.location.href =
       "https://wa.me/" +
       numero +
       "?text=" +
       texto;
-
-
-    window.location.href =
-      whatsappURL;
-
   }
 
 
   async function comprobarSesion(){
 
-    const {
-      data
-    } =
-
-      await supabaseClient
-      .auth
+    const { data } =
+      await supabaseClient.auth
       .getSession();
-
 
     if(
       data &&
@@ -785,50 +603,36 @@
         "block";
 
       cargarHorarios();
-
     }
-
   }
 
 
   btnContacto.addEventListener(
-
     "click",
-
     seleccionarContacto
-
   );
 
 
   btnLogin.addEventListener(
-
     "click",
-
     async function(){
-
 
       ocultarEstado(
         loginEstado
       );
 
-
       const {
         data,
         error
       } =
-
-        await supabaseClient
-        .auth
+        await supabaseClient.auth
         .signInWithPassword({
-
           email:
             email.value.trim(),
 
           password:
             password.value
-
         });
-
 
       if(error){
 
@@ -839,13 +643,9 @@
         );
 
         return;
-
       }
 
-
-      if(
-        data.session
-      ){
+      if(data.session){
 
         loginBox.style.display =
           "none";
@@ -853,28 +653,20 @@
         panelAdmin.style.display =
           "block";
 
-        password.value =
-          "";
+        password.value = "";
 
         cargarHorarios();
-
       }
-
     }
-
   );
 
 
   btnLogout.addEventListener(
-
     "click",
-
     async function(){
 
-      await supabaseClient
-        .auth
+      await supabaseClient.auth
         .signOut();
-
 
       panelAdmin.style.display =
         "none";
@@ -885,33 +677,24 @@
       seguimientoActivo.style.display =
         "none";
 
-      currentService =
-        null;
-
+      currentService = null;
     }
-
   );
 
 
   btnCrear.addEventListener(
-
     "click",
-
     async function(){
-
 
       ocultarEstado(
         adminEstado
       );
 
-
       const nombre =
         clientName.value.trim();
 
-
       const telefono =
         clientPhone.value.trim();
-
 
       if(
         !nombre ||
@@ -927,7 +710,6 @@
         );
 
         return;
-
       }
 
 
@@ -935,7 +717,6 @@
         new Date(
           estimatedArrival.value
         );
-
 
       const vence =
         new Date(
@@ -948,7 +729,6 @@
         data,
         error
       } =
-
         await supabaseClient
         .from("services")
         .insert({
@@ -971,9 +751,7 @@
             "active"
 
         })
-
         .select()
-
         .single();
 
 
@@ -987,7 +765,6 @@
         );
 
         return;
-
       }
 
 
@@ -999,8 +776,24 @@
         data.tracking_code;
 
 
-      const link =
+      /*
+        IMPORTANTE:
+        guardamos el seguimiento activo
+        para que index.html lo pueda leer.
+      */
 
+      localStorage.setItem(
+        "pioca_tracking_code",
+        codigo
+      );
+
+      localStorage.setItem(
+        "pioca_tracking_active",
+        "1"
+      );
+
+
+      const link =
         "https://www.automatizacionpioca.com.ar/seguimiento/?id=" +
         codigo;
 
@@ -1010,30 +803,22 @@
 
 
       activoHora.textContent =
-
         llegada.toLocaleTimeString(
-
           "es-AR",
-
           {
             hour:"2-digit",
             minute:"2-digit"
           }
-
         );
 
 
       activoVence.textContent =
-
         vence.toLocaleTimeString(
-
           "es-AR",
-
           {
             hour:"2-digit",
             minute:"2-digit"
           }
-
         );
 
 
@@ -1056,18 +841,26 @@
       );
 
 
-      btnWhatsapp.onclick =
-
+      btnGPS.onclick =
         function(){
 
+          window.location.href =
+            "index.html?tracking=" +
+            encodeURIComponent(
+              codigo
+            );
+
+        };
+
+
+      btnWhatsapp.onclick =
+        function(){
 
           const saludo =
             "\uD83D\uDC4B";
 
-
           const tecnico =
             "\uD83D\uDC68\u200D\uD83D\uDD27";
-
 
           const ubicacion =
             "\uD83D\uDCCD";
@@ -1102,36 +895,22 @@
           );
 
         };
-
     }
-
   );
 
 
   btnFinalizar.addEventListener(
-
     "click",
-
     async function(){
 
-
-      if(
-        !currentService
-      ){
-
+      if(!currentService){
         return;
-
       }
 
 
-      const {
-        error
-      } =
-
+      const { error } =
         await supabaseClient
-
         .from("services")
-
         .update({
 
           status:
@@ -1142,7 +921,6 @@
             .toISOString()
 
         })
-
         .eq(
           "id",
           currentService.id
@@ -1159,8 +937,21 @@
         );
 
         return;
-
       }
+
+
+      /*
+        Eliminamos el código activo
+        del teléfono.
+      */
+
+      localStorage.removeItem(
+        "pioca_tracking_code"
+      );
+
+      localStorage.removeItem(
+        "pioca_tracking_active"
+      );
 
 
       mostrarEstado(
@@ -1174,29 +965,19 @@
         "none";
 
 
-      currentService =
-        null;
+      currentService = null;
 
-
-      clientName.value =
-        "";
-
-
-      clientPhone.value =
-        "";
-
+      clientName.value = "";
+      clientPhone.value = "";
 
       cargarHorarios();
-
     }
-
   );
 
 
   comprobarSesion();
 
 })();
-
 </script>
 
 </body>
