@@ -64,12 +64,12 @@
 
     .logo{
       text-align:center;
-      margin-bottom:8px;
+      margin-bottom:12px;
     }
 
     .logo img{
-      width:170px;
-      max-width:48vw;
+      width:150px;
+      max-width:44vw;
       height:auto;
       display:inline-block;
     }
@@ -176,13 +176,25 @@
     }
 
     #fraseServicio{
-      margin-top:14px;
-      padding:2px 8px 4px 8px;
+      margin-top:12px;
+      padding:13px 14px;
       text-align:center;
       font-size:14px;
       line-height:1.4;
-      color:#555;
-      font-weight:600;
+      color:#2f5f88;
+      font-weight:700;
+      background:#f4f8fc;
+      border:1px solid #d6e3ef;
+      border-radius:12px;
+      box-shadow:0 2px 8px rgba(23,105,170,.08);
+    }
+
+    .leaflet-popup-content{
+      width:210px !important;
+      max-width:210px;
+      text-align:center;
+      line-height:1.35;
+      margin:14px 16px;
     }
 
     #actualizacionBox{
@@ -268,8 +280,8 @@
       }
 
       .logo img{
-        width:150px;
-        max-width:46vw;
+        width:136px;
+        max-width:42vw;
       }
 
       #mapa{
@@ -313,10 +325,6 @@
       alt="piOca"
     >
 
-  </div>
-
-  <div class="subtitulo">
-    SEGUIMIENTO DE VISITA
   </div>
 
   <div id="estado">
@@ -1121,7 +1129,7 @@
         )
         .bindPopup(
 
-          "<strong>Ya estamos en camino a tu domicilio.</strong>"
+          "<strong>Ya estamos en camino<br>a tu domicilio.</strong>"
 
         );
 
