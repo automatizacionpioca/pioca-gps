@@ -54,7 +54,7 @@
     body{
       padding:14px;
       box-sizing:border-box;
-      min-height:100svh;
+      min-height:100dvh;
       display:flex;
       justify-content:center;
       align-items:flex-start;
@@ -220,7 +220,7 @@
 
     #mapa{
       width:100%;
-      height:clamp(360px, calc(100svh - 330px), 560px);
+      height:clamp(360px, calc(100dvh - 330px), 560px);
       border-radius:14px;
       overflow:hidden;
       border:1px solid #d7d7d7;
@@ -332,6 +332,36 @@
 
     }
 
+
+    /* ==========================================================
+       AJUSTE ESPECÍFICO iPHONE / SAFARI
+       Safari maneja distinto la barra inferior del navegador.
+       Se usa dvh para aprovechar la altura visible real sin
+       modificar el comportamiento que ya funciona bien en Android.
+       ========================================================== */
+
+    @supports (-webkit-touch-callout:none){
+
+      @media(max-width:600px){
+
+        body{
+          min-height:100dvh;
+        }
+
+        #mapa{
+          height:clamp(
+            430px,
+            calc(100dvh - 285px),
+            650px
+          );
+        }
+
+        #fraseServicio{
+          margin-bottom:2px;
+        }
+      }
+    }
+
     @media(max-height:760px){
       .cabeceraCliente{
         margin-bottom:7px;
@@ -384,7 +414,7 @@
       }
 
       #mapa{
-        height:clamp(360px, calc(100svh - 325px), 560px);
+        height:clamp(360px, calc(100dvh - 325px), 560px);
       }
 
       #actualizacionBox{
@@ -473,7 +503,7 @@
     </div>
 
     <div id="fraseServicio">
-      Tu tiempo también forma parte de un buen servicio.
+      Cuidar tu tiempo también es parte de nuestro servicio.
     </div>
 
   </div>
