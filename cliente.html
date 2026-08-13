@@ -62,16 +62,27 @@
       background:#fff;
     }
 
-    .logo{
-      text-align:center;
+    .cabeceraCliente{
+      display:grid;
+      grid-template-columns:118px minmax(0,1fr);
+      gap:12px;
+      align-items:center;
       margin-bottom:12px;
     }
 
+    .logo{
+      text-align:left;
+      margin:0;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+    }
+
     .logo img{
-      width:150px;
-      max-width:44vw;
+      width:108px;
+      max-width:100%;
       height:auto;
-      display:inline-block;
+      display:block;
     }
 
     .subtitulo{
@@ -139,14 +150,13 @@
 
     #horaLlegadaBox{
       display:none;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-bottom:14px;
+      grid-template-columns:1fr;
+      gap:7px;
+      margin:0;
     }
 
     #horaLlegadaTitulo,
     #horaLlegada{
-      min-height:72px;
       box-sizing:border-box;
       border-radius:9px;
       display:flex;
@@ -156,22 +166,39 @@
     }
 
     #horaLlegadaTitulo{
-      padding:10px 12px;
+      min-height:42px;
+      padding:8px 10px;
       background:#f3f8fc;
       border:1px solid #d5e2ee;
-      font-size:12px;
-      line-height:1.25;
+      font-size:11px;
+      line-height:1.2;
       color:#555;
       font-weight:700;
     }
 
     #horaLlegada{
-      padding:10px 12px;
-      background:#f3f8fc;
-      border:1px solid #d5e2ee;
-      font-size:22px;
-      color:#1769aa;
+      min-height:52px;
+      padding:8px 10px;
+      background:#111;
+      border:1px solid #111;
+      font-size:23px;
+      color:#fff;
       font-weight:700;
+      animation:piocaHoraBlink 1.7s ease-in-out infinite;
+    }
+
+    @keyframes piocaHoraBlink{
+      0%{
+        opacity:1;
+      }
+
+      50%{
+        opacity:.48;
+      }
+
+      100%{
+        opacity:1;
+      }
     }
 
     #mapaWrap{
@@ -300,9 +327,15 @@
         padding:10px 10px 6px 10px;
       }
 
+      .cabeceraCliente{
+        grid-template-columns:96px minmax(0,1fr);
+        gap:9px;
+        margin-bottom:10px;
+      }
+
       .logo img{
-        width:136px;
-        max-width:42vw;
+        width:92px;
+        max-width:100%;
       }
 
       #mapa{
@@ -321,19 +354,16 @@
         font-size:10px;
       }
 
-      #horaLlegadaTitulo,
-      #horaLlegada{
-        min-height:64px;
-      }
-
       #horaLlegadaTitulo{
-        font-size:11px;
-        padding:8px 10px;
+        min-height:38px;
+        font-size:10px;
+        padding:7px 8px;
       }
 
       #horaLlegada{
-        font-size:20px;
-        padding:8px 10px;
+        min-height:48px;
+        font-size:21px;
+        padding:7px 8px;
       }
 
       #fraseServicio{
@@ -350,29 +380,33 @@
 
 <div class="panel">
 
-  <div class="logo">
+  <div class="cabeceraCliente">
 
-    <img
-      src="logo-pioca.png"
-      alt="piOca"
-    >
+    <div class="logo">
+
+      <img
+        src="logo-pioca.png"
+        alt="piOca"
+      >
+
+    </div>
+
+    <div id="horaLlegadaBox">
+
+      <div id="horaLlegadaTitulo">
+        HORA DE LLEGADA APROXIMADA
+      </div>
+
+      <div id="horaLlegada">
+        --:--
+      </div>
+
+    </div>
 
   </div>
 
   <div id="estado">
     Seguimiento no disponible
-  </div>
-
-  <div id="horaLlegadaBox">
-
-    <div id="horaLlegadaTitulo">
-      HORA ESTIMADA DE LLEGADA
-    </div>
-
-    <div id="horaLlegada">
-      --:--
-    </div>
-
   </div>
 
   <div id="mapaWrap">
