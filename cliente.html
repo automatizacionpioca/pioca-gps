@@ -346,18 +346,26 @@
 
         body{
           min-height:100dvh;
+          padding-bottom:4px;
         }
 
+        /*
+          iPhone / Safari:
+          aprovechamos mucho más la altura visible.
+          El mapa crece hasta ocupar el espacio que antes
+          quedaba blanco debajo de la frase.
+        */
         #mapa{
           height:clamp(
-            430px,
-            calc(100dvh - 285px),
-            650px
+            500px,
+            calc(100dvh - 190px),
+            760px
           );
         }
 
         #fraseServicio{
-          margin-bottom:2px;
+          margin-top:10px;
+          margin-bottom:0;
         }
       }
     }
