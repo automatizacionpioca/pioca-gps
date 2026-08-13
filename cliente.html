@@ -91,6 +91,52 @@
       margin-bottom:10px;
     }
 
+    .estadoEnVivo{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:9px;
+    }
+
+    .puntoEnVivo{
+      position:relative;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#24b84a;
+      flex:0 0 10px;
+    }
+
+    .puntoEnVivo::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:rgba(36,184,74,.38);
+      transform:translate(-50%,-50%) scale(1);
+      animation:piocaLivePulse 1.7s ease-out infinite;
+    }
+
+    @keyframes piocaLivePulse{
+      0%{
+        opacity:.8;
+        transform:translate(-50%,-50%) scale(1);
+      }
+
+      70%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(2.6);
+      }
+
+      100%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(2.6);
+      }
+    }
+
     #horaLlegadaBox{
       display:none;
       padding:12px 10px;
@@ -127,6 +173,16 @@
       overflow:hidden;
       border:1px solid #d7d7d7;
       box-sizing:border-box;
+    }
+
+    #fraseServicio{
+      margin-top:14px;
+      padding:2px 8px 4px 8px;
+      text-align:center;
+      font-size:14px;
+      line-height:1.4;
+      color:#555;
+      font-weight:600;
     }
 
     #actualizacionBox{
@@ -236,6 +292,10 @@
         font-size:21px;
       }
 
+      #fraseServicio{
+        font-size:13px;
+      }
+
     }
 
   </style>
@@ -291,6 +351,10 @@
         hace 0 s
       </span>
 
+    </div>
+
+    <div id="fraseServicio">
+      Tu tiempo también forma parte de un buen servicio.
     </div>
 
   </div>
@@ -1057,7 +1121,7 @@
         )
         .bindPopup(
 
-          "<strong>piOca</strong><br>Técnico en camino"
+          "<strong>Ya estamos en camino a tu domicilio.</strong>"
 
         );
 
@@ -1271,8 +1335,11 @@
         lon
       );
 
-      estado.textContent =
-        "🟢 Técnico en camino";
+      estado.innerHTML =
+        '<span class="estadoEnVivo">' +
+          '<span class="puntoEnVivo"></span>' +
+          '<span>Seguimiento en tiempo real</span>' +
+        '</span>';
 
       estado.style.background =
         "#dff5e1";
