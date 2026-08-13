@@ -382,7 +382,7 @@
       </div>
 
       <label>
-        Nombre del cliente
+        Nombre del cliente (opcional)
       </label>
 
       <input
@@ -1190,10 +1190,10 @@
       const telefono = limpiarTelefono(clientPhone.value);
       const informacion = additionalInfo.value.trim();
 
-      if(!nombre || !telefono){
+      if(!telefono){
         mostrarEstado(
           adminEstado,
-          "Completá nombre y teléfono.",
+          "Completá el teléfono.",
           "error"
         );
         return;
