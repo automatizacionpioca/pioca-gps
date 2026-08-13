@@ -1334,12 +1334,18 @@
     const ubicacion =
       "\uD83D\uDCCD";
 
+    const saludoCliente =
+      nombreCliente.trim() !== ""
+        ? saludo +
+          " Hola " +
+          nombreCliente.trim() +
+          "."
+        : saludo +
+          " Hola.";
+
     let mensaje =
 
-      saludo +
-      " Hola " +
-      nombreCliente +
-      "." +
+      saludoCliente +
 
       "\n\n" +
 
