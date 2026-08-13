@@ -9,32 +9,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>piOca | Seguimiento en tiempo real</title>
-
-  <meta
-    name="description"
-    content="Seguimiento de visita piOca. Ver ubicación de la camioneta."
-  >
-
-  <meta
-    property="og:title"
-    content="piOca | Seguimiento en tiempo real"
-  >
-
-  <meta
-    property="og:description"
-    content="Ver ubicación de la camioneta."
-  >
-
-  <meta
-    property="og:type"
-    content="website"
-  >
-
-  <meta
-    property="og:site_name"
-    content="piOca"
-  >
+  <title></title>
 
   <link
     rel="stylesheet"
@@ -633,7 +608,7 @@
     </div>
 
     <div id="fraseServicio">
-      Cuidar tu tiempo también es parte de nuestro servicio.
+      Respetar tu tiempo también es parte de nuestro servicio.
     </div>
 
   </div>
@@ -733,6 +708,14 @@
 
   let animacionRumboId =
     null;
+
+  /*
+    Si el cliente rota manualmente el mapa con dos dedos,
+    dejamos de modificar automáticamente la orientación.
+    La posición y el centrado siguen actualizándose.
+  */
+  let rotacionManual =
+    false;
 
   /*
     Evita que el mapa "baile" por pequeños
@@ -1160,6 +1143,12 @@
   ){
 
     if(
+      rotacionManual
+    ){
+      return;
+    }
+
+    if(
       !mapa ||
       typeof mapa.setBearing !==
         "function"
@@ -1338,7 +1327,7 @@
             zoomControl:true,
             rotate:true,
             bearing:0,
-            touchRotate:false,
+            touchRotate:true,
             rotateControl:false
           }
         )
@@ -1363,6 +1352,35 @@
       )
       .addTo(
         mapa
+      );
+
+      /*
+        En cuanto el cliente usa dos dedos sobre el mapa,
+        consideramos que eligió una orientación manual.
+        Desde ese momento el GPS sigue moviendo y centrando
+        el marcador, pero no vuelve a girar el mapa.
+      */
+      const contenedorMapa =
+        mapa.getContainer();
+
+      contenedorMapa.addEventListener(
+        "touchstart",
+        function(evento){
+
+          if(
+            evento.touches &&
+            evento.touches.length >= 2
+          ){
+
+            rotacionManual =
+              true;
+
+            detenerAnimacionRumbo();
+          }
+        },
+        {
+          passive:true
+        }
       );
 
       setTimeout(
