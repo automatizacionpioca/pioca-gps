@@ -1354,9 +1354,9 @@
         ? saludo +
           " Hola " +
           nombreCliente.trim() +
-          ". Ya vamos en camino a tu domicilio."
+          "."
         : saludo +
-          " Hola. Ya vamos en camino a tu domicilio.";
+          " Hola.";
 
     let mensaje =
 
@@ -1364,12 +1364,15 @@
 
       "\n\n" +
 
-      "Mirá cuánto nos falta para llegar en este mapa en vivo:" +
+      "*Ya vamos en camino a tu domicilio.*" +
+
+      "\n\n" +
+
+      ubicacion +
+      " *Seguí nuestra llegada en tiempo real:*" +
 
       "\n" +
 
-      ubicacion +
-      " " +
       linkCliente;
 
     if(
@@ -1393,7 +1396,7 @@
 
       "\n\n" +
 
-      "_Este es un mensaje automático._";
+      "_Este es un mensaje automático y no hace falta responderlo._";
 
     const numero =
       telefonoWhatsAppArgentina(
