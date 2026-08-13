@@ -228,6 +228,9 @@ jobs:
             <uses-permission
               android:name="android.permission.POST_NOTIFICATIONS"/>
 
+            <uses-permission
+              android:name="android.permission.WAKE_LOCK"/>
+
             <application
               android:theme="@style/AppTheme"
               android:label="piOca Seguimiento"
@@ -1231,6 +1234,8 @@ jobs:
 
           import android.os.Looper;
 
+          import android.os.PowerManager;
+
           import org.json.JSONArray;
 
           import org.json.JSONObject;
@@ -1286,6 +1291,8 @@ jobs:
 
               private Location last;
 
+              private PowerManager.WakeLock wakeLock;
+
 
               private long lastOk = 0L;
 
@@ -1332,6 +1339,9 @@ jobs:
 
                                   return;
                               }
+
+
+                              ensureWakeLock();
 
 
                               long now =
@@ -1595,6 +1605,13 @@ jobs:
                   );
 
 
+                  /*
+                   * Mantiene la CPU activa con la pantalla apagada.
+                   * Es un PARTIAL_WAKE_LOCK: NO mantiene la pantalla encendida.
+                   */
+                  ensureWakeLock();
+
+
                   startLocations();
 
 
@@ -1613,6 +1630,97 @@ jobs:
 
 
                   return START_STICKY;
+              }
+
+
+              private void ensureWakeLock() {
+
+
+                  try {
+
+
+                      if (
+
+                              wakeLock != null
+
+                              && wakeLock.isHeld()
+
+                      ) {
+
+
+                          return;
+                      }
+
+
+                      PowerManager pm =
+
+                              (PowerManager)
+
+                                      getSystemService(
+
+                                              POWER_SERVICE
+                                      );
+
+
+                      if (pm == null) {
+
+
+                          return;
+                      }
+
+
+                      wakeLock =
+
+                              pm.newWakeLock(
+
+                                      PowerManager.PARTIAL_WAKE_LOCK,
+
+                                      "pioca:tracking"
+                              );
+
+
+                      wakeLock.setReferenceCounted(
+
+                              false
+                      );
+
+
+                      wakeLock.acquire();
+
+
+                  } catch (Exception ignored) {
+                  }
+              }
+
+
+              private void releaseWakeLock() {
+
+
+                  try {
+
+
+                      if (
+
+                              wakeLock != null
+
+                              && wakeLock.isHeld()
+
+                      ) {
+
+
+                          wakeLock.release();
+                      }
+
+
+                  } catch (Exception ignored) {
+
+
+                  } finally {
+
+
+                      wakeLock =
+                              null;
+                  }
               }
 
 
@@ -2909,6 +3017,9 @@ jobs:
                   }
 
 
+                  releaseWakeLock();
+
+
                   clearActiveConfig();
 
 
@@ -3081,6 +3192,9 @@ jobs:
                       } catch (Exception ignored) {
                       }
                   }
+
+
+                  releaseWakeLock();
 
 
                   super.onDestroy();
