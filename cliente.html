@@ -139,22 +139,36 @@
 
     #horaLlegadaBox{
       display:none;
-      padding:12px 10px;
-      background:#f3f8fc;
-      border:1px solid #d5e2ee;
-      border-radius:9px;
-      text-align:center;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
       margin-bottom:14px;
     }
 
+    #horaLlegadaTitulo,
+    #horaLlegada{
+      min-height:72px;
+      box-sizing:border-box;
+      border-radius:9px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+
     #horaLlegadaTitulo{
+      padding:10px 12px;
+      background:#f3f8fc;
+      border:1px solid #d5e2ee;
       font-size:12px;
+      line-height:1.25;
       color:#555;
       font-weight:700;
-      margin-bottom:4px;
     }
 
     #horaLlegada{
+      padding:10px 12px;
+      background:#f3f8fc;
+      border:1px solid #d5e2ee;
       font-size:22px;
       color:#1769aa;
       font-weight:700;
@@ -168,7 +182,7 @@
 
     #mapa{
       width:100%;
-      height:420px;
+      height:390px;
       border-radius:14px;
       overflow:hidden;
       border:1px solid #d7d7d7;
@@ -176,25 +190,32 @@
     }
 
     #fraseServicio{
-      margin-top:12px;
-      padding:13px 14px;
+      margin-top:8px;
+      margin-bottom:8px;
+      padding:10px 12px;
       text-align:center;
-      font-size:14px;
-      line-height:1.4;
+      font-size:13px;
+      line-height:1.3;
       color:#2f5f88;
       font-weight:700;
       background:#f4f8fc;
       border:1px solid #d6e3ef;
-      border-radius:12px;
+      border-radius:10px;
       box-shadow:0 2px 8px rgba(23,105,170,.08);
+      box-sizing:border-box;
     }
 
     .leaflet-popup-content{
-      width:210px !important;
-      max-width:210px;
+      width:165px !important;
+      max-width:165px;
       text-align:center;
-      line-height:1.35;
-      margin:14px 16px;
+      line-height:1.25;
+      margin:10px 12px;
+      font-size:12px;
+    }
+
+    .leaflet-popup-content-wrapper{
+      border-radius:11px;
     }
 
     #actualizacionBox{
@@ -276,7 +297,7 @@
     @media(max-width:600px){
 
       body{
-        padding:10px;
+        padding:10px 10px 6px 10px;
       }
 
       .logo img{
@@ -285,7 +306,7 @@
       }
 
       #mapa{
-        height:430px;
+        height:395px;
       }
 
       #actualizacionBox{
@@ -300,8 +321,19 @@
         font-size:10px;
       }
 
+      #horaLlegadaTitulo,
       #horaLlegada{
-        font-size:21px;
+        min-height:64px;
+      }
+
+      #horaLlegadaTitulo{
+        font-size:11px;
+        padding:8px 10px;
+      }
+
+      #horaLlegada{
+        font-size:20px;
+        padding:8px 10px;
       }
 
       #fraseServicio{
@@ -334,7 +366,7 @@
   <div id="horaLlegadaBox">
 
     <div id="horaLlegadaTitulo">
-      HORA ESTIMADA DE LLEGADA DEL TÉCNICO
+      HORA ESTIMADA DE LLEGADA
     </div>
 
     <div id="horaLlegada">
@@ -568,7 +600,7 @@
       " hs";
 
     horaLlegadaBox.style.display =
-      "block";
+      "grid";
   }
 
   function quitarMarcador(){
