@@ -274,6 +274,14 @@
       flex-direction:column;
     }
 
+    #mapaContenedor{
+      position:relative;
+      width:100%;
+      flex:1 1 auto;
+      min-height:220px;
+      display:flex;
+    }
+
     #mapa{
       width:100%;
       flex:1 1 auto;
@@ -285,6 +293,35 @@
       box-sizing:border-box;
       box-shadow:
         0 6px 18px rgba(20,45,65,.07);
+    }
+
+    #btnRefrescarPosicion{
+      position:absolute;
+      right:12px;
+      bottom:12px;
+      z-index:1002;
+      border:1px solid rgba(32,50,70,.16);
+      background:rgba(255,255,255,.95);
+      color:#203246;
+      border-radius:999px;
+      padding:9px 12px;
+      font-family:Arial,sans-serif;
+      font-size:11px;
+      font-weight:700;
+      line-height:1;
+      box-shadow:0 4px 12px rgba(0,0,0,.14);
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+      backdrop-filter:blur(5px);
+    }
+
+    #btnRefrescarPosicion:active{
+      transform:scale(.97);
+    }
+
+    #btnRefrescarPosicion:disabled{
+      opacity:.62;
+      cursor:default;
     }
 
     #fraseServicio{
@@ -546,6 +583,13 @@
         font-size:10px;
       }
 
+      #btnRefrescarPosicion{
+        right:10px;
+        bottom:10px;
+        padding:8px 10px;
+        font-size:10px;
+      }
+
       #fraseServicio{
         margin-top:9px;
         padding:10px 11px;
@@ -592,19 +636,29 @@
 
   <div id="mapaWrap">
 
-    <div id="mapa"></div>
+    <div id="mapaContenedor">
 
-    <div
-      id="actualizacionBox"
-      class="actualizacionOk">
+      <div id="mapa"></div>
 
-      <span id="actualizacionTexto">
-        UBICACIÓN ACTUALIZADA
-      </span>
+      <div
+        id="actualizacionBox"
+        class="actualizacionOk">
 
-      <span id="actualizacionSegundos">
-        hace 0 s
-      </span>
+        <span id="actualizacionTexto">
+          UBICACIÓN ACTUALIZADA
+        </span>
+
+        <span id="actualizacionSegundos">
+          hace 0 s
+        </span>
+
+      </div>
+
+      <button
+        id="btnRefrescarPosicion"
+        type="button">
+        ↻ REFRESCAR POSICIÓN
+      </button>
 
     </div>
 
@@ -669,6 +723,11 @@
       "actualizacionSegundos"
     );
 
+  const btnRefrescarPosicion =
+    document.getElementById(
+      "btnRefrescarPosicion"
+    );
+
   const parametros =
     new URLSearchParams(
       window.location.search
@@ -693,6 +752,18 @@
 
   let consultaId =
     null;
+
+  let watchdogConsultaId =
+    null;
+
+  let consultaEnCurso =
+    false;
+
+  let consultaAbortController =
+    null;
+
+  let ultimaConsultaFinalizadaMs =
+    Date.now();
 
   let terminado =
     false;
@@ -754,6 +825,146 @@
       consultaId =
         null;
     }
+
+    if(
+      watchdogConsultaId !== null
+    ){
+
+      clearInterval(
+        watchdogConsultaId
+      );
+
+      watchdogConsultaId =
+        null;
+    }
+
+    if(
+      consultaAbortController
+    ){
+
+      try{
+        consultaAbortController.abort();
+      }catch(e){}
+
+      consultaAbortController =
+        null;
+    }
+
+    consultaEnCurso =
+      false;
+  }
+
+  function iniciarCicloConsultas(){
+
+    if(
+      terminado ||
+      !codigo
+    ){
+      return;
+    }
+
+    if(
+      consultaId !== null
+    ){
+      clearInterval(
+        consultaId
+      );
+    }
+
+    consultaId =
+      setInterval(
+        function(){
+          consultar(false);
+        },
+        3000
+      );
+
+    if(
+      watchdogConsultaId === null
+    ){
+
+      watchdogConsultaId =
+        setInterval(
+          function(){
+
+            if(
+              terminado ||
+              !codigo
+            ){
+              return;
+            }
+
+            const demora =
+              Date.now() -
+              ultimaConsultaFinalizadaMs;
+
+            /*
+              Si la pantalla dejó de completar consultas
+              durante 20 segundos, se reconstruye el ciclo.
+            */
+            if(
+              demora >= 20000
+            ){
+
+              if(
+                consultaAbortController
+              ){
+                try{
+                  consultaAbortController.abort();
+                }catch(e){}
+              }
+
+              consultaEnCurso =
+                false;
+
+              ultimaConsultaFinalizadaMs =
+                Date.now();
+
+              iniciarCicloConsultas();
+
+              consultar(true);
+            }
+          },
+          5000
+        );
+    }
+  }
+
+  function refrescarConsultaManual(){
+
+    if(
+      terminado ||
+      !codigo
+    ){
+      return;
+    }
+
+    btnRefrescarPosicion.disabled =
+      true;
+
+    btnRefrescarPosicion.textContent =
+      "↻ ACTUALIZANDO...";
+
+    iniciarCicloConsultas();
+
+    consultar(true)
+      .finally(
+        function(){
+
+          setTimeout(
+            function(){
+
+              btnRefrescarPosicion.disabled =
+                false;
+
+              btnRefrescarPosicion.textContent =
+                "↻ REFRESCAR POSICIÓN";
+
+            },
+            700
+          );
+        }
+      );
   }
 
   function detenerAnimacionRumbo(){
@@ -1459,7 +1670,12 @@
     );
   }
 
-  async function consultar(){
+  async function consultar(
+    forzar
+  ){
+
+    forzar =
+      forzar === true;
 
     if(
       terminado
@@ -1494,6 +1710,52 @@
       return;
     }
 
+    /*
+      Evita consultas simultáneas.
+      Si el usuario fuerza un refresco, se cancela
+      una consulta anterior que pudiera haber quedado colgada.
+    */
+    if(
+      consultaEnCurso
+    ){
+
+      if(
+        !forzar
+      ){
+        return;
+      }
+
+      if(
+        consultaAbortController
+      ){
+        try{
+          consultaAbortController.abort();
+        }catch(e){}
+      }
+
+      consultaEnCurso =
+        false;
+    }
+
+    consultaEnCurso =
+      true;
+
+    const controlador =
+      new AbortController();
+
+    consultaAbortController =
+      controlador;
+
+    const timeoutConsulta =
+      setTimeout(
+        function(){
+          try{
+            controlador.abort();
+          }catch(e){}
+        },
+        10000
+      );
+
     try{
 
       const respuesta =
@@ -1524,7 +1786,10 @@
                 p_code:
                   codigo
 
-              })
+              }),
+
+            signal:
+              controlador.signal
 
           }
 
@@ -1561,10 +1826,6 @@
       const p =
         datos[0];
 
-      /*
-        Si el servidor informa que terminó,
-        desaparece inmediatamente el mapa.
-      */
       if(
         p.state ===
           "finished"
@@ -1668,13 +1929,88 @@
     }catch(error){
 
       /*
-        Si se corta Internet,
-        conservamos la última posición
-        y no damos por finalizado el seguimiento.
+        Timeout, pérdida de Internet o suspensión
+        del navegador no finalizan el seguimiento.
+        Se conserva la última pantalla válida.
       */
 
+    }finally{
+
+      clearTimeout(
+        timeoutConsulta
+      );
+
+      if(
+        consultaAbortController ===
+        controlador
+      ){
+
+        consultaAbortController =
+          null;
+
+        consultaEnCurso =
+          false;
+      }
+
+      ultimaConsultaFinalizadaMs =
+        Date.now();
     }
   }
+
+  btnRefrescarPosicion.addEventListener(
+    "click",
+    refrescarConsultaManual
+  );
+
+  document.addEventListener(
+    "visibilitychange",
+    function(){
+
+      if(
+        document.visibilityState ===
+          "visible" &&
+        !terminado &&
+        codigo
+      ){
+
+        iniciarCicloConsultas();
+
+        consultar(true);
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pageshow",
+    function(){
+
+      if(
+        !terminado &&
+        codigo
+      ){
+
+        iniciarCicloConsultas();
+
+        consultar(true);
+      }
+    }
+  );
+
+  window.addEventListener(
+    "online",
+    function(){
+
+      if(
+        !terminado &&
+        codigo
+      ){
+
+        iniciarCicloConsultas();
+
+        consultar(true);
+      }
+    }
+  );
 
   if(
     !codigo
@@ -1684,13 +2020,9 @@
 
   }else{
 
-    consultar();
+    consultar(true);
 
-    consultaId =
-      setInterval(
-        consultar,
-        3000
-      );
+    iniciarCicloConsultas();
   }
 
 })();
