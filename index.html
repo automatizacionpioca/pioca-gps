@@ -1346,9 +1346,6 @@
     const saludo =
       "\uD83D\uDC4B";
 
-    const tecnico =
-      "\uD83D\uDC68\u200D\uD83D\uDD27";
-
     const ubicacion =
       "\uD83D\uDCCD";
 
@@ -1357,9 +1354,9 @@
         ? saludo +
           " Hola " +
           nombreCliente.trim() +
-          "."
+          ". Ya vamos en camino a tu domicilio."
         : saludo +
-          " Hola.";
+          " Hola. Ya vamos en camino a tu domicilio.";
 
     let mensaje =
 
@@ -1367,20 +1364,12 @@
 
       "\n\n" +
 
-      tecnico +
-      " El técnico de piOca ya se encuentra en camino." +
-
-      "\n\n" +
-
-      "Podés seguir nuestra llegada en tiempo real." +
-
-      "\n\n" +
-
-      ubicacion +
-      " *Ver ubicación de la camioneta:*" +
+      "Mirá cuánto nos falta para llegar en este mapa en vivo:" +
 
       "\n" +
 
+      ubicacion +
+      " " +
       linkCliente;
 
     if(
@@ -1404,7 +1393,7 @@
 
       "\n\n" +
 
-      "_Este es un mensaje automático y no es necesario responderlo._";
+      "_Este es un mensaje automático._";
 
     const numero =
       telefonoWhatsAppArgentina(
