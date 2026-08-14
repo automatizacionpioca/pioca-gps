@@ -530,119 +530,52 @@
     ) / 60000;
   }
 
-  function normalizarMinutosSelector(
-    minutos
-  ){
-
-    if(
-      !Number.isFinite(
-        minutos
-      )
-    ){
-      return 5;
-    }
-
-    if(
-      minutos <= 1
-    ){
-      return 1;
-    }
-
-    if(
-      minutos <= 5
-    ){
-      return Math.max(
-        1,
-        Math.min(
-          5,
-          Math.ceil(
-            minutos
-          )
-        )
-      );
-    }
-
-    /*
-      Desde 5 en adelante trabajamos
-      en escalones de 5 minutos.
-    */
-    return Math.max(
-      10,
-      Math.ceil(
-        minutos / 5
-      ) * 5
-    );
-  }
-
-  function asegurarMinutosSelector(){
-
-    if(
-      minutosSelector !== null &&
-      Number.isFinite(
-        minutosSelector
-      )
-    ){
-      return;
-    }
+  function minutosTableroActuales(){
 
     const actuales =
       minutosRestantesCliente();
 
-    minutosSelector =
-      normalizarMinutosSelector(
-        actuales
-      );
+    if(
+      actuales === null ||
+      !Number.isFinite(actuales)
+    ){
+      return null;
+    }
+
+    /*
+      El panel muestra la diferencia real entre AHORA
+      y la hora de llegada. Ceil evita mostrar 0 min
+      mientras todavía quedan segundos.
+    */
+    return Math.max(
+      0,
+      Math.ceil(actuales)
+    );
   }
 
   function deltaRestarSelector(){
 
-    asegurarMinutosSelector();
+    const minutos =
+      minutosTableroActuales();
 
     if(
-      minutosSelector <= 1
+      minutos === null ||
+      minutos <= 0
     ){
       return 0;
     }
 
-    /*
-      Entre 1 y 5: bajar de a 1.
-      Por encima de 5: bajar de a 5.
-    */
-    if(
-      minutosSelector <= 5
-    ){
-      return -1;
-    }
-
-    return -5;
+    return -1;
   }
 
   function deltaSumarSelector(){
-
-    asegurarMinutosSelector();
-
-    /*
-      Entre 1 y 4: subir de a 1.
-      Desde 5: subir de a 5.
-    */
-    if(
-      minutosSelector < 5
-    ){
-      return 1;
-    }
-
-    return 5;
+    return 1;
   }
 
   function actualizarBotonesHora(){
 
-    asegurarMinutosSelector();
-
     const deltaMenos =
       deltaRestarSelector();
-
-    const deltaMas =
-      deltaSumarSelector();
 
     btnRestar5.disabled =
       modificandoHora ||
@@ -652,18 +585,10 @@
       modificandoHora;
 
     btnRestar5.textContent =
-      deltaMenos === 0
-        ? "− 1 min"
-        : "− " +
-          Math.abs(
-            deltaMenos
-          ) +
-          " min";
+      "− 1 min";
 
     btnSumar5.textContent =
-      "+ " +
-      deltaMas +
-      " min";
+      "+ 1 min";
   }
 
   function textoHace(ms){
@@ -946,10 +871,15 @@
       return;
     }
 
-    asegurarMinutosSelector();
+    const minutosActuales =
+      minutosTableroActuales();
 
     horaCliente.textContent =
-      minutosSelector +
+      (
+        minutosActuales === null
+          ? "--"
+          : minutosActuales
+      ) +
       " min";
 
     horaClienteTexto.textContent =
@@ -1513,15 +1443,11 @@
         )
         .getTime();
 
-      asegurarMinutosSelector();
-
-      minutosSelector =
-        Math.max(
-          1,
-          minutosSelector +
-          minutos
-        );
-
+      /*
+        La nueva ETA devuelta por el servidor pasa a ser
+        la única fuente de verdad. El tablero se recalcula
+        desde esa hora contra el reloj actual.
+      */
       pintarHoraCliente();
 
       localStorage.setItem(
@@ -2224,15 +2150,10 @@
     "click",
     function(){
 
-      const delta =
-        deltaRestarSelector();
-
       if(
-        delta !== 0
+        deltaRestarSelector() !== 0
       ){
-        moverHoraCliente(
-          delta
-        );
+        moverHoraCliente(-1);
       }
     }
   );
@@ -2240,10 +2161,7 @@
   btnSumar5.addEventListener(
     "click",
     function(){
-
-      moverHoraCliente(
-        deltaSumarSelector()
-      );
+      moverHoraCliente(1);
     }
   );
 
@@ -2269,6 +2187,20 @@
     await consultarVistaCliente();
 
     actualizarBotonesHora();
+
+    /*
+      El reloj del tablero se actualiza localmente.
+      No genera tráfico adicional: sólo recalcula
+      los minutos restantes contra la ETA ya recibida.
+    */
+    setInterval(
+      function(){
+        if(!seguimientoFinalizado){
+          pintarHoraCliente();
+        }
+      },
+      1000
+    );
 
     syncId =
       setInterval(
