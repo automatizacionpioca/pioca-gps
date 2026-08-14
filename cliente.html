@@ -558,6 +558,70 @@
       50%{ box-shadow:0 0 0 5px rgba(240,196,91,.22),0 5px 18px rgba(25,45,65,.10); }
     }
 
+    .leaflet-popup.popupProximo .leaflet-popup-content-wrapper{
+      background:#fff1b8;
+      border:2px solid #f0b429;
+      animation:piocaPopupPulse 1.05s ease-in-out infinite;
+    }
+
+    .leaflet-popup.popupProximo .leaflet-popup-tip{
+      background:#fff1b8;
+    }
+
+    .leaflet-popup.popupLlegado .leaflet-popup-content-wrapper{
+      background:#dff5e1;
+      border:2px solid #47b864;
+      animation:piocaPopupLlegado 1.15s ease-in-out infinite;
+    }
+
+    .leaflet-popup.popupLlegado .leaflet-popup-tip{
+      background:#dff5e1;
+    }
+
+    @keyframes piocaPopupPulse{
+      0%,100%{transform:scale(1);}
+      50%{transform:scale(1.055);}
+    }
+
+    @keyframes piocaPopupLlegado{
+      0%,100%{transform:scale(1);}
+      50%{transform:scale(1.04);}
+    }
+
+    #estado.estadoLlegado{
+      background:#dff5e1 !important;
+      border-color:#9fd4aa;
+      color:#236b34;
+    }
+
+    .llegadaFinal{
+      width:100%;
+      text-align:center;
+      padding:8px 4px;
+      box-sizing:border-box;
+    }
+
+    .llegadaFinalTitulo{
+      font-size:21px;
+      font-weight:700;
+      color:#246b35;
+      margin-bottom:8px;
+    }
+
+    .llegadaFinalGracias{
+      font-size:15px;
+      font-weight:700;
+      color:#22364a;
+      margin-bottom:5px;
+    }
+
+    .llegadaFinalFrase{
+      font-size:12px;
+      font-weight:400;
+      color:#596672;
+      line-height:1.4;
+    }
+
     @media(max-height:760px){
 
       .cabeceraCliente{
@@ -1161,6 +1225,81 @@
       fecha.getTime();
   }
 
+  function aplicarClasePopup(
+    clase
+  ){
+
+    if(!marcador){ return; }
+
+    try{
+      const popup = marcador.getPopup();
+      if(!popup){ return; }
+
+      const elemento = popup.getElement();
+      if(!elemento){ return; }
+
+      elemento.classList.remove(
+        "popupProximo",
+        "popupLlegado"
+      );
+
+      if(clase){
+        elemento.classList.add(clase);
+      }
+
+    }catch(e){}
+  }
+
+  function actualizarPopupLlegada(
+    modo
+  ){
+
+    if(!marcador){ return; }
+
+    try{
+
+      if(modo === "llegado"){
+        marcador.setPopupContent(
+          "<strong>¡HEMOS LLEGADO!</strong>"
+        );
+        aplicarClasePopup("popupLlegado");
+        return;
+      }
+
+      if(modo === "proximo"){
+        marcador.setPopupContent(
+          "<strong>¡Estamos próximos a llegar!</strong>"
+        );
+        aplicarClasePopup("popupProximo");
+        return;
+      }
+
+      marcador.setPopupContent(
+        "<strong>¡Estamos en camino!</strong>"
+      );
+      aplicarClasePopup("");
+
+    }catch(e){}
+  }
+
+  function pintarEstadoNormalEnVivo(){
+
+    estado.classList.remove(
+      "estadoProximo",
+      "estadoLlegado"
+    );
+
+    estado.innerHTML =
+      '<span class="estadoEnVivo">' +
+        '<span class="puntoEnVivo"></span>' +
+        '<span class="estadoTexto">Seguimiento en tiempo real</span>' +
+        '<span class="estadoBadge">EN VIVO</span>' +
+      '</span>';
+
+    estado.style.background =
+      "#dff5e1";
+  }
+
   function actualizarEstadoLlegada(){
 
     if(
@@ -1175,27 +1314,31 @@
       llegadaClienteMs - Date.now();
 
     if(
-      faltanMs <= 3 * 60 * 1000 &&
+      faltanMs <= 60 * 1000 &&
       faltanMs > -20 * 60 * 1000
     ){
-      estado.textContent =
-        "📍 ¡Estamos próximos a llegar!";
-      estado.classList.add(
-        "estadoProximo"
-      );
 
-      if(marcador){
-        try{
-          marcador.setPopupContent(
-            "<strong>¡Estamos próximos a llegar!</strong>"
-          );
-        }catch(e){}
-      }
-    }else{
-      estado.classList.remove(
-        "estadoProximo"
-      );
+      estado.classList.remove("estadoProximo");
+      estado.classList.add("estadoLlegado");
+      estado.textContent = "✅ HEMOS LLEGADO";
+      actualizarPopupLlegada("llegado");
+      return;
     }
+
+    if(
+      faltanMs <= 3 * 60 * 1000 &&
+      faltanMs > 60 * 1000
+    ){
+
+      estado.classList.remove("estadoLlegado");
+      estado.classList.add("estadoProximo");
+      estado.textContent = "📍 ¡Estamos próximos a llegar!";
+      actualizarPopupLlegada("proximo");
+      return;
+    }
+
+    pintarEstadoNormalEnVivo();
+    actualizarPopupLlegada("normal");
   }
 
   async function enviarHeartbeatCliente(){
@@ -1310,11 +1453,16 @@
     }
 
     estado.classList.remove(
-      "estadoProximo"
+      "estadoProximo",
+      "estadoLlegado"
     );
 
-    estado.textContent =
-      "✅ HEMOS LLEGADO";
+    estado.innerHTML =
+      '<div class="llegadaFinal">' +
+        '<div class="llegadaFinalTitulo">✅ HEMOS LLEGADO</div>' +
+        '<div class="llegadaFinalGracias">Gracias por elegir piOca®</div>' +
+        '<div class="llegadaFinalFrase">Respetar tu tiempo también es parte de nuestro servicio.</div>' +
+      '</div>';
 
     estado.style.background =
       "#e5f6e8";
@@ -1436,10 +1584,14 @@
     }
 
     actualizarIndicador();
+    actualizarEstadoLlegada();
 
     relojEstado =
       setInterval(
-        actualizarIndicador,
+        function(){
+          actualizarIndicador();
+          actualizarEstadoLlegada();
+        },
         1000
       );
   }
@@ -2036,6 +2188,8 @@
 
       marcador.openPopup();
 
+      actualizarEstadoLlegada();
+
       ultimoPuntoServidor = {
         lat:lat,
         lon:lon
@@ -2312,15 +2466,7 @@
         p.created_at
       );
 
-      estado.innerHTML =
-        '<span class="estadoEnVivo">' +
-          '<span class="puntoEnVivo"></span>' +
-          '<span class="estadoTexto">Seguimiento en tiempo real</span>' +
-          '<span class="estadoBadge">EN VIVO</span>' +
-        '</span>';
-
-      estado.style.background =
-        "#dff5e1";
+      pintarEstadoNormalEnVivo();
 
       actualizarEstadoLlegada();
 
