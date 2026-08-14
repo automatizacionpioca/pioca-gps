@@ -385,6 +385,42 @@
       font-weight:700;
     }
 
+    /* ==========================================================
+       PIN CLÁSICO TIPO MAPA
+       Marcador rojo en forma de gota, sin imagen externa.
+       ========================================================== */
+
+    .piocaPinIcon{
+      background:transparent !important;
+      border:0 !important;
+    }
+
+    .piocaPin{
+      position:relative;
+      width:30px;
+      height:30px;
+      background:#e94235;
+      border:2px solid #ffffff;
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      box-sizing:border-box;
+      box-shadow:
+        0 2px 5px rgba(0,0,0,.34),
+        0 1px 2px rgba(0,0,0,.18);
+    }
+
+    .piocaPin::after{
+      content:"";
+      position:absolute;
+      width:10px;
+      height:10px;
+      left:8px;
+      top:8px;
+      background:#ffffff;
+      border-radius:50%;
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    }
+
     .leaflet-control-attribution{
       background:rgba(255,255,255,.72) !important;
       color:#6f7880 !important;
@@ -810,33 +846,29 @@
     false;
 
   /*
-    Datos usados únicamente para orientar
-    el mapa según el sentido real de marcha.
+    Animación visual del marcador.
+    No genera posiciones nuevas ni aumenta consultas.
   */
-  let ultimaPosicionRumbo =
+  let animacionMarcadorId =
     null;
 
-  let rumboActual =
-    0;
-
-  let animacionRumboId =
+  let ultimoCreatedAtServidor =
     null;
 
-  /*
-    Si el cliente rota manualmente el mapa con dos dedos,
-    dejamos de modificar automáticamente la orientación.
-    La posición y el centrado siguen actualizándose.
-  */
-  let rotacionManual =
-    false;
+  const DURACION_ANIMACION_DEFAULT_MS =
+    8000;
 
-  /*
-    Evita que el mapa "baile" por pequeños
-    errores del GPS cuando el vehículo está
-    detenido o apenas se movió.
-  */
-  const DISTANCIA_MINIMA_RUMBO_METROS =
-    20;
+  const DISTANCIA_MAXIMA_ANIMACION_METROS =
+    500;
+
+  const iconoPioca =
+    L.divIcon({
+      className:"piocaPinIcon",
+      html:'<div class="piocaPin"></div>',
+      iconSize:[30,42],
+      iconAnchor:[15,39],
+      popupAnchor:[0,-38]
+    });
 
   function detenerReloj(){
 
@@ -1008,17 +1040,17 @@
       );
   }
 
-  function detenerAnimacionRumbo(){
+  function detenerAnimacionMarcador(){
 
     if(
-      animacionRumboId !== null
+      animacionMarcadorId !== null
     ){
 
       cancelAnimationFrame(
-        animacionRumboId
+        animacionMarcadorId
       );
 
-      animacionRumboId =
+      animacionMarcadorId =
         null;
     }
   }
@@ -1107,12 +1139,12 @@
 
     detenerConsultas();
 
-    detenerAnimacionRumbo();
+    detenerAnimacionMarcador();
 
     ultimaActualizacionMs =
       null;
 
-    ultimaPosicionRumbo =
+    ultimoCreatedAtServidor =
       null;
 
     quitarMarcador();
@@ -1169,12 +1201,12 @@
     ultimaActualizacionMs =
       null;
 
-    ultimaPosicionRumbo =
+    ultimoCreatedAtServidor =
       null;
 
     detenerReloj();
 
-    detenerAnimacionRumbo();
+    detenerAnimacionMarcador();
 
     quitarMarcador();
   }
@@ -1260,15 +1292,6 @@
       180;
   }
 
-  function radianesAGrados(
-    radianes
-  ){
-
-    return radianes *
-      180 /
-      Math.PI;
-  }
-
   function distanciaMetros(
     lat1,
     lon1,
@@ -1281,43 +1304,21 @@
 
     const dLat =
       gradosARadianes(
-        lat2 -
-        lat1
+        lat2 - lat1
       );
 
     const dLon =
       gradosARadianes(
-        lon2 -
-        lon1
+        lon2 - lon1
       );
 
     const a =
-
-      Math.sin(
-        dLat / 2
-      ) *
-      Math.sin(
-        dLat / 2
-      ) +
-
-      Math.cos(
-        gradosARadianes(
-          lat1
-        )
-      ) *
-
-      Math.cos(
-        gradosARadianes(
-          lat2
-        )
-      ) *
-
-      Math.sin(
-        dLon / 2
-      ) *
-      Math.sin(
-        dLon / 2
-      );
+      Math.sin(dLat / 2) *
+      Math.sin(dLat / 2) +
+      Math.cos(gradosARadianes(lat1)) *
+      Math.cos(gradosARadianes(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
 
     const c =
       2 *
@@ -1329,119 +1330,109 @@
     return radioTierra * c;
   }
 
-  function calcularRumbo(
-    lat1,
-    lon1,
-    lat2,
-    lon2
+  function calcularDuracionAnimacion(
+    createdAtNuevo
   ){
 
-    const phi1 =
-      gradosARadianes(
-        lat1
-      );
-
-    const phi2 =
-      gradosARadianes(
-        lat2
-      );
-
-    const deltaLon =
-      gradosARadianes(
-        lon2 -
-        lon1
-      );
-
-    const y =
-      Math.sin(
-        deltaLon
-      ) *
-      Math.cos(
-        phi2
-      );
-
-    const x =
-
-      Math.cos(
-        phi1
-      ) *
-      Math.sin(
-        phi2
-      ) -
-
-      Math.sin(
-        phi1
-      ) *
-      Math.cos(
-        phi2
-      ) *
-      Math.cos(
-        deltaLon
-      );
-
-    const rumbo =
-      radianesAGrados(
-        Math.atan2(
-          y,
-          x
-        )
-      );
-
-    return (
-      rumbo +
-      360
-    ) % 360;
-  }
-
-  function diferenciaAngular(
-    desde,
-    hasta
-  ){
-
-    return (
-      (
-        hasta -
-        desde +
-        540
-      ) % 360
-    ) - 180;
-  }
-
-  function animarRumboMapa(
-    rumboDestino
-  ){
+    const nuevoMs =
+      new Date(
+        createdAtNuevo
+      )
+      .getTime();
 
     if(
-      rotacionManual
+      !Number.isFinite(nuevoMs) ||
+      !ultimoCreatedAtServidor
     ){
-      return;
+      return DURACION_ANIMACION_DEFAULT_MS;
     }
+
+    const intervalo =
+      nuevoMs -
+      ultimoCreatedAtServidor;
+
+    if(
+      !Number.isFinite(intervalo) ||
+      intervalo <= 0
+    ){
+      return DURACION_ANIMACION_DEFAULT_MS;
+    }
+
+    return Math.max(
+      1800,
+      Math.min(
+        8500,
+        intervalo * 0.85
+      )
+    );
+  }
+
+  function animarMarcadorHasta(
+    latDestino,
+    lonDestino,
+    duracionMs
+  ){
 
     if(
       !mapa ||
-      typeof mapa.setBearing !==
-        "function"
+      !marcador
     ){
+      return;
+    }
+
+    detenerAnimacionMarcador();
+
+    const inicioLatLng =
+      marcador.getLatLng();
+
+    const latInicio =
+      Number(inicioLatLng.lat);
+
+    const lonInicio =
+      Number(inicioLatLng.lng);
+
+    const distancia =
+      distanciaMetros(
+        latInicio,
+        lonInicio,
+        latDestino,
+        lonDestino
+      );
+
+    if(
+      distancia >
+        DISTANCIA_MAXIMA_ANIMACION_METROS
+    ){
+
+      marcador.setLatLng(
+        [latDestino, lonDestino]
+      );
+
+      mapa.panTo(
+        [latDestino, lonDestino],
+        {
+          animate:true,
+          duration:0.8
+        }
+      );
 
       return;
     }
 
-    detenerAnimacionRumbo();
+    if(
+      distancia <
+        2
+    ){
+
+      marcador.setLatLng(
+        [latDestino, lonDestino]
+      );
+
+      return;
+    }
 
     const inicio =
       performance.now();
-
-    const rumboInicio =
-      rumboActual;
-
-    const diferencia =
-      diferenciaAngular(
-        rumboInicio,
-        rumboDestino
-      );
-
-    const duracion =
-      700;
 
     function paso(
       ahora
@@ -1454,13 +1445,10 @@
             ahora -
             inicio
           ) /
-          duracion
+          duracionMs
         );
 
-      /*
-        Suavizado para que el giro no sea brusco.
-      */
-      const suavizado =
+      const t =
         progreso *
         progreso *
         (
@@ -1469,100 +1457,62 @@
           progreso
         );
 
-      rumboActual =
+      const latActual =
+        latInicio +
         (
-          rumboInicio +
-          diferencia *
-          suavizado +
-          360
-        ) % 360;
+          latDestino -
+          latInicio
+        ) *
+        t;
 
-      mapa.setBearing(
-        rumboActual
+      const lonActual =
+        lonInicio +
+        (
+          lonDestino -
+          lonInicio
+        ) *
+        t;
+
+      marcador.setLatLng(
+        [latActual, lonActual]
+      );
+
+      /*
+        Acompaña la camioneta sin modificar
+        la orientación elegida por el cliente.
+      */
+      mapa.panTo(
+        [latActual, lonActual],
+        {
+          animate:false
+        }
       );
 
       if(
         progreso <
-        1
+          1
       ){
 
-        animacionRumboId =
+        animacionMarcadorId =
           requestAnimationFrame(
             paso
           );
 
       }else{
 
-        rumboActual =
-          (
-            rumboDestino +
-            360
-          ) % 360;
-
-        mapa.setBearing(
-          rumboActual
+        marcador.setLatLng(
+          [latDestino, lonDestino]
         );
 
-        animacionRumboId =
+        animacionMarcadorId =
           null;
       }
     }
 
-    animacionRumboId =
+    animacionMarcadorId =
       requestAnimationFrame(
         paso
       );
-  }
-
-  function actualizarRumbo(
-    lat,
-    lon
-  ){
-
-    if(
-      !ultimaPosicionRumbo
-    ){
-
-      ultimaPosicionRumbo = {
-        lat:lat,
-        lon:lon
-      };
-
-      return;
-    }
-
-    const distancia =
-      distanciaMetros(
-        ultimaPosicionRumbo.lat,
-        ultimaPosicionRumbo.lon,
-        lat,
-        lon
-      );
-
-    if(
-      distancia <
-      DISTANCIA_MINIMA_RUMBO_METROS
-    ){
-
-      return;
-    }
-
-    const nuevoRumbo =
-      calcularRumbo(
-        ultimaPosicionRumbo.lat,
-        ultimaPosicionRumbo.lon,
-        lat,
-        lon
-      );
-
-    ultimaPosicionRumbo = {
-      lat:lat,
-      lon:lon
-    };
-
-    animarRumboMapa(
-      nuevoRumbo
-    );
   }
 
   function crearMapa(
@@ -1632,35 +1582,6 @@
         mapa
       );
 
-      /*
-        En cuanto el cliente usa dos dedos sobre el mapa,
-        consideramos que eligió una orientación manual.
-        Desde ese momento el GPS sigue moviendo y centrando
-        el marcador, pero no vuelve a girar el mapa.
-      */
-      const contenedorMapa =
-        mapa.getContainer();
-
-      contenedorMapa.addEventListener(
-        "touchstart",
-        function(evento){
-
-          if(
-            evento.touches &&
-            evento.touches.length >= 2
-          ){
-
-            rotacionManual =
-              true;
-
-            detenerAnimacionRumbo();
-          }
-        },
-        {
-          passive:true
-        }
-      );
-
       setTimeout(
 
         function(){
@@ -1676,7 +1597,8 @@
 
   function actualizarMarcador(
     lat,
-    lon
+    lon,
+    createdAt
   ){
 
     crearMapa(
@@ -1684,10 +1606,16 @@
       lon
     );
 
-    actualizarRumbo(
-      lat,
-      lon
-    );
+    /*
+      Si la posición del servidor no cambió,
+      no reiniciamos la animación.
+    */
+    if(
+      ultimoCreatedAtServidor ===
+        createdAt
+    ){
+      return;
+    }
 
     if(
       !marcador
@@ -1695,11 +1623,9 @@
 
       marcador =
         L.marker(
-          [
-            lat,
-            lon
-          ],
+          [lat, lon],
           {
+            icon:iconoPioca,
             rotateWithView:false
           }
         )
@@ -1707,33 +1633,30 @@
           mapa
         )
         .bindPopup(
-
           "<strong>¡Estamos en camino!</strong>"
-
         );
 
       marcador.openPopup();
 
-    }else{
+      ultimoCreatedAtServidor =
+        createdAt;
 
-      marcador.setLatLng(
-        [
-          lat,
-          lon
-        ]
-      );
+      return;
     }
 
-    mapa.panTo(
-      [
-        lat,
-        lon
-      ],
-      {
-        animate:true,
-        duration:0.8
-      }
+    const duracion =
+      calcularDuracionAnimacion(
+        createdAt
+      );
+
+    animarMarcadorHasta(
+      lat,
+      lon,
+      duracion
     );
+
+    ultimoCreatedAtServidor =
+      createdAt;
   }
 
   async function consultar(
@@ -1935,12 +1858,12 @@
         ultimaActualizacionMs =
           null;
 
-        ultimaPosicionRumbo =
+        ultimoCreatedAtServidor =
           null;
 
         detenerReloj();
 
-        detenerAnimacionRumbo();
+        detenerAnimacionMarcador();
 
         return;
       }
@@ -1969,7 +1892,8 @@
 
       actualizarMarcador(
         lat,
-        lon
+        lon,
+        p.created_at
       );
 
       estado.innerHTML =
