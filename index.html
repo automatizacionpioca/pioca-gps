@@ -324,15 +324,15 @@
     <div id="horaClienteBox">
 
       <div class="horaClienteTitulo">
-        EL CLIENTE ESTÁ VIENDO
+        LLEGAMOS EN
       </div>
 
       <div id="horaCliente">
-        --:--
+        -- min
       </div>
 
-      <div class="horaClienteTexto">
-        Hora estimada de llegada
+      <div class="horaClienteTexto" id="horaClienteTexto">
+        El cliente ve: --:-- hs
       </div>
 
       <div id="controlesHora">
@@ -456,6 +456,9 @@
 
   const horaCliente =
     document.getElementById("horaCliente");
+
+  const horaClienteTexto =
+    document.getElementById("horaClienteTexto");
 
   const btnRestar5 =
     document.getElementById("btnRestar5");
@@ -823,10 +826,57 @@
 
   function pintarHoraCliente(){
 
+    if(
+      !llegadaClienteMs ||
+      !Number.isFinite(
+        llegadaClienteMs
+      )
+    ){
+
+      horaCliente.textContent =
+        "-- min";
+
+      horaClienteTexto.textContent =
+        "El cliente ve: --:-- hs";
+
+      actualizarBotonesHora();
+
+      return;
+    }
+
+    const diferenciaMs =
+      llegadaClienteMs -
+      Date.now();
+
+    /*
+      Mostramos minutos operativos para el técnico.
+      Math.ceil evita bajar un minuto antes de tiempo.
+      Mientras el seguimiento siga activo, 1 minuto
+      es el mínimo visual.
+    */
+    const minutos =
+      Math.max(
+        1,
+        Math.ceil(
+          diferenciaMs /
+          60000
+        )
+      );
+
     horaCliente.textContent =
+      minutos +
+      (
+        minutos === 1
+          ? " min"
+          : " min"
+      );
+
+    horaClienteTexto.textContent =
+      "El cliente ve: " +
       formatearHora(
         llegadaClienteMs
-      );
+      ) +
+      " hs";
 
     actualizarBotonesHora();
   }
@@ -1397,11 +1447,12 @@
 
       mostrarEstadoHora(
 
-        "✓ Hora actualizada. El cliente ya ve " +
+        "✓ Tiempo actualizado. El cliente ve " +
 
         formatearHora(
           llegadaClienteMs
-        ),
+        ) +
+        " hs",
 
         true
       );
@@ -2124,7 +2175,9 @@
 
     relojControlesHoraId =
       setInterval(
-        actualizarBotonesHora,
+        function(){
+          pintarHoraCliente();
+        },
         1000
       );
 
