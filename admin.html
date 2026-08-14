@@ -1038,18 +1038,18 @@
     mostrarDetalleUltimoTest
   );
 
-  function redondearProximo10(fecha){
+  function redondearProximo5(fecha){
     const d = new Date(fecha);
     d.setSeconds(0);
     d.setMilliseconds(0);
 
     const minutos = d.getMinutes();
-    const resto = minutos % 10;
+    const resto = minutos % 5;
 
     if(resto === 0){
-      d.setMinutes(minutos + 10);
+      d.setMinutes(minutos + 5);
     }else{
-      d.setMinutes(minutos + (10 - resto));
+      d.setMinutes(minutos + (5 - resto));
     }
 
     return d;
@@ -1059,12 +1059,17 @@
     estimatedArrival.innerHTML = "";
 
     const inicio =
-      redondearProximo10(new Date());
+      redondearProximo5(new Date());
 
-    for(let i = 0; i <= 9; i++){
+    /*
+      Horarios iniciales cada 5 minutos.
+      Conservamos aproximadamente la misma ventana futura
+      que antes: 20 opciones = 100 minutos.
+    */
+    for(let i = 0; i < 20; i++){
       const h = new Date(
         inicio.getTime() +
-        i * 10 * 60 * 1000
+        i * 5 * 60 * 1000
       );
 
       const option =
