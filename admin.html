@@ -1218,6 +1218,80 @@
     }
   }
 
+  function esErrorJwtFuture(error){
+
+    const partes = [
+      error && error.message,
+      error && error.details,
+      error && error.hint,
+      error && error.code
+    ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+    return (
+      partes.includes("jwt issued at future") ||
+      partes.includes("issued at future")
+    );
+  }
+
+  function esperar(ms){
+    return new Promise(
+      function(resolve){
+        setTimeout(resolve,ms);
+      }
+    );
+  }
+
+  async function consultarSeguimientoActivoConRecuperacion(){
+
+    let intento = 0;
+
+    while(intento < 2){
+
+      const {data,error} =
+        await supabaseClient.rpc(
+          "get_my_active_tracking"
+        );
+
+      if(!error){
+        return {
+          data:data,
+          error:null
+        };
+      }
+
+      if(
+        intento === 0 &&
+        esErrorJwtFuture(error)
+      ){
+
+        try{
+          await supabaseClient.auth.refreshSession();
+        }catch(e){}
+
+        await esperar(1200);
+
+        intento++;
+        continue;
+      }
+
+      return {
+        data:null,
+        error:error
+      };
+    }
+
+    return {
+      data:null,
+      error:new Error(
+        "No se pudo recuperar la sesión."
+      )
+    };
+  }
+
+
   async function verificarSeguimientoActivo(){
     formNuevo.style.display = "none";
 
@@ -1231,9 +1305,7 @@
 
     try{
       const {data,error} =
-        await supabaseClient.rpc(
-          "get_my_active_tracking"
-        );
+        await consultarSeguimientoActivoConRecuperacion();
 
       if(error){
         throw error;
