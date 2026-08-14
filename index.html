@@ -487,7 +487,7 @@
   let seguimientoFinalizado = false;
   let llegadaClienteMs = null;
   let modificandoHora = false;
-  let relojControlesHoraId = null;
+  let minutosSelector = null;
   let clienteFueVisualizado = false;
   let clienteUltimaVistaMs = null;
 
@@ -530,14 +530,103 @@
     ) / 60000;
   }
 
-  function pasoActualHora(){
-
-    const minutos =
-      minutosRestantesCliente();
+  function normalizarMinutosSelector(
+    minutos
+  ){
 
     if(
-      minutos !== null &&
+      !Number.isFinite(
+        minutos
+      )
+    ){
+      return 5;
+    }
+
+    if(
+      minutos <= 1
+    ){
+      return 1;
+    }
+
+    if(
       minutos <= 5
+    ){
+      return Math.max(
+        1,
+        Math.min(
+          5,
+          Math.ceil(
+            minutos
+          )
+        )
+      );
+    }
+
+    /*
+      Desde 5 en adelante trabajamos
+      en escalones de 5 minutos.
+    */
+    return Math.max(
+      10,
+      Math.ceil(
+        minutos / 5
+      ) * 5
+    );
+  }
+
+  function asegurarMinutosSelector(){
+
+    if(
+      minutosSelector !== null &&
+      Number.isFinite(
+        minutosSelector
+      )
+    ){
+      return;
+    }
+
+    const actuales =
+      minutosRestantesCliente();
+
+    minutosSelector =
+      normalizarMinutosSelector(
+        actuales
+      );
+  }
+
+  function deltaRestarSelector(){
+
+    asegurarMinutosSelector();
+
+    if(
+      minutosSelector <= 1
+    ){
+      return 0;
+    }
+
+    /*
+      Entre 1 y 5: bajar de a 1.
+      Por encima de 5: bajar de a 5.
+    */
+    if(
+      minutosSelector <= 5
+    ){
+      return -1;
+    }
+
+    return -5;
+  }
+
+  function deltaSumarSelector(){
+
+    asegurarMinutosSelector();
+
+    /*
+      Entre 1 y 4: subir de a 1.
+      Desde 5: subir de a 5.
+    */
+    if(
+      minutosSelector < 5
     ){
       return 1;
     }
@@ -547,14 +636,34 @@
 
   function actualizarBotonesHora(){
 
-    const paso =
-      pasoActualHora();
+    asegurarMinutosSelector();
+
+    const deltaMenos =
+      deltaRestarSelector();
+
+    const deltaMas =
+      deltaSumarSelector();
+
+    btnRestar5.disabled =
+      modificandoHora ||
+      deltaMenos === 0;
+
+    btnSumar5.disabled =
+      modificandoHora;
 
     btnRestar5.textContent =
-      "− " + paso + " min";
+      deltaMenos === 0
+        ? "− 1 min"
+        : "− " +
+          Math.abs(
+            deltaMenos
+          ) +
+          " min";
 
     btnSumar5.textContent =
-      "+ " + paso + " min";
+      "+ " +
+      deltaMas +
+      " min";
   }
 
   function textoHace(ms){
@@ -692,16 +801,6 @@
       heartbeatId = null;
     }
 
-    if(
-      relojControlesHoraId !== null
-    ){
-
-      clearInterval(
-        relojControlesHoraId
-      );
-
-      relojControlesHoraId = null;
-    }
   }
 
   function mostrarFinalizado(
@@ -742,6 +841,9 @@
       clienteFueVisualizado
         ? "Visualizado por el cliente: SÍ"
         : "Visualizado por el cliente: NO";
+
+    minutosSelector =
+      null;
 
     limpiarEstadoLocal();
 
@@ -844,32 +946,11 @@
       return;
     }
 
-    const diferenciaMs =
-      llegadaClienteMs -
-      Date.now();
-
-    /*
-      Mostramos minutos operativos para el técnico.
-      Math.ceil evita bajar un minuto antes de tiempo.
-      Mientras el seguimiento siga activo, 1 minuto
-      es el mínimo visual.
-    */
-    const minutos =
-      Math.max(
-        1,
-        Math.ceil(
-          diferenciaMs /
-          60000
-        )
-      );
+    asegurarMinutosSelector();
 
     horaCliente.textContent =
-      minutos +
-      (
-        minutos === 1
-          ? " min"
-          : " min"
-      );
+      minutosSelector +
+      " min";
 
     horaClienteTexto.textContent =
       "El cliente ve: " +
@@ -1431,6 +1512,15 @@
           r.client_arrival
         )
         .getTime();
+
+      asegurarMinutosSelector();
+
+      minutosSelector =
+        Math.max(
+          1,
+          minutosSelector +
+          minutos
+        );
 
       pintarHoraCliente();
 
@@ -2134,9 +2224,16 @@
     "click",
     function(){
 
-      moverHoraCliente(
-        -pasoActualHora()
-      );
+      const delta =
+        deltaRestarSelector();
+
+      if(
+        delta !== 0
+      ){
+        moverHoraCliente(
+          delta
+        );
+      }
     }
   );
 
@@ -2145,7 +2242,7 @@
     function(){
 
       moverHoraCliente(
-        pasoActualHora()
+        deltaSumarSelector()
       );
     }
   );
@@ -2172,14 +2269,6 @@
     await consultarVistaCliente();
 
     actualizarBotonesHora();
-
-    relojControlesHoraId =
-      setInterval(
-        function(){
-          pintarHoraCliente();
-        },
-        1000
-      );
 
     syncId =
       setInterval(
