@@ -484,6 +484,7 @@
   let seguimientoFinalizado = false;
   let llegadaClienteMs = null;
   let modificandoHora = false;
+  let relojControlesHoraId = null;
   let clienteFueVisualizado = false;
   let clienteUltimaVistaMs = null;
 
@@ -509,6 +510,48 @@
       ok
         ? "#2d7a38"
         : "#b00020";
+  }
+
+  function minutosRestantesCliente(){
+
+    if(
+      !llegadaClienteMs ||
+      !Number.isFinite(llegadaClienteMs)
+    ){
+      return null;
+    }
+
+    return (
+      llegadaClienteMs -
+      Date.now()
+    ) / 60000;
+  }
+
+  function pasoActualHora(){
+
+    const minutos =
+      minutosRestantesCliente();
+
+    if(
+      minutos !== null &&
+      minutos <= 5
+    ){
+      return 1;
+    }
+
+    return 5;
+  }
+
+  function actualizarBotonesHora(){
+
+    const paso =
+      pasoActualHora();
+
+    btnRestar5.textContent =
+      "− " + paso + " min";
+
+    btnSumar5.textContent =
+      "+ " + paso + " min";
   }
 
   function textoHace(ms){
@@ -645,6 +688,17 @@
 
       heartbeatId = null;
     }
+
+    if(
+      relojControlesHoraId !== null
+    ){
+
+      clearInterval(
+        relojControlesHoraId
+      );
+
+      relojControlesHoraId = null;
+    }
   }
 
   function mostrarFinalizado(
@@ -773,6 +827,8 @@
       formatearHora(
         llegadaClienteMs
       );
+
+    actualizarBotonesHora();
   }
 
   function guardarServidorEnLocal(
@@ -2028,7 +2084,7 @@
     function(){
 
       moverHoraCliente(
-        -5
+        -pasoActualHora()
       );
     }
   );
@@ -2038,7 +2094,7 @@
     function(){
 
       moverHoraCliente(
-        5
+        pasoActualHora()
       );
     }
   );
@@ -2063,6 +2119,14 @@
     iniciarGPS();
 
     await consultarVistaCliente();
+
+    actualizarBotonesHora();
+
+    relojControlesHoraId =
+      setInterval(
+        actualizarBotonesHora,
+        1000
+      );
 
     syncId =
       setInterval(
