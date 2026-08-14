@@ -855,11 +855,36 @@
   let ultimoCreatedAtServidor =
     null;
 
+  let ultimoPuntoServidor =
+    null;
+
+  /*
+    Velocidad estimada sólo para hacer más natural
+    la animación. Nunca se muestra al cliente.
+  */
+  let ultimaVelocidadValidaKmh =
+    null;
+
   const DURACION_ANIMACION_DEFAULT_MS =
     8000;
 
   const DISTANCIA_MAXIMA_ANIMACION_METROS =
     500;
+
+  /*
+    Por encima de este valor asumimos salto/error GPS.
+    En ese caso NO usamos la velocidad calculada y
+    conservamos la última velocidad válida.
+  */
+  const VELOCIDAD_MAXIMA_VALIDA_KMH =
+    160;
+
+  /*
+    Menos de 3 metros entre posiciones se considera
+    vehículo detenido / deriva normal del GPS.
+  */
+  const DISTANCIA_DETENIDO_METROS =
+    3;
 
   const iconoPioca =
     L.divIcon({
@@ -1147,6 +1172,12 @@
     ultimoCreatedAtServidor =
       null;
 
+    ultimoPuntoServidor =
+      null;
+
+    ultimaVelocidadValidaKmh =
+      null;
+
     quitarMarcador();
 
     mapaWrap.style.display =
@@ -1202,6 +1233,12 @@
       null;
 
     ultimoCreatedAtServidor =
+      null;
+
+    ultimoPuntoServidor =
+      null;
+
+    ultimaVelocidadValidaKmh =
       null;
 
     detenerReloj();
@@ -1330,7 +1367,220 @@
     return radioTierra * c;
   }
 
+  function interpolar(
+    valor,
+    x1,
+    y1,
+    x2,
+    y2
+  ){
+
+    if(
+      x2 === x1
+    ){
+      return y2;
+    }
+
+    const t =
+      Math.max(
+        0,
+        Math.min(
+          1,
+          (
+            valor -
+            x1
+          ) /
+          (
+            x2 -
+            x1
+          )
+        )
+      );
+
+    return y1 +
+      (
+        y2 -
+        y1
+      ) *
+      t;
+  }
+
+  function porcentajeAnimacionSegunVelocidad(
+    velocidadKmh
+  ){
+
+    /*
+      Curva progresiva:
+      baja velocidad -> animación más corta
+      alta velocidad -> movimiento casi continuo
+
+      0 km/h   ≈ 70%
+      20 km/h  ≈ 76%
+      50 km/h  ≈ 84%
+      80 km/h  ≈ 90%
+      120+     ≈ 95%
+    */
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      )
+    ){
+      return 0.85;
+    }
+
+    if(
+      velocidadKmh <=
+      20
+    ){
+      return interpolar(
+        velocidadKmh,
+        0,
+        0.70,
+        20,
+        0.76
+      );
+    }
+
+    if(
+      velocidadKmh <=
+      50
+    ){
+      return interpolar(
+        velocidadKmh,
+        20,
+        0.76,
+        50,
+        0.84
+      );
+    }
+
+    if(
+      velocidadKmh <=
+      80
+    ){
+      return interpolar(
+        velocidadKmh,
+        50,
+        0.84,
+        80,
+        0.90
+      );
+    }
+
+    if(
+      velocidadKmh <=
+      120
+    ){
+      return interpolar(
+        velocidadKmh,
+        80,
+        0.90,
+        120,
+        0.95
+      );
+    }
+
+    return 0.95;
+  }
+
+  function calcularVelocidadInterna(
+    latNuevo,
+    lonNuevo,
+    createdAtNuevo
+  ){
+
+    if(
+      !ultimoPuntoServidor ||
+      !ultimoCreatedAtServidor
+    ){
+      return ultimaVelocidadValidaKmh;
+    }
+
+    const nuevoMs =
+      new Date(
+        createdAtNuevo
+      )
+      .getTime();
+
+    const anteriorMs =
+      new Date(
+        ultimoCreatedAtServidor
+      )
+      .getTime();
+
+    const intervaloSegundos =
+      (
+        nuevoMs -
+        anteriorMs
+      ) /
+      1000;
+
+    if(
+      !Number.isFinite(
+        intervaloSegundos
+      ) ||
+      intervaloSegundos <=
+        0
+    ){
+      return ultimaVelocidadValidaKmh;
+    }
+
+    const distancia =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    /*
+      Si prácticamente no se desplazó,
+      consideramos velocidad real 0 km/h.
+    */
+    if(
+      distancia <=
+        DISTANCIA_DETENIDO_METROS
+    ){
+
+      ultimaVelocidadValidaKmh =
+        0;
+
+      return 0;
+    }
+
+    const velocidadCalculada =
+      (
+        distancia /
+        intervaloSegundos
+      ) *
+      3.6;
+
+    /*
+      Si el salto implicaría una velocidad absurda,
+      NO contaminamos la estimación:
+      reutilizamos la última velocidad válida.
+    */
+    if(
+      !Number.isFinite(
+        velocidadCalculada
+      ) ||
+      velocidadCalculada >
+        VELOCIDAD_MAXIMA_VALIDA_KMH
+    ){
+
+      return ultimaVelocidadValidaKmh;
+    }
+
+    ultimaVelocidadValidaKmh =
+      velocidadCalculada;
+
+    return velocidadCalculada;
+  }
+
   function calcularDuracionAnimacion(
+    latNuevo,
+    lonNuevo,
     createdAtNuevo
   ){
 
@@ -1341,28 +1591,52 @@
       .getTime();
 
     if(
-      !Number.isFinite(nuevoMs) ||
+      !Number.isFinite(
+        nuevoMs
+      ) ||
       !ultimoCreatedAtServidor
     ){
       return DURACION_ANIMACION_DEFAULT_MS;
     }
 
+    const anteriorMs =
+      new Date(
+        ultimoCreatedAtServidor
+      )
+      .getTime();
+
     const intervalo =
       nuevoMs -
-      ultimoCreatedAtServidor;
+      anteriorMs;
 
     if(
-      !Number.isFinite(intervalo) ||
-      intervalo <= 0
+      !Number.isFinite(
+        intervalo
+      ) ||
+      intervalo <=
+        0
     ){
       return DURACION_ANIMACION_DEFAULT_MS;
     }
 
+    const velocidadInterna =
+      calcularVelocidadInterna(
+        latNuevo,
+        lonNuevo,
+        createdAtNuevo
+      );
+
+    const porcentaje =
+      porcentajeAnimacionSegunVelocidad(
+        velocidadInterna
+      );
+
     return Math.max(
-      1800,
+      1200,
       Math.min(
-        8500,
-        intervalo * 0.85
+        9500,
+        intervalo *
+        porcentaje
       )
     );
   }
@@ -1638,6 +1912,11 @@
 
       marcador.openPopup();
 
+      ultimoPuntoServidor = {
+        lat:lat,
+        lon:lon
+      };
+
       ultimoCreatedAtServidor =
         createdAt;
 
@@ -1646,6 +1925,8 @@
 
     const duracion =
       calcularDuracionAnimacion(
+        lat,
+        lon,
         createdAt
       );
 
@@ -1654,6 +1935,11 @@
       lon,
       duracion
     );
+
+    ultimoPuntoServidor = {
+      lat:lat,
+      lon:lon
+    };
 
     ultimoCreatedAtServidor =
       createdAt;
@@ -1859,6 +2145,12 @@
           null;
 
         ultimoCreatedAtServidor =
+          null;
+
+        ultimoPuntoServidor =
+          null;
+
+        ultimaVelocidadValidaKmh =
           null;
 
         detenerReloj();
