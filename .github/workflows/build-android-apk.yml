@@ -33,7 +33,7 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Crear proyecto Android v5 con persistencia
+      - name: Crear proyecto Android v7 con persistencia
         shell: bash
         run: |
           set -e
@@ -96,9 +96,9 @@ jobs:
 
                   targetSdk 35
 
-                  versionCode 5
+                  versionCode 7
 
-                  versionName "0.5"
+                  versionName "0.7"
               }
           }
           EOF
@@ -231,6 +231,9 @@ jobs:
             <uses-permission
               android:name="android.permission.WAKE_LOCK"/>
 
+            <uses-permission
+              android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
             <application
               android:theme="@style/AppTheme"
               android:label="piOca Seguimiento"
@@ -294,7 +297,11 @@ jobs:
 
           import android.os.Bundle;
 
+          import android.os.PowerManager;
+
           import android.provider.ContactsContract;
+
+          import android.provider.Settings;
 
           import android.webkit.GeolocationPermissions;
 
@@ -332,6 +339,10 @@ jobs:
 
 
               private WebView web;
+
+              private boolean batteryDialogVisible = false;
+
+              private long lastBatteryPromptAt = 0L;
 
 
               @Override
@@ -594,7 +605,194 @@ jobs:
 
                               350
                       );
+
+
+                      web.postDelayed(
+
+                              this::checkBatteryOptimization,
+
+                              1000
+                      );
                   }
+              }
+
+
+              private void checkBatteryOptimization() {
+
+
+                  if (
+
+                          Build.VERSION.SDK_INT < 23
+
+                          || isFinishing()
+
+                  ) {
+
+
+                      return;
+                  }
+
+
+                  PowerManager pm =
+
+                          (PowerManager)
+
+                                  getSystemService(
+
+                                          POWER_SERVICE
+                                  );
+
+
+                  if (pm == null) {
+
+
+                      return;
+                  }
+
+
+                  if (
+
+                          pm.isIgnoringBatteryOptimizations(
+
+                                  getPackageName()
+                          )
+
+                  ) {
+
+
+                      return;
+                  }
+
+
+                  long now =
+
+                          System.currentTimeMillis();
+
+
+                  if (
+
+                          batteryDialogVisible
+
+                          || now - lastBatteryPromptAt < 30000L
+
+                  ) {
+
+
+                      return;
+                  }
+
+
+                  batteryDialogVisible = true;
+
+                  lastBatteryPromptAt = now;
+
+
+                  AlertDialog dialog =
+
+                          new AlertDialog.Builder(this)
+
+                                  .setTitle(
+
+                                          "Protección del seguimiento GPS"
+                                  )
+
+                                  .setMessage(
+
+                                          "La optimización de batería está activa para piOca.\n\n"
+
+                                          + "Android puede detener el envío de ubicación cuando se bloquea la pantalla.\n\n"
+
+                                          + "Para un seguimiento estable, configurá piOca sin optimización de batería."
+                                  )
+
+                                  .setPositiveButton(
+
+                                          "CONFIGURAR",
+
+                                          (d, which) -> {
+
+
+                                              batteryDialogVisible = false;
+
+
+                                              try {
+
+
+                                                  Intent batteryIntent =
+
+                                                          new Intent(
+
+                                                                  Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                                                          );
+
+
+                                                  batteryIntent.setData(
+
+                                                          Uri.parse(
+
+                                                                  "package:" + getPackageName()
+                                                          )
+                                                  );
+
+
+                                                  startActivity(
+
+                                                          batteryIntent
+                                                  );
+
+
+                                              } catch (Exception e) {
+
+
+                                                  try {
+
+
+                                                      Intent fallback =
+
+                                                              new Intent(
+
+                                                                      Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                                                              );
+
+
+                                                      fallback.setData(
+
+                                                              Uri.parse(
+
+                                                                      "package:" + getPackageName()
+                                                              )
+                                                      );
+
+
+                                                      startActivity(
+
+                                                              fallback
+                                                      );
+
+
+                                                  } catch (Exception ignored) {
+                                                  }
+                                              }
+                                          }
+                                  )
+
+                                  .setNegativeButton(
+
+                                          "AHORA NO",
+
+                                          (d, which) -> batteryDialogVisible = false
+                                  )
+
+                                  .create();
+
+
+                  dialog.setOnCancelListener(
+
+                          d -> batteryDialogVisible = false
+                  );
+
+
+                  dialog.show();
               }
 
 
@@ -1011,6 +1209,9 @@ jobs:
 
 
                       runOnUiThread(() -> {
+
+
+                          checkBatteryOptimization();
 
 
                           if (
@@ -3303,12 +3504,12 @@ jobs:
         run: |
           cp \
             android-pioca/app/build/outputs/apk/debug/app-debug.apk \
-            piOca-Seguimiento-v5.apk
+            piOca-Seguimiento-v7.apk
 
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK-v5
-          path: piOca-Seguimiento-v5.apk
+          name: piOca-Seguimiento-APK-v7
+          path: piOca-Seguimiento-v7.apk
           retention-days: 90
