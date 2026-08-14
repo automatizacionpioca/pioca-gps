@@ -203,6 +203,22 @@
       font-size:13px;
     }
 
+
+    #clienteVistaBox{
+      margin-top:14px;
+      padding:12px;
+      border-radius:10px;
+      border:1px solid #d7e0e8;
+      background:#f8fafc;
+      text-align:center;
+      font-size:13px;
+      font-weight:700;
+    }
+    #clienteVistaBox.online{background:#e5f6e8;border-color:#a6d8ad;color:#247238;}
+    #clienteVistaBox.offline{background:#f8fafc;color:#555;}
+    #clienteVistaBox.never{background:#fff7df;border-color:#ead49a;color:#745c1c;}
+    #clienteVistaFinal{margin-top:14px;font-size:14px;font-weight:700;}
+
     .finalizadoTitulo{
       font-size:21px;
       font-weight:700;
@@ -246,6 +262,8 @@
     <div class="finalizadoTexto" id="finalizadoTexto">
       El cliente ya no puede ver la ubicación de la camioneta.
     </div>
+
+    <div id="clienteVistaFinal"></div>
 
     <button
       id="btnVolver"
@@ -335,6 +353,10 @@
 
       <div id="horaEstado"></div>
 
+    </div>
+
+    <div id="clienteVistaBox" class="never">
+      AÚN NO VISUALIZADO
     </div>
 
     <button
@@ -444,6 +466,12 @@
   const horaEstado =
     document.getElementById("horaEstado");
 
+  const clienteVistaBox =
+    document.getElementById("clienteVistaBox");
+
+  const clienteVistaFinal =
+    document.getElementById("clienteVistaFinal");
+
   let trackingCode = null;
   let serviceId = null;
   let watchId = null;
@@ -456,6 +484,8 @@
   let seguimientoFinalizado = false;
   let llegadaClienteMs = null;
   let modificandoHora = false;
+  let clienteFueVisualizado = false;
+  let clienteUltimaVistaMs = null;
 
   let nombreCliente = "";
   let telefonoCliente = "";
@@ -479,6 +509,57 @@
       ok
         ? "#2d7a38"
         : "#b00020";
+  }
+
+  function textoHace(ms){
+    if(!ms || !Number.isFinite(ms)){
+      return "";
+    }
+    const seg = Math.max(0,Math.floor((Date.now()-ms)/1000));
+    if(seg < 60){ return "hace " + seg + " s"; }
+    const min = Math.floor(seg/60);
+    if(min < 60){ return "hace " + min + (min === 1 ? " min" : " min"); }
+    const h = Math.floor(min/60);
+    return "hace " + h + (h === 1 ? " h" : " h");
+  }
+
+  function pintarVistaCliente(estadoVista,valor){
+    if(valor){
+      const d = new Date(valor).getTime();
+      if(Number.isFinite(d)){
+        clienteUltimaVistaMs = d;
+        clienteFueVisualizado = true;
+      }
+    }
+
+    if(estadoVista === "online"){
+      clienteVistaBox.className = "online";
+      clienteVistaBox.textContent = "🟢 CLIENTE MIRANDO EN LÍNEA";
+      return;
+    }
+
+    if(clienteFueVisualizado && clienteUltimaVistaMs){
+      clienteVistaBox.className = "offline";
+      clienteVistaBox.textContent = "Última visualización: " + textoHace(clienteUltimaVistaMs);
+      return;
+    }
+
+    clienteVistaBox.className = "never";
+    clienteVistaBox.textContent = "AÚN NO VISUALIZADO";
+  }
+
+  async function consultarVistaCliente(){
+    if(seguimientoFinalizado || !trackingCode){ return; }
+    try{
+      const {data,error} = await supabaseClient.rpc(
+        "get_client_view_status",
+        {p_code:trackingCode}
+      );
+      if(error){ throw error; }
+      const r = Array.isArray(data) && data.length ? data[0] : null;
+      if(!r){ return; }
+      pintarVistaCliente(r.view_state,r.client_last_seen);
+    }catch(e){}
   }
 
   function negarAcceso(){
@@ -599,6 +680,11 @@
     detenerRelojes();
 
     detenerNativo();
+
+    clienteVistaFinal.textContent =
+      clienteFueVisualizado
+        ? "Visualizado por el cliente: SÍ"
+        : "Visualizado por el cliente: NO";
 
     limpiarEstadoLocal();
 
@@ -1134,6 +1220,8 @@
       guardarServidorEnLocal(
         s
       );
+
+      await consultarVistaCliente();
 
       ocultarError();
 
@@ -1973,6 +2061,8 @@
   ){
 
     iniciarGPS();
+
+    await consultarVistaCliente();
 
     syncId =
       setInterval(
