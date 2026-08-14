@@ -89,6 +89,25 @@
       display:block;
     }
 
+    .cabeceraCliente.finalizado{
+      grid-template-columns:1fr;
+      justify-items:center;
+      margin-bottom:18px;
+    }
+
+    .cabeceraCliente.finalizado .logo{
+      width:100%;
+      min-height:150px;
+    }
+
+    .cabeceraCliente.finalizado .logo::after{
+      display:none;
+    }
+
+    .cabeceraCliente.finalizado #horaLlegadaBox{
+      display:none !important;
+    }
+
     .subtitulo{
       text-align:center;
       font-size:16px;
@@ -364,6 +383,23 @@
     #fraseServicio strong{
       color:#1769aa;
       font-weight:700;
+    }
+
+    .leaflet-control-attribution{
+      background:rgba(255,255,255,.72) !important;
+      color:#6f7880 !important;
+      font-size:8px !important;
+      line-height:1.15 !important;
+      padding:2px 4px !important;
+      border-radius:0 5px 0 0 !important;
+      box-shadow:none !important;
+      opacity:.62;
+      backdrop-filter:blur(3px);
+    }
+
+    .leaflet-control-attribution a{
+      color:#6f7880 !important;
+      text-decoration:none !important;
     }
 
     .leaflet-popup-content{
@@ -687,6 +723,11 @@
 
   const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  const cabeceraCliente =
+    document.querySelector(
+      ".cabeceraCliente"
+    );
 
   const estado =
     document.getElementById(
@@ -1082,6 +1123,14 @@
     horaLlegadaBox.style.display =
       "none";
 
+    if(
+      cabeceraCliente
+    ){
+      cabeceraCliente.classList.add(
+        "finalizado"
+      );
+    }
+
     estado.textContent =
       "✅ SEGUIMIENTO FINALIZADO";
 
@@ -1096,6 +1145,14 @@
     ){
 
       return;
+    }
+
+    if(
+      cabeceraCliente
+    ){
+      cabeceraCliente.classList.remove(
+        "finalizado"
+      );
     }
 
     estado.textContent =
@@ -1540,7 +1597,8 @@
             rotate:true,
             bearing:0,
             touchRotate:true,
-            rotateControl:false
+            rotateControl:false,
+            attributionControl:false
           }
         )
         .setView(
@@ -1550,6 +1608,14 @@
           ],
           16
         );
+
+      L.control.attribution({
+        position:"bottomleft",
+        prefix:false
+      })
+      .addTo(
+        mapa
+      );
 
       L.tileLayer(
 
