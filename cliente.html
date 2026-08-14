@@ -544,6 +544,20 @@
     }
 
 
+
+    /* Estado especial cuando faltan 3 minutos o menos */
+    #estado.estadoProximo{
+      background:#fff4d6 !important;
+      border-color:#f0c45b;
+      color:#8a5a00;
+      animation:piocaLlegandoPulse 1.15s ease-in-out infinite;
+    }
+
+    @keyframes piocaLlegandoPulse{
+      0%,100%{ box-shadow:0 5px 16px rgba(25,45,65,.07),0 1px 3px rgba(25,45,65,.04); }
+      50%{ box-shadow:0 0 0 5px rgba(240,196,91,.22),0 5px 18px rgba(25,45,65,.10); }
+    }
+
     @media(max-height:760px){
 
       .cabeceraCliente{
@@ -845,6 +859,15 @@
   let terminado =
     false;
 
+  let heartbeatClienteId =
+    null;
+
+  let ultimoHeartbeatClienteMs =
+    0;
+
+  let llegadaClienteMs =
+    null;
+
   /*
     Animación visual del marcador.
     No genera posiciones nuevas ni aumenta consultas.
@@ -1133,6 +1156,98 @@
 
     horaLlegadaBox.style.display =
       "grid";
+
+    llegadaClienteMs =
+      fecha.getTime();
+  }
+
+  function actualizarEstadoLlegada(){
+
+    if(
+      terminado ||
+      !llegadaClienteMs ||
+      !Number.isFinite(llegadaClienteMs)
+    ){
+      return;
+    }
+
+    const faltanMs =
+      llegadaClienteMs - Date.now();
+
+    if(
+      faltanMs <= 3 * 60 * 1000 &&
+      faltanMs > -20 * 60 * 1000
+    ){
+      estado.textContent =
+        "📍 ¡Estamos próximos a llegar!";
+      estado.classList.add(
+        "estadoProximo"
+      );
+
+      if(marcador){
+        try{
+          marcador.setPopupContent(
+            "<strong>¡Estamos próximos a llegar!</strong>"
+          );
+        }catch(e){}
+      }
+    }else{
+      estado.classList.remove(
+        "estadoProximo"
+      );
+    }
+  }
+
+  async function enviarHeartbeatCliente(){
+
+    if(
+      terminado ||
+      !codigo ||
+      document.visibilityState !== "visible"
+    ){
+      return;
+    }
+
+    const ahora = Date.now();
+
+    if(
+      ahora - ultimoHeartbeatClienteMs < 8000
+    ){
+      return;
+    }
+
+    ultimoHeartbeatClienteMs = ahora;
+
+    try{
+      await fetch(
+        SUPABASE_URL +
+        "/rest/v1/rpc/client_tracking_heartbeat",
+        {
+          method:"POST",
+          headers:{
+            "apikey":SUPABASE_KEY,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            p_code:codigo
+          })
+        }
+      );
+    }catch(e){}
+  }
+
+  function iniciarHeartbeatCliente(){
+    if(heartbeatClienteId !== null){
+      return;
+    }
+
+    enviarHeartbeatCliente();
+
+    heartbeatClienteId =
+      setInterval(
+        enviarHeartbeatCliente,
+        10000
+      );
   }
 
   function quitarMarcador(){
@@ -1194,11 +1309,20 @@
       );
     }
 
+    estado.classList.remove(
+      "estadoProximo"
+    );
+
     estado.textContent =
-      "✅ SEGUIMIENTO FINALIZADO";
+      "✅ HEMOS LLEGADO";
 
     estado.style.background =
-      "#eeeeee";
+      "#e5f6e8";
+
+    if(heartbeatClienteId !== null){
+      clearInterval(heartbeatClienteId);
+      heartbeatClienteId = null;
+    }
   }
 
   function ocultarTodo(){
@@ -2198,6 +2322,8 @@
       estado.style.background =
         "#dff5e1";
 
+      actualizarEstadoLlegada();
+
       ultimaActualizacionMs =
         new Date(
           p.created_at
@@ -2257,6 +2383,10 @@
 
         iniciarCicloConsultas();
 
+        iniciarHeartbeatCliente();
+
+        enviarHeartbeatCliente();
+
         consultar(true);
       }
     }
@@ -2272,6 +2402,10 @@
       ){
 
         iniciarCicloConsultas();
+
+        iniciarHeartbeatCliente();
+
+        enviarHeartbeatCliente();
 
         consultar(true);
       }
@@ -2289,6 +2423,10 @@
 
         iniciarCicloConsultas();
 
+        iniciarHeartbeatCliente();
+
+        enviarHeartbeatCliente();
+
         consultar(true);
       }
     }
@@ -2305,6 +2443,8 @@
     consultar(true);
 
     iniciarCicloConsultas();
+
+    iniciarHeartbeatCliente();
   }
 
 })();
