@@ -807,6 +807,15 @@
   let ultimoTestTieneProblema =
     false;
 
+  let recuperacionEnCurso =
+    false;
+
+  let ultimaRecuperacionForeground =
+    0;
+
+  const MIN_INTERVALO_RECUPERACION_MS =
+    2500;
+
   function mostrarEstado(el,texto,tipo){
     el.textContent = texto;
     el.className = "estado " + tipo;
@@ -1277,6 +1286,7 @@
   async function consultarSeguimientoActivoConRecuperacion(){
 
     let intento = 0;
+    let ultimoError = null;
 
     while(intento < 2){
 
@@ -1292,16 +1302,25 @@
         };
       }
 
-      if(
-        intento === 0 &&
-        esErrorJwtFuture(error)
-      ){
+      ultimoError = error;
+
+      /*
+        Después de un bloqueo largo Android/WebView puede
+        despertar con una sesión vieja aunque el GPS nativo
+        haya seguido funcionando. Ante el primer fallo RPC,
+        refrescamos la sesión y reintentamos una sola vez.
+      */
+      if(intento === 0){
 
         try{
           await supabaseClient.auth.refreshSession();
         }catch(e){}
 
-        await esperar(1200);
+        await esperar(
+          esErrorJwtFuture(error)
+            ? 1200
+            : 450
+        );
 
         intento++;
         continue;
@@ -1309,16 +1328,146 @@
 
       return {
         data:null,
-        error:error
+        error:ultimoError
       };
     }
 
     return {
       data:null,
-      error:new Error(
-        "No se pudo recuperar la sesión."
-      )
+      error:ultimoError ||
+        new Error(
+          "No se pudo recuperar la sesión."
+        )
     };
+  }
+
+
+  function detenerGpsNativoResidual(){
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.stopTracking === "function"
+    ){
+      try{
+        window.PiocaNative.stopTracking();
+      }catch(e){}
+    }
+  }
+
+  function mostrarFormularioSinSeguimiento(){
+
+    limpiarEstadoLocal();
+    detenerGpsNativoResidual();
+
+    verificandoBox.style.display =
+      "none";
+
+    formNuevo.style.display =
+      "block";
+
+    accionesSeguimiento.style.display =
+      "flex";
+
+    btnCrear.style.display =
+      "block";
+
+    btnEmergencia.style.display =
+      "block";
+
+    cargarHorarios();
+  }
+
+  async function recuperarEstadoAlVolver(){
+
+    if(
+      recuperacionEnCurso ||
+      document.hidden
+    ){
+      return;
+    }
+
+    const ahora =
+      Date.now();
+
+    if(
+      ahora -
+      ultimaRecuperacionForeground <
+      MIN_INTERVALO_RECUPERACION_MS
+    ){
+      return;
+    }
+
+    ultimaRecuperacionForeground =
+      ahora;
+
+    const {
+      data:
+      sessionData
+    } =
+      await supabaseClient.auth.getSession();
+
+    if(
+      !sessionData ||
+      !sessionData.session
+    ){
+      return;
+    }
+
+    recuperacionEnCurso =
+      true;
+
+    try{
+
+      const {data,error} =
+        await consultarSeguimientoActivoConRecuperacion();
+
+      if(error){
+        return;
+      }
+
+      if(
+        Array.isArray(data) &&
+        data.length > 0
+      ){
+
+        /*
+          Si existe realmente un seguimiento activo,
+          sincronizamos el estado local. Si estamos en
+          admin.html, volvemos al panel activo correcto.
+        */
+        guardarSeguimientoLocal(
+          data[0]
+        );
+
+        abrirPanelActivo(
+          data[0]
+        );
+
+        return;
+      }
+
+      /*
+        El servidor confirma que ya no existe seguimiento.
+        Esto cubre el caso de expiración mientras el teléfono
+        estuvo bloqueado: limpiamos el panel viejo sin logout.
+      */
+      mostrarFormularioSinSeguimiento();
+
+      ocultarEstado(
+        adminEstado
+      );
+
+      mostrarEstado(
+        emergenciaEstado,
+        "El seguimiento anterior ya había finalizado. El panel fue actualizado automáticamente.",
+        "info"
+      );
+
+    }finally{
+
+      recuperacionEnCurso =
+        false;
+    }
   }
 
 
@@ -1346,30 +1495,7 @@
         return;
       }
 
-      limpiarEstadoLocal();
-
-      /*
-        SOLO despues de confirmar con el servidor
-        que no hay seguimiento activo, detenemos
-        cualquier servicio GPS nativo residual.
-      */
-      if(
-        window.PiocaNative &&
-        typeof window.PiocaNative.stopTracking === "function"
-      ){
-        try{
-          window.PiocaNative.stopTracking();
-        }catch(e){}
-      }
-
-      verificandoBox.style.display = "none";
-      formNuevo.style.display = "block";
-
-      accionesSeguimiento.style.display = "flex";
-      btnCrear.style.display = "block";
-      btnEmergencia.style.display = "block";
-
-      cargarHorarios();
+      mostrarFormularioSinSeguimiento();
 
       ocultarSplash();
 
@@ -1576,55 +1702,78 @@
       btnEmergencia.textContent = "DETENIENDO...";
 
       try{
-        const {data,error} =
+
+        /*
+          Primero preguntamos al servidor si todavía existe
+          un seguimiento activo. Si ya venció mientras el
+          teléfono estuvo bloqueado, eso es cierre confirmado,
+          no un error.
+        */
+        const consulta =
+          await consultarSeguimientoActivoConRecuperacion();
+
+        if(consulta.error){
+          throw consulta.error;
+        }
+
+        if(
+          !Array.isArray(
+            consulta.data
+          ) ||
+          consulta.data.length === 0
+        ){
+
+          mostrarFormularioSinSeguimiento();
+
+          mostrarEstado(
+            emergenciaEstado,
+            "El seguimiento ya estaba finalizado en el servidor. El panel quedó actualizado.",
+            "ok"
+          );
+
+          return;
+        }
+
+        /*
+          Hay uno activo de verdad. Intentamos finalizarlo.
+          Si la primera llamada falla, refrescamos sesión y
+          hacemos un único reintento.
+        */
+        let cierre =
           await supabaseClient.rpc(
             "finish_latest_active_tracking"
           );
 
-        if(error){
-          throw error;
+        if(cierre.error){
+
+          try{
+            await supabaseClient.auth.refreshSession();
+          }catch(e){}
+
+          await esperar(450);
+
+          cierre =
+            await supabaseClient.rpc(
+              "finish_latest_active_tracking"
+            );
+        }
+
+        if(cierre.error){
+          throw cierre.error;
         }
 
         const r =
-          Array.isArray(data) && data.length
-            ? data[0]
+          Array.isArray(cierre.data) &&
+          cierre.data.length
+            ? cierre.data[0]
             : null;
 
-        if(!r || r.success !== true){
-          mostrarEstado(
-            emergenciaEstado,
-            "No hay seguimientos activos para detener.",
-            "info"
-          );
+        if(
+          r &&
+          r.success === true
+        ){
 
-          formNuevo.style.display = "block";
-          accionesSeguimiento.style.display = "flex";
-          btnCrear.style.display = "block";
-
-          cargarHorarios();
-
-          limpiarEstadoLocal();
-
-          if(
-            window.PiocaNative &&
-            typeof window.PiocaNative.stopTracking === "function"
-          ){
-            try{
-              window.PiocaNative.stopTracking();
-            }catch(e){}
-          }
-
-        }else{
-          limpiarEstadoLocal();
-
-          if(
-            window.PiocaNative &&
-            typeof window.PiocaNative.stopTracking === "function"
-          ){
-            try{
-              window.PiocaNative.stopTracking();
-            }catch(e){}
-          }
+          mostrarFormularioSinSeguimiento();
 
           mostrarEstado(
             emergenciaEstado,
@@ -1632,18 +1781,46 @@
             "ok"
           );
 
-          formNuevo.style.display = "block";
-
-          accionesSeguimiento.style.display = "flex";
-          btnCrear.style.display = "block";
-
-          cargarHorarios();
+          return;
         }
 
+        /*
+          Respuesta sin cierre: verificamos una vez más.
+          Si ya no existe activo, lo consideramos finalizado.
+        */
+        const confirmacion =
+          await consultarSeguimientoActivoConRecuperacion();
+
+        if(
+          !confirmacion.error &&
+          (
+            !Array.isArray(
+              confirmacion.data
+            ) ||
+            confirmacion.data.length === 0
+          )
+        ){
+
+          mostrarFormularioSinSeguimiento();
+
+          mostrarEstado(
+            emergenciaEstado,
+            "El seguimiento ya no está activo en el servidor. El panel quedó actualizado.",
+            "ok"
+          );
+
+          return;
+        }
+
+        throw new Error(
+          "No se pudo confirmar el cierre."
+        );
+
       }catch(error){
+
         mostrarEstado(
           emergenciaEstado,
-          "No se pudo confirmar el cierre con el servidor. No asumas que el seguimiento está detenido hasta obtener confirmación.",
+          "Conexión interrumpida. No se modificó el estado local porque todavía no pudimos confirmar el servidor. Reintentá cuando vuelva la conexión.",
           "error"
         );
 
@@ -1652,6 +1829,38 @@
         btnEmergencia.innerHTML = "⛔ DETENER<br>SEGUIMIENTO";
       }
     }
+  );
+
+
+  /*
+    Recuperación automática al volver de pantalla bloqueada
+    o cuando Android/WebView recupera el foco.
+  */
+  document.addEventListener(
+    "visibilitychange",
+    function(){
+      if(
+        document.visibilityState ===
+        "visible"
+      ){
+        recuperarEstadoAlVolver();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pageshow",
+    recuperarEstadoAlVolver
+  );
+
+  window.addEventListener(
+    "focus",
+    recuperarEstadoAlVolver
+  );
+
+  window.addEventListener(
+    "online",
+    recuperarEstadoAlVolver
   );
 
   cargarUltimoTest();
