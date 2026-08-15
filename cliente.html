@@ -2720,16 +2720,28 @@
       );
 
     if(
-      giroProtegido &&
-      ultimoPuntoServidor
+      giroProtegido
     ){
 
-      animarMarcadorConGiroProtegido(
-        ultimoPuntoServidor.lat,
-        ultimoPuntoServidor.lon,
-        lat,
-        lon,
-        duracion
+      /*
+        Cambio fuerte de rumbo por debajo de 40 km/h:
+        NO trazamos una diagonal entre calles.
+
+        Cortamos cualquier animación pendiente y
+        colocamos el pin directamente en la nueva
+        posición GPS confirmada.
+      */
+      detenerAnimacionMarcador();
+
+      marcador.setLatLng(
+        [lat, lon]
+      );
+
+      mapa.panTo(
+        [lat, lon],
+        {
+          animate:false
+        }
       );
 
     }else{
