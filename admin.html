@@ -115,30 +115,33 @@
     #systemTestBox{
       grid-column:1 / -1;
       margin:0;
-      padding:12px 14px;
-      border-radius:14px;
+      min-height:42px;
+      padding:8px 11px;
+      border-radius:12px;
       border:1px solid #d9e2ea;
       background:#f8fafc;
-      font-size:12px;
-      line-height:1.4;
       color:#56616d;
       cursor:default;
-      position:relative;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      overflow:hidden;
+      white-space:nowrap;
     }
 
     #systemTestBox::before{
       content:"✓";
       display:inline-flex;
-      width:28px;
-      height:28px;
-      margin-right:9px;
+      width:24px;
+      height:24px;
       border-radius:50%;
       align-items:center;
       justify-content:center;
       background:#e8eef4;
       color:#617180;
       font-weight:800;
-      vertical-align:middle;
+      font-size:13px;
+      flex:0 0 24px;
     }
 
     #systemTestBox.testOk{
@@ -178,26 +181,37 @@
     }
 
     #systemTestTitulo{
-      display:inline;
       font-weight:800;
-      font-size:12px;
+      font-size:10.5px;
+      flex:0 0 auto;
+      margin:0;
     }
 
     #systemTestEstado{
-      display:inline;
-      margin-left:5px;
-      font-size:11.5px;
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      font-size:10px;
+      line-height:1;
+      margin:0;
     }
 
     #systemTestDetalle{
       display:none;
-      margin-top:10px;
-      padding-top:10px;
-      border-top:1px solid rgba(0,0,0,.10);
+      position:absolute;
+      left:22px;
+      right:22px;
+      margin-top:58px;
+      padding:10px 12px;
+      border:1px solid #d7e0e8;
+      border-radius:10px;
+      background:#fff;
+      box-shadow:0 6px 16px rgba(25,47,70,.10);
       font-size:11px;
       line-height:1.45;
       text-align:left;
       white-space:pre-line;
+      z-index:10;
     }
 
     #loginBox,
@@ -621,15 +635,24 @@
       }
 
       #systemTestBox{
-        padding:10px 11px;
+        min-height:38px;
+        padding:7px 9px;
+        gap:6px;
+      }
+
+      #systemTestBox::before{
+        width:22px;
+        height:22px;
+        flex-basis:22px;
+        font-size:12px;
       }
 
       #systemTestTitulo{
-        font-size:11px;
+        font-size:9.6px;
       }
 
       #systemTestEstado{
-        font-size:10px;
+        font-size:9.2px;
       }
 
       #formNuevo{
@@ -1041,6 +1064,30 @@
   function ocultarEstado(el){
     el.style.display = "none";
     el.textContent = "";
+  }
+
+  function mostrarEstadoTemporal(
+    el,
+    texto,
+    tipo,
+    duracionMs
+  ){
+    mostrarEstado(
+      el,
+      texto,
+      tipo
+    );
+
+    setTimeout(
+      function(){
+        if(
+          el.textContent === texto
+        ){
+          ocultarEstado(el);
+        }
+      },
+      duracionMs || 4500
+    );
   }
 
   function formatearFechaTest(valor){
@@ -1575,6 +1622,8 @@
     limpiarEstadoLocal();
     detenerGpsNativoResidual();
 
+    ocultarEstado(adminEstado);
+
     verificandoBox.style.display =
       "none";
 
@@ -1673,10 +1722,11 @@
         adminEstado
       );
 
-      mostrarEstado(
+      mostrarEstadoTemporal(
         emergenciaEstado,
         "El seguimiento anterior ya había finalizado. El panel fue actualizado automáticamente.",
-        "info"
+        "info",
+        4500
       );
 
     }finally{
@@ -1828,6 +1878,7 @@
     "click",
     async function(){
       ocultarEstado(adminEstado);
+      ocultarEstado(emergenciaEstado);
 
       const nombre = clientName.value.trim();
       const telefono = limpiarTelefono(clientPhone.value);
