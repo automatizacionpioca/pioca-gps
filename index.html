@@ -111,10 +111,36 @@
       display:none;
     }
 
-    #bloqueDenegado,
-    #bloqueFinalizado{
+    #bloqueDenegado{
       text-align:center;
       padding:24px 8px;
+    }
+
+    #bloqueFinalizado{
+      min-height:calc(100dvh - 165px);
+      text-align:center;
+      padding:24px 8px 34px;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+    }
+
+    #bloqueFinalizado > *{
+      width:100%;
+      max-width:470px;
+    }
+
+    .subtitulo.estadoDetenido{
+      color:#8d2b2f;
+      border-color:#efc7c9;
+      background:#fff5f5;
+    }
+
+    .subtitulo.estadoDetenido::before{
+      content:"■";
+      background:#d83b42;
+      color:#fff;
+      font-size:12px;
     }
 
     #trackingBox{
@@ -414,7 +440,7 @@
 
   </div>
 
-  <div class="subtitulo">
+  <div class="subtitulo" id="estadoCabecera">
     Seguimiento activo
   </div>
 
@@ -576,6 +602,9 @@
 
   const bloqueFinalizado =
     document.getElementById("bloqueFinalizado");
+
+  const estadoCabecera =
+    document.getElementById("estadoCabecera");
 
   const finalizadoTexto =
     document.getElementById("finalizadoTexto");
@@ -946,8 +975,19 @@
     bloqueDenegado.style.display =
       "none";
 
+    if(
+      estadoCabecera
+    ){
+      estadoCabecera.textContent =
+        "Rastreo detenido";
+
+      estadoCabecera.classList.add(
+        "estadoDetenido"
+      );
+    }
+
     bloqueFinalizado.style.display =
-      "block";
+      "flex";
 
     finalizadoTexto.textContent =
 
@@ -1440,6 +1480,17 @@
 
       bloqueFinalizado.style.display =
         "none";
+
+      if(
+        estadoCabecera
+      ){
+        estadoCabecera.textContent =
+          "Seguimiento activo";
+
+        estadoCabecera.classList.remove(
+          "estadoDetenido"
+        );
+      }
 
       bloqueGPS.style.display =
         "block";
