@@ -11,23 +11,47 @@
 
   <title>piOca Panel de Seguimiento</title>
 
+  
   <style>
-    body{
-      margin:0;
-      padding:20px;
-      font-family:Arial,sans-serif;
-      background:#f5f5f5;
+    :root{
+      --azul:#1769aa;
+      --azul2:#0d56a3;
+      --azulOscuro:#17314b;
+      --verde:#249447;
+      --verdeOscuro:#19783a;
+      --rojo:#dc2f2f;
+      --rojoOscuro:#b91f25;
+      --grisFondo:#f3f6f9;
+      --grisBorde:#dfe6ed;
+      --grisTexto:#5d6874;
+      --sombra:0 8px 28px rgba(25,47,70,.08);
+    }
+
+    *{
       box-sizing:border-box;
     }
 
+    html,body{
+      margin:0;
+      min-height:100%;
+      font-family:Arial,sans-serif;
+      color:#1f2f40;
+      background:var(--grisFondo);
+    }
+
+    body{
+      padding:14px;
+    }
+
     .panel{
-      max-width:520px;
+      width:100%;
+      max-width:620px;
       margin:0 auto;
       background:#fff;
-      padding:22px;
-      border-radius:14px;
-      border:1px solid #ddd;
-      box-sizing:border-box;
+      border:1px solid var(--grisBorde);
+      border-radius:22px;
+      box-shadow:var(--sombra);
+      overflow:hidden;
       opacity:0;
       visibility:hidden;
       pointer-events:none;
@@ -39,43 +63,239 @@
       pointer-events:auto;
     }
 
-    .titulo{
-      text-align:center;
-      font-size:24px;
-      font-weight:700;
-      margin-bottom:6px;
+    .panel::before{
+      content:"";
+      display:block;
+      height:8px;
+      background:linear-gradient(90deg,var(--azul2),#247fd2);
     }
 
-    .subtitulo{
-      text-align:center;
+    .cabeceraSuperior{
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:18px;
+      padding:20px 22px 16px;
+    }
+
+    .logoPanel{
+      width:112px;
+      height:112px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex:0 0 auto;
+    }
+
+    .logoPanel img{
+      width:108px;
+      max-width:100%;
+      height:auto;
+      display:block;
+    }
+
+    .cabeceraTexto{
+      min-width:0;
+    }
+
+    .tituloPrincipal{
+      margin:0 0 4px;
+      font-size:25px;
+      line-height:1.08;
+      font-weight:800;
+      color:#172b40;
+    }
+
+    .subtituloPrincipal{
+      margin:0;
       font-size:14px;
-      color:#555;
-      margin-bottom:20px;
+      color:#687482;
+    }
+
+    #systemTestBox{
+      grid-column:1 / -1;
+      margin:0;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid #d9e2ea;
+      background:#f8fafc;
+      font-size:12px;
+      line-height:1.4;
+      color:#56616d;
+      cursor:default;
+      position:relative;
+    }
+
+    #systemTestBox::before{
+      content:"✓";
+      display:inline-flex;
+      width:28px;
+      height:28px;
+      margin-right:9px;
+      border-radius:50%;
+      align-items:center;
+      justify-content:center;
+      background:#e8eef4;
+      color:#617180;
+      font-weight:800;
+      vertical-align:middle;
+    }
+
+    #systemTestBox.testOk{
+      background:#edf8f0;
+      border-color:#c8e5cf;
+      color:#236138;
+    }
+
+    #systemTestBox.testOk::before{
+      background:#2da54f;
+      color:#fff;
+    }
+
+    #systemTestBox.testError{
+      background:#fff2f2;
+      border-color:#efc5c5;
+      color:#9b2228;
+      cursor:pointer;
+    }
+
+    #systemTestBox.testError::before{
+      content:"!";
+      background:#d93b3b;
+      color:#fff;
+    }
+
+    #systemTestBox.testRunning{
+      background:#fff8e8;
+      border-color:#eedb9f;
+      color:#735d1c;
+    }
+
+    #systemTestBox.testRunning::before{
+      content:"…";
+      background:#e6b733;
+      color:#fff;
+    }
+
+    #systemTestTitulo{
+      display:inline;
+      font-weight:800;
+      font-size:12px;
+    }
+
+    #systemTestEstado{
+      display:inline;
+      margin-left:5px;
+      font-size:11.5px;
+    }
+
+    #systemTestDetalle{
+      display:none;
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid rgba(0,0,0,.10);
+      font-size:11px;
+      line-height:1.45;
+      text-align:left;
+      white-space:pre-line;
+    }
+
+    #loginBox,
+    #panelAdmin{
+      padding:0 22px 22px;
+    }
+
+    #loginBox{
+      display:block;
+    }
+
+    .seccionCard{
+      border:1px solid var(--grisBorde);
+      border-radius:18px;
+      padding:18px;
+      background:#fff;
+      box-shadow:0 4px 16px rgba(25,47,70,.04);
+    }
+
+    .seccionTitulo{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 3px;
+      color:var(--azul2);
+      font-size:18px;
+      font-weight:800;
+      letter-spacing:.1px;
+    }
+
+    .seccionTituloIcono{
+      width:38px;
+      height:38px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg,#1769aa,#2c83d0);
+      color:#fff;
+      font-size:24px;
+      flex:0 0 38px;
+    }
+
+    .seccionBajada{
+      margin:0 0 16px 48px;
+      color:#66717c;
+      font-size:13px;
+      line-height:1.35;
     }
 
     label{
       display:block;
-      font-size:14px;
-      font-weight:700;
+      font-size:13px;
+      font-weight:800;
       margin-top:14px;
       margin-bottom:6px;
+      color:#253648;
+    }
+
+    .campoConIcono{
+      position:relative;
+    }
+
+    .campoConIcono::before{
+      position:absolute;
+      left:13px;
+      top:50%;
+      transform:translateY(-50%);
+      z-index:1;
+      font-size:18px;
+      color:var(--azul);
+      pointer-events:none;
     }
 
     input,
     select,
     textarea{
       width:100%;
-      padding:13px;
+      padding:13px 14px;
       font-size:16px;
-      border:1px solid #ccc;
-      border-radius:8px;
-      box-sizing:border-box;
+      border:1px solid #cfd8e1;
+      border-radius:12px;
       background:#fff;
+      color:#24384c;
       font-family:Arial,sans-serif;
+      outline:none;
+      transition:border-color .18s ease, box-shadow .18s ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus{
+      border-color:#7eb1dd;
+      box-shadow:0 0 0 3px rgba(23,105,170,.10);
     }
 
     textarea{
-      min-height:80px;
+      min-height:92px;
       resize:vertical;
     }
 
@@ -83,11 +303,17 @@
       width:100%;
       padding:15px;
       border:0;
-      border-radius:8px;
-      font-size:16px;
-      font-weight:700;
+      border-radius:12px;
+      font-size:15px;
+      font-weight:800;
       cursor:pointer;
       margin-top:12px;
+      transition:transform .12s ease, filter .12s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    button:active{
+      transform:scale(.985);
     }
 
     button:disabled{
@@ -96,42 +322,47 @@
     }
 
     .btnAzul{
-      background:#1769aa;
+      background:linear-gradient(135deg,var(--azul2),#2380cf);
       color:#fff;
+      box-shadow:0 6px 16px rgba(23,105,170,.18);
     }
 
     .btnVerde{
-      background:#2d7a38;
+      background:linear-gradient(135deg,var(--verdeOscuro),#2aa44d);
       color:#fff;
+      box-shadow:0 6px 16px rgba(32,146,68,.18);
     }
 
     .btnOscuro{
-      background:#333;
+      background:linear-gradient(135deg,#263746,#182631);
       color:#fff;
     }
 
     .estado{
       display:none;
-      padding:12px;
-      border-radius:8px;
+      padding:11px 12px;
+      border-radius:11px;
       margin-top:12px;
-      font-size:14px;
-      line-height:1.5;
+      font-size:12px;
+      line-height:1.45;
     }
 
     .ok{
-      background:#e5f6e8;
-      border:1px solid #a6d8ad;
+      background:#eaf7ed;
+      border:1px solid #b8dfc0;
+      color:#266739;
     }
 
     .error{
-      background:#fff1f1;
-      border:1px solid #e4aaaa;
+      background:#fff0f0;
+      border:1px solid #edbcbc;
+      color:#92252b;
     }
 
     .info{
       background:#eef5fb;
-      border:1px solid #bdd1e4;
+      border:1px solid #c6d9e9;
+      color:#31566f;
     }
 
     #panelAdmin{
@@ -141,182 +372,96 @@
     #verificandoBox{
       display:none;
       text-align:center;
-      padding:16px 10px;
-      background:#eef5fb;
-      border-radius:9px;
-      color:#234;
-      font-size:14px;
-      line-height:1.5;
+      padding:14px 12px;
+      background:#edf5fb;
+      border:1px solid #d1e0ec;
+      border-radius:12px;
+      color:#31536a;
+      font-size:13px;
+      line-height:1.45;
       margin-bottom:14px;
     }
 
+    #formNuevo{
+      border:1px solid var(--grisBorde);
+      border-radius:18px;
+      padding:18px;
+      background:#fff;
+      box-shadow:0 4px 16px rgba(25,47,70,.04);
+    }
+
+    #formNuevo::before{
+      content:"+  NUEVO SEGUIMIENTO";
+      display:block;
+      font-size:18px;
+      font-weight:800;
+      color:var(--azul2);
+      margin-bottom:4px;
+    }
+
+    #formNuevo::after{
+      content:"Completá los datos para iniciar un nuevo seguimiento.";
+      display:block;
+      font-size:12.5px;
+      color:#6b7681;
+      margin-bottom:12px;
+      order:-1;
+    }
+
     .ayuda{
-      font-size:12px;
-      color:#666;
+      font-size:11.5px;
+      color:#6e7781;
       margin-top:6px;
       line-height:1.4;
     }
 
-    #btnEmergencia{
-      background:#fff;
-      color:#b00020;
-      border:1px solid #d89ba7;
-      padding:10px 12px;
-      font-size:12px;
-      margin-top:22px;
-    }
-
-    #emergenciaAyuda{
-      text-align:center;
-      font-size:11px;
-      color:#777;
-      margin-top:6px;
-      line-height:1.35;
-    }
-
-    /* ==========================================================
-       ESTADO DEL AUTODIAGNOSTICO
-       ========================================================== */
-
-    #systemTestBox{
-      margin-top:18px;
-      padding:12px 14px;
-      border-radius:9px;
-      border:1px solid #d5d5d5;
-      background:#f8f8f8;
-      text-align:center;
-      font-size:12px;
-      line-height:1.5;
-      color:#555;
-      cursor:default;
-    }
-
-    #systemTestBox.testOk{
-      background:#e5f6e8;
-      border-color:#a6d8ad;
-      color:#235b2b;
-    }
-
-    #systemTestBox.testError{
-      background:#fff1f1;
-      border-color:#e4aaaa;
-      color:#9a1625;
-      cursor:pointer;
-    }
-
-    #systemTestBox.testRunning{
-      background:#fff7dc;
-      border-color:#e3cf82;
-      color:#705c13;
-    }
-
-    #systemTestTitulo{
-      font-weight:700;
-      margin-bottom:3px;
-    }
-
-    #systemTestDetalle{
-      display:none;
-      margin-top:9px;
-      padding-top:9px;
-      border-top:1px solid rgba(0,0,0,.12);
-      font-size:11px;
-      line-height:1.45;
-      text-align:left;
-    }
-
-
-    /* ==========================================================
-       NUEVO DISEÑO DEL PANEL
-       ========================================================== */
-
-    .cabeceraSuperior{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      margin-bottom:18px;
-    }
-
-    .logoPanel{
-      width:82px;
-      flex:0 0 82px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
-
-    .logoPanel img{
-      width:76px;
-      max-width:100%;
-      height:auto;
-      display:block;
-    }
-
-    #systemTestBox{
-      flex:1;
-      min-width:0;
-      margin-top:0;
-      padding:11px 12px;
-      text-align:left;
-    }
-
-    #systemTestTitulo{
-      font-size:12px;
-      margin-bottom:4px;
-    }
-
-    #systemTestEstado{
-      font-size:11px;
-      line-height:1.35;
-    }
-
     .nombreContactoFila{
       display:grid;
-      grid-template-columns:minmax(0,1fr) 92px;
+      grid-template-columns:minmax(0,1fr) 96px;
       gap:10px;
       align-items:stretch;
     }
 
     #btnContacto{
-      width:92px;
+      width:96px;
       margin-top:0;
       padding:8px 6px;
       min-height:52px;
-      font-size:11px;
-      line-height:1.15;
-      border-radius:8px;
+      font-size:10.5px;
+      line-height:1.1;
+      border-radius:12px;
     }
 
     #btnContacto .contactoIcono{
       display:block;
-      font-size:18px;
-      margin-bottom:2px;
+      font-size:19px;
+      margin-bottom:3px;
     }
 
     #accionesSeguimiento{
       display:none;
       gap:10px;
-      margin-top:18px;
+      margin-top:16px;
     }
 
     #accionesSeguimiento button{
       flex:1;
       width:auto;
-      min-height:86px;
+      min-height:78px;
       margin-top:0;
       padding:12px 8px;
-      border-radius:10px;
+      border-radius:14px;
       font-size:14px;
-      line-height:1.25;
+      line-height:1.15;
     }
 
     #btnCrear{
-      background:#2d7a38;
+      background:linear-gradient(135deg,var(--verdeOscuro),#2ca14f);
       color:#fff;
     }
 
     #btnEmergencia{
-      background:#c62828;
+      background:linear-gradient(135deg,var(--rojoOscuro),#e33b3b);
       color:#fff;
       border:0;
       padding:12px 8px;
@@ -325,75 +470,80 @@
     }
 
     #emergenciaAyuda{
-      margin-top:8px;
+      position:relative;
+      margin-top:12px;
+      padding:10px 12px 10px 40px;
+      border:1px solid #d8e5f0;
+      border-radius:12px;
+      background:#f2f7fc;
+      color:#42627b;
+      font-size:11px;
+      line-height:1.35;
+      text-align:left;
+    }
+
+    #emergenciaAyuda::before{
+      content:"i";
+      position:absolute;
+      left:12px;
+      top:50%;
+      transform:translateY(-50%);
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--azul);
+      color:#fff;
+      font-weight:800;
+      font-size:12px;
     }
 
     #btnLogout{
-      margin-top:18px;
+      margin-top:16px;
+      min-height:54px;
+      border-radius:14px;
+      letter-spacing:.2px;
     }
 
-    @media(max-width:420px){
-
-      body{
-        padding:10px;
-      }
-
-      .panel{
-        padding:16px;
-      }
-
-      .cabeceraSuperior{
-        gap:9px;
-      }
-
-      .logoPanel{
-        width:68px;
-        flex-basis:68px;
-      }
-
-      .logoPanel img{
-        width:64px;
-      }
-
-      #systemTestBox{
-        padding:9px 10px;
-      }
-
-      #systemTestTitulo{
-        font-size:11px;
-      }
-
-      #systemTestEstado{
-        font-size:10px;
-      }
-
-      .nombreContactoFila{
-        grid-template-columns:minmax(0,1fr) 82px;
-        gap:8px;
-      }
-
-      #btnContacto{
-        width:82px;
-        font-size:10px;
-      }
-
-      #accionesSeguimiento{
-        gap:8px;
-      }
-
-      #accionesSeguimiento button,
-      #btnEmergencia{
-        min-height:80px;
-        font-size:13px;
-      }
+    .privacidadPie{
+      margin:12px 0 0;
+      text-align:center;
+      font-size:10.5px;
+      color:#7a848e;
     }
 
-    /* ==========================================================
-       PANTALLA DE CARGA / RECUPERACION
-       Evita el parpadeo del panel mientras Supabase recupera
-       el seguimiento activo.
-       ========================================================== */
+    /* LOGIN */
+    #loginBox::before{
+      content:"ACCESO AL PANEL";
+      display:block;
+      text-align:center;
+      font-size:18px;
+      font-weight:800;
+      color:#1f3650;
+      margin-bottom:3px;
+    }
 
+    #loginBox::after{
+      content:"Ingresá para administrar tus seguimientos.";
+      display:block;
+      text-align:center;
+      font-size:12px;
+      color:#737d86;
+      margin-top:-160px;
+      margin-bottom:150px;
+      pointer-events:none;
+      visibility:hidden;
+      height:0;
+    }
+
+    #btnLogin{
+      min-height:52px;
+      margin-top:16px;
+    }
+
+    /* SPLASH */
     #splashPioca{
       position:fixed;
       inset:0;
@@ -401,12 +551,10 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      background:#f5f5f5;
+      background:#f3f6f9;
       opacity:1;
       visibility:visible;
-      transition:
-        opacity .25s ease,
-        visibility .25s ease;
+      transition:opacity .25s ease, visibility .25s ease;
       will-change:opacity,visibility;
     }
 
@@ -419,37 +567,96 @@
     .splashContenido{
       width:100%;
       padding:24px;
-      box-sizing:border-box;
       text-align:center;
     }
 
     #splashLogo{
-      width:88vw;
-      max-width:460px;
+      width:78vw;
+      max-width:390px;
       height:auto;
       display:block;
-      margin:0 auto 22px auto;
+      margin:0 auto 18px;
     }
 
     #splashTexto{
-      font-size:16px;
-      font-weight:700;
-      color:#555;
-      letter-spacing:.2px;
+      font-size:15px;
+      font-weight:800;
+      color:#596673;
     }
 
-    @media(max-width:600px){
-      #splashLogo{
-        width:88vw;
-        max-width:none;
+    @media(max-width:460px){
+      body{
+        padding:8px;
       }
 
-      #splashTexto{
-        font-size:15px;
+      .panel{
+        border-radius:17px;
+      }
+
+      .cabeceraSuperior{
+        gap:12px;
+        padding:16px 14px 12px;
+      }
+
+      .logoPanel{
+        width:84px;
+        height:84px;
+      }
+
+      .logoPanel img{
+        width:82px;
+      }
+
+      .tituloPrincipal{
+        font-size:19px;
+      }
+
+      .subtituloPrincipal{
+        font-size:12px;
+      }
+
+      #loginBox,
+      #panelAdmin{
+        padding:0 14px 16px;
+      }
+
+      #systemTestBox{
+        padding:10px 11px;
+      }
+
+      #systemTestTitulo{
+        font-size:11px;
+      }
+
+      #systemTestEstado{
+        font-size:10px;
+      }
+
+      #formNuevo{
+        padding:15px;
+      }
+
+      .nombreContactoFila{
+        grid-template-columns:minmax(0,1fr) 82px;
+        gap:8px;
+      }
+
+      #btnContacto{
+        width:82px;
+      }
+
+      #accionesSeguimiento{
+        gap:8px;
+      }
+
+      #accionesSeguimiento button,
+      #btnEmergencia{
+        min-height:74px;
+        font-size:12.5px;
       }
     }
-
   </style>
+
 </head>
 
 <body>
@@ -485,6 +692,11 @@
         alt="piOca"
       >
 
+    </div>
+
+    <div class="cabeceraTexto">
+      <h1 class="tituloPrincipal">Panel de Seguimiento</h1>
+      <p class="subtituloPrincipal">Control en tiempo real</p>
     </div>
 
     <div id="systemTestBox">
@@ -649,6 +861,10 @@
       type="button">
       CERRAR SESIÓN
     </button>
+
+    <div class="privacidadPie">
+      🔒 Tus datos están protegidos. Sólo vos tenés acceso a esta información.
+    </div>
 
   </div>
 
