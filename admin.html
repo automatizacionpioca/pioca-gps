@@ -28,6 +28,15 @@
       border-radius:14px;
       border:1px solid #ddd;
       box-sizing:border-box;
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+    }
+
+    body.piocaListo .panel{
+      opacity:1;
+      visibility:visible;
+      pointer-events:auto;
     }
 
     .titulo{
@@ -398,6 +407,7 @@
       transition:
         opacity .25s ease,
         visibility .25s ease;
+      will-change:opacity,visibility;
     }
 
     #splashPioca.splashOculto{
@@ -689,8 +699,23 @@
     setTimeout(
       function(){
 
-        splashPioca.classList.add(
-          "splashOculto"
+        /*
+          Primero habilitamos el panel ya resuelto y
+          recién después retiramos el splash.
+          Así nunca queda visible un estado intermedio.
+        */
+        document.body.classList.add(
+          "piocaListo"
+        );
+
+        requestAnimationFrame(
+          function(){
+
+            splashPioca.classList.add(
+              "splashOculto"
+            );
+
+          }
         );
 
       },
