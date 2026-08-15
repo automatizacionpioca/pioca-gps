@@ -757,6 +757,219 @@
       }
     }
 
+  
+
+    /* ==========================================================
+       RENOVACIÓN VISUAL CLIENTE - 15/08/2026
+       Sólo presentación: conserva IDs, estados y animaciones.
+       ========================================================== */
+
+    .cabeceraCliente{
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .logo{
+      min-height:132px;
+    }
+
+    .logo::after{
+      display:none;
+    }
+
+    .logo img{
+      width:154px;
+    }
+
+    #horaLlegadaBox{
+      width:100%;
+      max-width:none;
+      border:1px solid #d9e3ec;
+      border-radius:17px;
+      background:linear-gradient(135deg,#f8fbff 0%,#eef5fb 100%);
+      box-shadow:0 6px 18px rgba(25,45,65,.08);
+      overflow:hidden;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      min-height:72px;
+      padding:8px 11px;
+      box-sizing:border-box;
+    }
+
+    #horaLlegadaTitulo{
+      min-height:0;
+      padding:0;
+      background:transparent;
+      justify-content:flex-start;
+      font-size:9.5px;
+      line-height:1.22;
+      letter-spacing:.5px;
+      color:#536272;
+    }
+
+    #horaLlegadaTitulo::before{
+      width:34px;
+      height:34px;
+      flex:0 0 34px;
+      font-size:19px;
+      background:linear-gradient(135deg,#1769aa,#2389d7);
+      box-shadow:0 3px 9px rgba(23,105,170,.18);
+    }
+
+    #horaLlegada{
+      min-height:0;
+      padding:0 0 0 9px;
+      background:transparent;
+      color:#1769aa;
+      font-size:25px;
+      letter-spacing:.2px;
+      white-space:nowrap;
+      justify-content:flex-end;
+      animation:piocaHoraBlink 1.7s ease-in-out infinite;
+    }
+
+    #estado{
+      min-height:50px;
+      padding:8px 13px;
+      margin:0 0 14px 0;
+      border:1px solid #bfe4ca;
+      border-radius:15px;
+      background:#edf9f0;
+      box-shadow:0 4px 12px rgba(25,45,65,.05);
+    }
+
+    .estadoEnVivo{
+      gap:9px;
+    }
+
+    .puntoEnVivo{
+      width:22px;
+      height:22px;
+      flex:0 0 22px;
+      margin-left:0;
+      background:#2db45a;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+    }
+
+    .puntoEnVivo::before{
+      content:"✓";
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-size:13px;
+      font-weight:700;
+      z-index:1;
+    }
+
+    .puntoEnVivo::after{
+      width:22px;
+      height:22px;
+      background:rgba(40,191,89,.25);
+    }
+
+    .estadoTexto{
+      color:#1f6f3a;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .estadoBadge{
+      position:relative;
+      padding:5px 24px 5px 9px;
+      background:transparent;
+      color:#29994c;
+      font-size:9px;
+      letter-spacing:.25px;
+    }
+
+    .estadoBadge::after{
+      content:"";
+      position:absolute;
+      right:7px;
+      top:50%;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:#28bf59;
+      transform:translateY(-50%);
+      box-shadow:0 0 0 4px rgba(40,191,89,.10);
+      animation:piocaLiveDot 1.7s ease-in-out infinite;
+    }
+
+    @keyframes piocaLiveDot{
+      0%,100%{opacity:1;transform:translateY(-50%) scale(1);}
+      50%{opacity:.48;transform:translateY(-50%) scale(.82);}
+    }
+
+    @media(max-width:600px){
+      .cabeceraCliente{
+        gap:10px;
+        margin-bottom:13px;
+      }
+
+      .logo{
+        min-height:118px;
+      }
+
+      .logo img{
+        width:142px;
+      }
+
+      #horaLlegadaBox{
+        width:100%;
+        max-width:none;
+        min-height:66px;
+        padding:7px 9px;
+      }
+
+      #horaLlegadaTitulo{
+        min-height:0;
+        padding:0;
+        font-size:8.5px;
+      }
+
+      #horaLlegadaTitulo::before{
+        width:29px;
+        height:29px;
+        flex-basis:29px;
+        font-size:17px;
+      }
+
+      #horaLlegada{
+        min-height:0;
+        padding:0 0 0 6px;
+        font-size:21px;
+      }
+
+      #estado{
+        min-height:48px;
+        padding:7px 10px;
+        margin-bottom:12px;
+      }
+
+      .puntoEnVivo{
+        width:20px;
+        height:20px;
+        flex-basis:20px;
+      }
+
+      .puntoEnVivo::after{
+        width:20px;
+        height:20px;
+      }
+
+      .puntoEnVivo::before{
+        font-size:12px;
+      }
+
+      .estadoTexto{
+        font-size:12.5px;
+      }
+    }
+
   </style>
 
 </head>
