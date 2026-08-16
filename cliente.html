@@ -1619,9 +1619,19 @@
         obtenerBearingMapa()
       );
 
+    /*
+      IMPORTANTE R14:
+      leaflet-rotate necesita el bearing opuesto al heading
+      para que el rumbo geográfico del vehículo quede
+      visualmente hacia arriba en pantalla.
+
+      Ejemplo:
+      vehículo rumbo Este = 90°
+      mapa bearing = -90°
+    */
     const bearingFinal =
       normalizarBearing(
-        rumboObjetivo
+        -rumboObjetivo
       );
 
     const delta =
@@ -1649,7 +1659,7 @@
       Evita el giro instantáneo del mapa cuando cambia de calle.
     */
     const duracionMs =
-      420;
+      320;
 
     const inicio =
       performance.now();
@@ -3939,20 +3949,73 @@
         createdAt
       );
 
-    const rumboNuevo =
-      evaluarRumboReal(
+    /*
+      Primero comprobamos si esta lectura representa
+      un giro protegido real. Esa detección ya usa:
+      - velocidad baja
+      - distancia mínima
+      - cambio angular fuerte
+      - puntos anteriores reales
+
+      Por eso, si se confirma un giro, NO debemos esperar
+      una segunda lectura para orientar el mapa.
+    */
+    const giroProtegido =
+      esGiroProtegidoBajaVelocidad(
         lat,
         lon,
         velocidadInterna
       );
 
+    let rumboNuevo =
+      ultimoRumboVisual;
+
+    if(
+      giroProtegido &&
+      ultimoPuntoServidor
+    ){
+
+      /*
+        R14:
+        nuevo rumbo confirmado por giro real.
+        Lo tomamos inmediatamente para que mapa y calle
+        roten antes de que la camioneta parezca desplazarse
+        lateralmente.
+      */
+      rumboNuevo =
+        rumboGrados(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon,
+          lat,
+          lon
+        );
+
+      rumboRealConfirmado =
+        true;
+
+      candidatoRumboPendiente =
+        null;
+
+      candidatosMovimientoConsecutivos =
+        0;
+
+    }else{
+
+      rumboNuevo =
+        evaluarRumboReal(
+          lat,
+          lon,
+          velocidadInterna
+        );
+    }
+
     ultimoRumboVisual =
       rumboNuevo;
 
     /*
-      En modo navegación, cada nuevo rumbo REAL confirmado
-      rota el mapa para que la camioneta continúe mirando
-      hacia adelante en pantalla.
+      Heading-up real:
+      la camioneta permanece hacia arriba.
+      Es el mapa el que se orienta al sentido de circulación.
     */
     if(
       rumboRealConfirmado
@@ -3969,13 +4032,6 @@
         lat,
         lon,
         createdAt,
-        velocidadInterna
-      );
-
-    const giroProtegido =
-      esGiroProtegidoBajaVelocidad(
-        lat,
-        lon,
         velocidadInterna
       );
 
