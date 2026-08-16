@@ -386,102 +386,39 @@
     }
 
     /* ==========================================================
-       PIN PIOCA - ICONO EXACTO DE LA APLICACIÓN
-       Usa pin-pioca-app.png sin redibujar la camioneta.
-       El círculo azul inferior marca la coordenada GPS exacta
-       y emite ondas pulsantes.
+       PIN CLÁSICO TIPO MAPA
+       Marcador rojo en forma de gota, sin imagen externa.
        ========================================================== */
 
-    .piocaAppExactIcon{
+    .piocaPinIcon{
       background:transparent !important;
       border:0 !important;
     }
 
-    .piocaAppExactWrap{
+    .piocaPin{
       position:relative;
-      width:100%;
-      height:100%;
-      overflow:visible;
-      pointer-events:none;
-    }
-
-    .piocaAppExactImg{
-      position:absolute;
-      left:50%;
-      top:44%;
-      width:100%;
-      height:auto;
-      object-fit:contain;
-      transform:translate(-50%,-50%);
-      z-index:3;
-      filter:drop-shadow(0 3px 4px rgba(0,0,0,.24));
-    }
-
-    .piocaAppExactPunto{
-      position:absolute;
-      left:50%;
-      bottom:0;
-      width:13%;
-      aspect-ratio:1 / 1;
-      min-width:10px;
-      min-height:10px;
-      transform:translateX(-50%);
-      border-radius:50%;
-      background:#1769aa;
-      border:3px solid #ffffff;
+      width:30px;
+      height:30px;
+      background:#e94235;
+      border:2px solid #ffffff;
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      box-sizing:border-box;
       box-shadow:
-        0 0 0 3px rgba(23,105,170,.28),
-        0 3px 8px rgba(0,0,0,.22);
-      z-index:6;
-      animation:piocaAppExactBlink 1.05s ease-in-out infinite;
+        0 2px 5px rgba(0,0,0,.34),
+        0 1px 2px rgba(0,0,0,.18);
     }
 
-    .piocaAppExactPunto::before,
-    .piocaAppExactPunto::after{
+    .piocaPin::after{
       content:"";
       position:absolute;
-      left:50%;
-      top:50%;
-      width:100%;
-      height:100%;
+      width:10px;
+      height:10px;
+      left:8px;
+      top:8px;
+      background:#ffffff;
       border-radius:50%;
-      border:2px solid rgba(23,105,170,.46);
-      transform:translate(-50%,-50%) scale(1);
-      pointer-events:none;
-    }
-
-    .piocaAppExactPunto::before{
-      animation:piocaAppExactWave 1.40s ease-out infinite;
-    }
-
-    .piocaAppExactPunto::after{
-      animation:piocaAppExactWave 1.40s ease-out .45s infinite;
-    }
-
-    @keyframes piocaAppExactBlink{
-      0%,100%{
-        opacity:1;
-        transform:translateX(-50%) scale(1);
-      }
-      50%{
-        opacity:.58;
-        transform:translateX(-50%) scale(.86);
-      }
-    }
-
-    @keyframes piocaAppExactWave{
-      0%{
-        opacity:.56;
-        transform:translate(-50%,-50%) scale(1);
-      }
-      75%{
-        opacity:.06;
-        transform:translate(-50%,-50%) scale(2.45);
-      }
-      100%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(2.45);
-      }
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
     }
 
     .leaflet-control-attribution{
@@ -1271,88 +1208,14 @@
   const DISTANCIA_MINIMA_GIRO_METROS =
     6;
 
-  function dimensionesPinPiocaPorZoom(){
-
-    const zoom =
-      mapa &&
-      typeof mapa.getZoom === "function"
-        ? mapa.getZoom()
-        : 16;
-
-    /*
-      Tamaño intermedio: ni gigante ni diminuto.
-      Se adapta al zoom manteniendo legible el gráfico.
-    */
-    if(zoom >= 18){
-      return {ancho:92, alto:104};
-    }
-
-    if(zoom >= 16){
-      return {ancho:84, alto:96};
-    }
-
-    if(zoom >= 14){
-      return {ancho:76, alto:87};
-    }
-
-    if(zoom >= 12){
-      return {ancho:68, alto:78};
-    }
-
-    return {ancho:60, alto:70};
-  }
-
-  function crearIconoPiocaExacto(){
-
-    const dimensiones =
-      dimensionesPinPiocaPorZoom();
-
-    const html =
-      '<div class="piocaAppExactWrap">' +
-
-        '<img ' +
-          'class="piocaAppExactImg" ' +
-          'src="pin-pioca-app.png" ' +
-          'alt="piOca">' +
-
-        '<div class="piocaAppExactPunto"></div>' +
-
-      '</div>';
-
-    return L.divIcon({
-      className:"piocaAppExactIcon",
-      html:html,
-      iconSize:[
-        dimensiones.ancho,
-        dimensiones.alto
-      ],
-
-      /*
-        La coordenada real coincide con el centro
-        del círculo azul inferior.
-      */
-      iconAnchor:[
-        dimensiones.ancho / 2,
-        dimensiones.alto * 0.94
-      ],
-
-      popupAnchor:[
-        0,
-        -(dimensiones.alto * 0.78)
-      ]
+  const iconoPioca =
+    L.divIcon({
+      className:"piocaPinIcon",
+      html:'<div class="piocaPin"></div>',
+      iconSize:[30,42],
+      iconAnchor:[15,39],
+      popupAnchor:[0,-38]
     });
-  }
-
-  function actualizarIconoPiocaExacto(){
-
-    if(!marcador){
-      return;
-    }
-
-    marcador.setIcon(
-      crearIconoPiocaExacto()
-    );
-  }
 
   function detenerReloj(){
 
@@ -2969,15 +2832,6 @@
 
         100
       );
-
-      mapa.on(
-        "zoomend",
-        function(){
-
-          actualizarIconoPiocaExacto();
-
-        }
-      );
     }
   }
 
@@ -3030,8 +2884,7 @@
         L.marker(
           [lat, lon],
           {
-            icon:
-              crearIconoPiocaExacto(),
+            icon:iconoPioca,
             rotateWithView:false
           }
         )
