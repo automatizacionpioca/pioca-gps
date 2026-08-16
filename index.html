@@ -209,6 +209,13 @@
       box-shadow:0 6px 16px rgba(31,145,65,.17);
     }
 
+    #btnEnviarAviso{
+      background:linear-gradient(135deg,#17314b,#28516f);
+      color:#fff;
+      min-height:50px;
+      box-shadow:0 6px 16px rgba(23,49,75,.13);
+    }
+
     #btnFinalizar{
       background:linear-gradient(135deg,#c91e27,#ed3535);
       color:#fff;
@@ -566,6 +573,12 @@
     </button>
 
     <button
+      id="btnEnviarAviso"
+      type="button">
+      🔔 ENVIAR AVISO
+    </button>
+
+    <button
       id="btnFinalizar"
       type="button">
       ⛔ FINALIZAR SEGUIMIENTO
@@ -641,6 +654,9 @@
 
   const btnWhatsapp =
     document.getElementById("btnWhatsapp");
+
+  const btnEnviarAviso =
+    document.getElementById("btnEnviarAviso");
 
   const btnFinalizar =
     document.getElementById("btnFinalizar");
@@ -2242,6 +2258,63 @@
     iniciarHeartbeat();
   }
 
+
+  async function enviarAvisoManual(){
+
+    if(
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+      return;
+    }
+
+    btnEnviarAviso.disabled = true;
+    btnEnviarAviso.textContent = "ENVIANDO AVISO...";
+
+    try{
+      const {data,error} = await supabaseClient.rpc(
+        "request_arrival_notification",
+        {p_code:trackingCode}
+      );
+
+      if(error){
+        throw error;
+      }
+
+      let ok = false;
+
+      if(data === true){
+        ok = true;
+      }else if(Array.isArray(data) && data.length){
+        ok = data[0].success === true;
+      }else if(data && typeof data === "object"){
+        ok = data.success === true;
+      }
+
+      if(!ok){
+        throw new Error("Aviso no confirmado.");
+      }
+
+      btnEnviarAviso.textContent = "✓ AVISO SOLICITADO";
+
+      setTimeout(function(){
+        if(!seguimientoFinalizado){
+          btnEnviarAviso.disabled = false;
+          btnEnviarAviso.textContent = "🔔 ENVIAR AVISO";
+        }
+      },1800);
+
+      ocultarError();
+
+    }catch(error){
+      btnEnviarAviso.disabled = false;
+      btnEnviarAviso.textContent = "🔔 ENVIAR AVISO";
+      mostrarError(
+        "No se pudo solicitar el aviso. Verificá que el cliente haya activado las notificaciones."
+      );
+    }
+  }
+
   async function finalizarSeguimiento(){
 
     if(
@@ -2353,6 +2426,11 @@
   btnWhatsapp.addEventListener(
     "click",
     abrirWhatsApp
+  );
+
+  btnEnviarAviso.addEventListener(
+    "click",
+    enviarAvisoManual
   );
 
   btnFinalizar.addEventListener(
