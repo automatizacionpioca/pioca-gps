@@ -19,6 +19,19 @@ def re_once(text, pattern, repl, label, flags=0):
         raise SystemExit('ERROR PATCH ' + label)
     return out
 
+
+def re_once_literal(text, pattern, repl, label, flags=0):
+    rx = re.compile(pattern, flags)
+    match = rx.search(text)
+    if not match:
+        raise SystemExit('ERROR PATCH ' + label)
+
+    return (
+        text[:match.start()]
+        + repl
+        + text[match.end():]
+    )
+
 # ----------------------------------------------------------
 # VERSION
 # ----------------------------------------------------------
@@ -71,7 +84,7 @@ t = re_once(
 )
 
 # Cuando acepta el cartel de finalización, ofrecer quitar silencio.
-t = re_once(
+t = re_once_literal(
     t,
     r'\.setPositiveButton\(\s*"ACEPTAR",\s*null\s*\)\s*\.show\(\);\s*\n\s*\}',
     '''.setPositiveButton(\n\n        "ACEPTAR",\n\n        (d, which) -> showPendingDndRestoreDialog()\n    )\n\n    .show();\n}\n\n\nprivate void ensureDndAccess() {\n\n    NotificationManager nm =\n            (NotificationManager)\n                    getSystemService(NOTIFICATION_SERVICE);\n\n    if (nm == null\n            || nm.isNotificationPolicyAccessGranted()\n            || dndDialogVisible\n            || isFinishing()) {\n        return;\n    }\n\n    dndDialogVisible = true;\n\n    AlertDialog dialog =\n            new AlertDialog.Builder(this)\n                    .setTitle("Silencio automático al llegar")\n                    .setMessage(\n                            "piOca puede activar No molestar cuando falten 3 minutos para llegar.\\n\\n"\n                            + "Este permiso se configura una sola vez en Android.\\n\\n"\n                            + "El seguimiento GPS funciona igual aunque no lo habilites."\n                    )\n                    .setPositiveButton(\n                            "CONFIGURAR",\n                            (d, which) -> {\n                                dndDialogVisible = false;\n                                try {\n                                    startActivity(\n                                            new Intent(\n                                                    Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS\n                                            )\n                                    );\n                                } catch (Exception ignored) {\n                                }\n                            }\n                    )\n                    .setNegativeButton(\n                            "AHORA NO",\n                            (d, which) -> dndDialogVisible = false\n                    )\n                    .create();\n\n    dialog.setOnCancelListener(d -> dndDialogVisible = false);\n    dialog.show();\n}\n\n\nprivate void showPendingDndRestoreDialog() {\n\n    SharedPreferences prefs =\n            getSharedPreferences("pioca_tracking", MODE_PRIVATE);\n\n    if (!prefs.getBoolean("dnd_restore_pending", false)) {\n        return;\n    }\n\n    NotificationManager nm =\n            (NotificationManager)\n                    getSystemService(NOTIFICATION_SERVICE);\n\n    if (nm == null || !nm.isNotificationPolicyAccessGranted()) {\n        return;\n    }\n\n    if (nm.getCurrentInterruptionFilter()\n            == NotificationManager.INTERRUPTION_FILTER_ALL) {\n\n        prefs.edit()\n                .putBoolean("dnd_restore_pending", false)\n                .putBoolean("dnd_activated_by_pioca", false)\n                .remove("dnd_previous_filter")\n                .apply();\n        return;\n    }\n\n    new AlertDialog.Builder(this)\n            .setTitle("No molestar sigue activo")\n            .setMessage(\n                    "El seguimiento ya finalizó.\\n\\n"\n                    + "¿Querés quitar el modo No molestar?"\n            )\n            .setPositiveButton(\n                    "QUITAR SILENCIO",\n                    (d, which) -> {\n                        try {\n                            int previous = prefs.getInt(\n                                    "dnd_previous_filter",\n                                    NotificationManager.INTERRUPTION_FILTER_ALL\n                            );\n\n                            nm.setInterruptionFilter(previous);\n\n                            prefs.edit()\n                                    .putBoolean("dnd_restore_pending", false)\n                                    .putBoolean("dnd_activated_by_pioca", false)\n                                    .remove("dnd_previous_filter")\n                                    .apply();\n                        } catch (Exception ignored) {\n                        }\n                    }\n            )\n            .setNegativeButton("MANTENER SILENCIO", null)\n            .show();\n}\n''',
