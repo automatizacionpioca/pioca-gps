@@ -1026,45 +1026,48 @@
 
 
     /* ==========================================================
-       AJUSTE FINAL CABECERA - 16/08/2026 R2
-       Evita desborde lateral en móviles.
+       AJUSTE FINAL CABECERA - 16/08/2026 R3
+       Dos columnas iguales y centradas:
+       logo y panel de hora con márgenes laterales simétricos.
        ========================================================== */
 
     .cabeceraCliente{
-      grid-template-columns:minmax(0,1fr) minmax(0,.94fr);
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
       gap:16px;
       width:100%;
       box-sizing:border-box;
+      align-items:center;
     }
 
     .logo{
       min-width:0;
+      justify-self:center;
     }
 
     #horaLlegadaBox{
-      width:100%;
-      max-width:220px;
+      width:86%;
+      max-width:190px;
       min-width:0;
-      min-height:84px;
-      justify-self:end;
-      padding:10px 10px;
+      min-height:92px;
+      justify-self:center;
+      padding:11px 10px;
       border-radius:18px;
       box-sizing:border-box;
       grid-template-columns:minmax(0,1fr) auto;
-      column-gap:6px;
+      column-gap:5px;
     }
 
     #horaLlegadaTitulo{
       min-width:0;
-      font-size:9px;
+      font-size:8.8px;
       line-height:1.18;
-      letter-spacing:.38px;
+      letter-spacing:.34px;
     }
 
     #horaLlegada{
       min-width:0;
-      max-width:78px;
-      font-size:22px;
+      max-width:72px;
+      font-size:21px;
       padding-left:0;
       overflow:hidden;
       white-space:nowrap;
@@ -1073,12 +1076,13 @@
 
     @media(max-width:600px){
       .cabeceraCliente{
-        grid-template-columns:minmax(0,1fr) minmax(0,.90fr);
-        gap:11px;
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        gap:14px;
       }
 
       .logo{
         min-width:0;
+        justify-self:center;
       }
 
       .logo img{
@@ -1087,33 +1091,33 @@
       }
 
       #horaLlegadaBox{
-        width:100%;
-        max-width:196px;
+        width:88%;
+        max-width:158px;
         min-width:0;
-        min-height:76px;
-        justify-self:end;
-        padding:8px 8px;
+        min-height:88px;
+        justify-self:center;
+        padding:9px 8px;
         grid-template-columns:minmax(0,1fr) auto;
         column-gap:4px;
       }
 
       #horaLlegadaTitulo{
         min-width:0;
-        font-size:7.9px;
+        font-size:7.7px;
         line-height:1.16;
-        letter-spacing:.28px;
+        letter-spacing:.24px;
       }
 
       #horaLlegadaTitulo::before{
-        width:27px;
-        height:27px;
-        flex-basis:27px;
+        width:26px;
+        height:26px;
+        flex-basis:26px;
         font-size:15px;
       }
 
       #horaLlegada{
         min-width:0;
-        max-width:68px;
+        max-width:62px;
         font-size:18px;
         padding-left:0;
         justify-content:flex-end;
@@ -1411,15 +1415,81 @@
     return {ancho:50, alto:64};
   }
 
+  function obtenerBearingMapa(){
+
+    if(
+      !mapa
+    ){
+      return 0;
+    }
+
+    try{
+
+      if(
+        typeof mapa.getBearing === "function"
+      ){
+        const bearing =
+          Number(
+            mapa.getBearing()
+          );
+
+        if(
+          Number.isFinite(
+            bearing
+          )
+        ){
+          return bearing;
+        }
+      }
+
+    }catch(e){}
+
+    /*
+      Fallback defensivo para versiones del plugin
+      que expongan el bearing internamente.
+    */
+    const interno =
+      Number(
+        mapa._bearing
+      );
+
+    return Number.isFinite(
+      interno
+    )
+      ? interno
+      : 0;
+  }
+
+  function rumboVisualEnPantalla(){
+
+    /*
+      El mapa puede rotar libremente con los dedos.
+      Para que la camioneta siga apuntando al rumbo
+      geográfico real:
+          rumbo visual = rumbo real - bearing del mapa
+    */
+    const bearingMapa =
+      obtenerBearingMapa();
+
+    return (
+      ultimoRumboVisual -
+      bearingMapa +
+      360
+    ) % 360;
+  }
+
   function crearIconoVehiculoPioca(){
 
     const dimensiones =
       dimensionesVehiculoPorZoom();
 
+    const rumboPantalla =
+      rumboVisualEnPantalla();
+
     const html =
       '<div class="piocaVehiculoWrap" ' +
       'style="transform:rotate(' +
-      ultimoRumboVisual +
+      rumboPantalla +
       'deg);">' +
 
         '<div class="piocaRumboCono"></div>' +
@@ -3311,6 +3381,25 @@
 
       mapa.on(
         "zoomend",
+        function(){
+          actualizarIconoVehiculo();
+        }
+      );
+
+      /*
+        Mientras el usuario rota el mapa con los dedos,
+        la camioneta y el cono se compensan en tiempo real
+        para conservar su rumbo geográfico real.
+      */
+      mapa.on(
+        "rotate",
+        function(){
+          actualizarIconoVehiculo();
+        }
+      );
+
+      mapa.on(
+        "rotateend",
         function(){
           actualizarIconoVehiculo();
         }
