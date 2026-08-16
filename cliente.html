@@ -1819,6 +1819,32 @@
       .finally(
         function(){
 
+          /*
+            R12:
+            el recentrado ocurre sólo por acción explícita
+            del usuario al tocar REFRESCAR POSICIÓN.
+          */
+          if(
+            mapa &&
+            marcador
+          ){
+
+            try{
+
+              const posicionActual =
+                marcador.getLatLng();
+
+              mapa.panTo(
+                posicionActual,
+                {
+                  animate:true,
+                  duration:0.45
+                }
+              );
+
+            }catch(e){}
+          }
+
           setTimeout(
             function(){
 
@@ -3664,31 +3690,12 @@
         function(){
 
           /*
-            El zoom NO redefine orientación.
-            Sólo redimensiona el pin.
-
-            NUEVO R11:
-            cada vez que cambia el zoom, la camioneta
-            vuelve al centro del mapa. Después de eso,
-            el usuario puede desplazar libremente el mapa
-            con los dedos hasta que vuelva a hacer zoom.
+            R12:
+            zoom totalmente libre.
+            No recentramos el mapa automáticamente.
+            Sólo actualizamos el tamaño del icono.
           */
           actualizarIconoVehiculo();
-
-          if(
-            marcador
-          ){
-
-            const posicionActual =
-              marcador.getLatLng();
-
-            mapa.panTo(
-              posicionActual,
-              {
-                animate:false
-              }
-            );
-          }
         }
       );
 
