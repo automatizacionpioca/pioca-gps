@@ -1388,6 +1388,28 @@
   let ultimoRumboVisual =
     0;
 
+  /*
+    Mientras todavía no existe un rumbo real confirmado,
+    la camioneta se muestra alineada con la orientación
+    actual del mapa (visualmente apunta hacia arriba).
+
+    Una vez confirmado movimiento real, se utiliza rumbo GPS.
+  */
+  let rumboRealConfirmado =
+    false;
+
+  let candidatoRumboPendiente =
+    null;
+
+  let candidatosMovimientoConsecutivos =
+    0;
+
+  const MOVIMIENTOS_CONSECUTIVOS_PARA_RUMBO =
+    2;
+
+  const DIFERENCIA_MAXIMA_CANDIDATOS_RUMBO =
+    38;
+
   function dimensionesVehiculoPorZoom(){
 
     const zoom =
@@ -1397,22 +1419,22 @@
         : 16;
 
     if(zoom >= 18){
-      return {ancho:76, alto:98};
+      return {ancho:68, alto:88};
     }
 
     if(zoom >= 16){
-      return {ancho:69, alto:89};
-    }
-
-    if(zoom >= 14){
       return {ancho:62, alto:80};
     }
 
-    if(zoom >= 12){
-      return {ancho:55, alto:71};
+    if(zoom >= 14){
+      return {ancho:56, alto:72};
     }
 
-    return {ancho:50, alto:64};
+    if(zoom >= 12){
+      return {ancho:50, alto:64};
+    }
+
+    return {ancho:45, alto:58};
   }
 
   function obtenerBearingMapa(){
@@ -1462,14 +1484,23 @@
 
   function rumboVisualEnPantalla(){
 
-    /*
-      El mapa puede rotar libremente con los dedos.
-      Para que la camioneta siga apuntando al rumbo
-      geográfico real:
-          rumbo visual = rumbo real - bearing del mapa
-    */
     const bearingMapa =
       obtenerBearingMapa();
+
+    /*
+      Al iniciar, todavía no conocemos el sentido real de marcha.
+      En ese momento la camioneta queda alineada con el mapa:
+      visualmente apunta hacia arriba, acompañando la orientación
+      que tenga el mapa en pantalla.
+
+      Cuando ya existe rumbo real confirmado:
+          rumbo visual = rumbo real - bearing del mapa
+    */
+    if(
+      !rumboRealConfirmado
+    ){
+      return 0;
+    }
 
     return (
       ultimoRumboVisual -
@@ -2021,6 +2052,15 @@
     ultimoRumboVisual =
       0;
 
+    rumboRealConfirmado =
+      false;
+
+    candidatoRumboPendiente =
+      null;
+
+    candidatosMovimientoConsecutivos =
+      0;
+
     quitarMarcador();
 
     mapaWrap.style.display =
@@ -2102,6 +2142,15 @@
       null;
 
     ultimoRumboVisual =
+      0;
+
+    rumboRealConfirmado =
+      false;
+
+    candidatoRumboPendiente =
+      null;
+
+    candidatosMovimientoConsecutivos =
       0;
 
     detenerReloj();
@@ -2432,6 +2481,148 @@
       delta +
       360
     ) % 360;
+  }
+
+  function evaluarRumboReal(
+    latNuevo,
+    lonNuevo,
+    velocidadKmh
+  ){
+
+    if(
+      !ultimoPuntoServidor
+    ){
+      return ultimoRumboVisual;
+    }
+
+    const distancia =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    /*
+      Si está parado o casi parado, NO tocamos el rumbo.
+      Además descartamos cualquier candidato pendiente.
+      La camioneta queda mirando exactamente hacia donde venía.
+    */
+    if(
+      !Number.isFinite(
+        distancia
+      ) ||
+      distancia <
+        DISTANCIA_MINIMA_CAMBIO_RUMBO_METROS ||
+      !Number.isFinite(
+        velocidadKmh
+      ) ||
+      velocidadKmh <
+        VELOCIDAD_MINIMA_CAMBIO_RUMBO_KMH
+    ){
+
+      candidatoRumboPendiente =
+        null;
+
+      candidatosMovimientoConsecutivos =
+        0;
+
+      return ultimoRumboVisual;
+    }
+
+    const rumboCalculado =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    /*
+      Para evitar que una deriva GPS aislada haga girar
+      la camioneta, exigimos dos segmentos consecutivos
+      compatibles antes de aceptar un rumbo nuevo.
+    */
+    if(
+      candidatoRumboPendiente ===
+        null
+    ){
+
+      candidatoRumboPendiente =
+        rumboCalculado;
+
+      candidatosMovimientoConsecutivos =
+        1;
+
+      return ultimoRumboVisual;
+    }
+
+    const diferenciaCandidatos =
+      diferenciaRumboGrados(
+        candidatoRumboPendiente,
+        rumboCalculado
+      );
+
+    if(
+      diferenciaCandidatos >
+        DIFERENCIA_MAXIMA_CANDIDATOS_RUMBO
+    ){
+
+      candidatoRumboPendiente =
+        rumboCalculado;
+
+      candidatosMovimientoConsecutivos =
+        1;
+
+      return ultimoRumboVisual;
+    }
+
+    candidatosMovimientoConsecutivos +=
+      1;
+
+    candidatoRumboPendiente =
+      rumboCalculado;
+
+    if(
+      candidatosMovimientoConsecutivos <
+        MOVIMIENTOS_CONSECUTIVOS_PARA_RUMBO
+    ){
+      return ultimoRumboVisual;
+    }
+
+    /*
+      Primer rumbo real confirmado:
+      lo tomamos directamente para que la camioneta se alinee
+      rápido con la calle/sentido de circulación.
+
+      Luego los cambios normales siguen suavizados.
+    */
+    if(
+      !rumboRealConfirmado
+    ){
+
+      rumboRealConfirmado =
+        true;
+
+      candidatosMovimientoConsecutivos =
+        0;
+
+      candidatoRumboPendiente =
+        null;
+
+      return rumboCalculado;
+    }
+
+    candidatosMovimientoConsecutivos =
+      0;
+
+    candidatoRumboPendiente =
+      null;
+
+    return suavizarRumboVisual(
+      ultimoRumboVisual,
+      rumboCalculado
+    );
   }
 
   function esGiroProtegidoBajaVelocidad(
@@ -3490,49 +3681,12 @@
         createdAt
       );
 
-    let rumboNuevo =
-      ultimoRumboVisual;
-
-    if(
-      ultimoPuntoServidor
-    ){
-
-      const distanciaParaRumbo =
-        distanciaMetros(
-          ultimoPuntoServidor.lat,
-          ultimoPuntoServidor.lon,
-          lat,
-          lon
-        );
-
-      if(
-        Number.isFinite(
-          distanciaParaRumbo
-        ) &&
-        distanciaParaRumbo >=
-          DISTANCIA_MINIMA_CAMBIO_RUMBO_METROS &&
-        Number.isFinite(
-          velocidadInterna
-        ) &&
-        velocidadInterna >=
-          VELOCIDAD_MINIMA_CAMBIO_RUMBO_KMH
-      ){
-
-        const rumboCalculado =
-          rumboGrados(
-            ultimoPuntoServidor.lat,
-            ultimoPuntoServidor.lon,
-            lat,
-            lon
-          );
-
-        rumboNuevo =
-          suavizarRumboVisual(
-            ultimoRumboVisual,
-            rumboCalculado
-          );
-      }
-    }
+    const rumboNuevo =
+      evaluarRumboReal(
+        lat,
+        lon,
+        velocidadInterna
+      );
 
     ultimoRumboVisual =
       rumboNuevo;
