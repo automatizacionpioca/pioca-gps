@@ -1,623 +1,309 @@
 from pathlib import Path
+import re
 
-gradle = Path("android-pioca/app/build.gradle")
-manifest = Path("android-pioca/app/src/main/AndroidManifest.xml")
-main = Path("android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java")
-service = Path("android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java")
+gradle = Path('android-pioca/app/build.gradle')
+manifest = Path('android-pioca/app/src/main/AndroidManifest.xml')
+main = Path('android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java')
+service = Path('android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java')
+
 
 def replace_once(text, old, new, label):
     if old not in text:
-        raise SystemExit("ERROR PATCH " + label)
+        raise SystemExit('ERROR PATCH ' + label)
     return text.replace(old, new, 1)
 
-t = gradle.read_text(encoding="utf-8")
+
+def re_once(text, pattern, repl, label, flags=0):
+    out, n = re.subn(pattern, repl, text, count=1, flags=flags)
+    if n != 1:
+        raise SystemExit('ERROR PATCH ' + label)
+    return out
+
+# ----------------------------------------------------------
+# VERSION
+# ----------------------------------------------------------
+t = gradle.read_text(encoding='utf-8')
 t = replace_once(t, 'versionCode 7', 'versionCode 8', 'versionCode')
 t = replace_once(t, 'versionName "0.7"', 'versionName "0.8-silencio"', 'versionName')
-gradle.write_text(t, encoding="utf-8")
+gradle.write_text(t, encoding='utf-8')
 
-t = manifest.read_text(encoding="utf-8")
-marker = '''            <uses-permission
-              android:name="android.permission.POST_NOTIFICATIONS"/>
-'''
-addition = marker + '''
-            <uses-permission
-              android:name="android.permission.ACCESS_NOTIFICATION_POLICY"/>
-'''
-t = replace_once(t, marker, addition, 'ACCESS_NOTIFICATION_POLICY')
-manifest.write_text(t, encoding="utf-8")
+# ----------------------------------------------------------
+# MANIFEST - acceso especial a No molestar
+# ----------------------------------------------------------
+t = manifest.read_text(encoding='utf-8')
+if 'android.permission.ACCESS_NOTIFICATION_POLICY' not in t:
+    t = re_once(
+        t,
+        r'(<uses-permission\s*\n\s*android:name="android\.permission\.POST_NOTIFICATIONS"\s*/>)',
+        r'\1\n\n  <uses-permission\n    android:name="android.permission.ACCESS_NOTIFICATION_POLICY"/>',
+        'ACCESS_NOTIFICATION_POLICY'
+    )
+manifest.write_text(t, encoding='utf-8')
 
-t = main.read_text(encoding="utf-8")
+# ----------------------------------------------------------
+# MAIN ACTIVITY
+# ----------------------------------------------------------
+t = main.read_text(encoding='utf-8')
 
-t = replace_once(
+if 'import android.app.NotificationManager;' not in t:
+    t = replace_once(
+        t,
+        'import android.app.AlertDialog;\n',
+        'import android.app.AlertDialog;\n\nimport android.app.NotificationManager;\n',
+        'import NotificationManager MainActivity'
+    )
+
+# Campo para evitar múltiples diálogos de permiso.
+t = re_once(
     t,
-    '''          import android.app.AlertDialog;
-''',
-    '''          import android.app.AlertDialog;
-
-          import android.app.NotificationManager;
-''',
-    'import NotificationManager MainActivity'
-)
-
-t = replace_once(
-    t,
-    '''              private boolean batteryDialogVisible = false;
-
-              private long lastBatteryPromptAt = 0L;
-''',
-    '''              private boolean batteryDialogVisible = false;
-
-              private long lastBatteryPromptAt = 0L;
-
-              private boolean dndDialogVisible = false;
-''',
+    r'(private long lastBatteryPromptAt\s*=\s*0L;)',
+    r'\1\n\nprivate boolean dndDialogVisible = false;',
     'campo dndDialogVisible'
 )
 
-t = replace_once(
+# Si no hay cartel de seguimiento finalizado pendiente, igual revisa si debe ofrecer quitar silencio.
+t = re_once(
     t,
-    '''                  if (!pending) {
-
-
-                      return;
-                  }
-''',
-    '''                  if (!pending) {
-
-
-                      showPendingDndRestoreDialog();
-
-
-                      return;
-                  }
-''',
-    'showPendingEndDialog no pending'
+    r'(boolean pending\s*=\s*prefs\.getBoolean\(\s*"pending_finished_dialog",\s*false\s*\);\s*\n\s*if \(!pending\) \{\s*\n)(\s*return;)',
+    r'\1\n      showPendingDndRestoreDialog();\n\n\2',
+    'showPendingEndDialog no pending',
+    re.S
 )
 
-t = replace_once(
+# Cuando acepta el cartel de finalización, ofrecer quitar silencio.
+t = re_once(
     t,
-    '''                          .setPositiveButton(
-
-                                  "ACEPTAR",
-
-                                  null
-                          )
-
-                          .show();
-              }
-''',
-    '''                          .setPositiveButton(
-
-                                  "ACEPTAR",
-
-                                  (d, which) -> showPendingDndRestoreDialog()
-                          )
-
-                          .show();
-              }
-
-
-              private void ensureDndAccess() {
-
-
-                  NotificationManager nm =
-
-                          (NotificationManager)
-
-                                  getSystemService(
-
-                                          NOTIFICATION_SERVICE
-                                  );
-
-
-                  if (
-
-                          nm == null
-
-                          || nm.isNotificationPolicyAccessGranted()
-
-                          || dndDialogVisible
-
-                          || isFinishing()
-
-                  ) {
-
-
-                      return;
-                  }
-
-
-                  dndDialogVisible = true;
-
-
-                  AlertDialog dialog =
-
-                          new AlertDialog.Builder(this)
-
-                                  .setTitle(
-
-                                          "Silencio automático al llegar"
-                                  )
-
-                                  .setMessage(
-
-                                          "piOca puede activar No molestar cuando falten 3 minutos para llegar.\\n\\n"
-
-                                          + "Este permiso se configura una sola vez en Android.\\n\\n"
-
-                                          + "El seguimiento GPS funciona igual aunque no lo habilites."
-                                  )
-
-                                  .setPositiveButton(
-
-                                          "CONFIGURAR",
-
-                                          (d, which) -> {
-
-
-                                              dndDialogVisible = false;
-
-
-                                              try {
-
-
-                                                  startActivity(
-
-                                                          new Intent(
-
-                                                                  Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS
-                                                          )
-                                                  );
-
-
-                                              } catch (Exception ignored) {
-                                              }
-                                          }
-                                  )
-
-                                  .setNegativeButton(
-
-                                          "AHORA NO",
-
-                                          (d, which) -> dndDialogVisible = false
-                                  )
-
-                                  .create();
-
-
-                  dialog.setOnCancelListener(
-
-                          d -> dndDialogVisible = false
-                  );
-
-
-                  dialog.show();
-              }
-
-
-              private void showPendingDndRestoreDialog() {
-
-
-                  SharedPreferences prefs =
-
-                          getSharedPreferences(
-
-                                  "pioca_tracking",
-
-                                  MODE_PRIVATE
-                          );
-
-
-                  boolean pending =
-
-                          prefs.getBoolean(
-
-                                  "dnd_restore_pending",
-
-                                  false
-                          );
-
-
-                  if (!pending) {
-
-
-                      return;
-                  }
-
-
-                  NotificationManager nm =
-
-                          (NotificationManager)
-
-                                  getSystemService(
-
-                                          NOTIFICATION_SERVICE
-                                  );
-
-
-                  if (
-
-                          nm == null
-
-                          || !nm.isNotificationPolicyAccessGranted()
-
-                  ) {
-
-
-                      return;
-                  }
-
-
-                  if (
-
-                          nm.getCurrentInterruptionFilter()
-
-                          == NotificationManager.INTERRUPTION_FILTER_ALL
-
-                  ) {
-
-
-                      prefs.edit()
-
-                              .putBoolean(
-
-                                      "dnd_restore_pending",
-
-                                      false
-                              )
-
-                              .putBoolean(
-
-                                      "dnd_activated_by_pioca",
-
-                                      false
-                              )
-
-                              .apply();
-
-
-                      return;
-                  }
-
-
-                  new AlertDialog.Builder(this)
-
-                          .setTitle(
-
-                                  "No molestar sigue activo"
-                          )
-
-                          .setMessage(
-
-                                  "El seguimiento ya finalizó.\\n\\n"
-
-                                  + "¿Querés quitar el modo No molestar?"
-                          )
-
-                          .setPositiveButton(
-
-                                  "QUITAR SILENCIO",
-
-                                  (d, which) -> {
-
-
-                                      try {
-
-
-                                          nm.setInterruptionFilter(
-
-                                                  NotificationManager.INTERRUPTION_FILTER_ALL
-                                          );
-
-
-                                          prefs.edit()
-
-                                                  .putBoolean(
-
-                                                          "dnd_restore_pending",
-
-                                                          false
-                                                  )
-
-                                                  .putBoolean(
-
-                                                          "dnd_activated_by_pioca",
-
-                                                          false
-                                                  )
-
-                                                  .remove(
-
-                                                          "dnd_previous_filter"
-                                                  )
-
-                                                  .apply();
-
-
-                                      } catch (Exception ignored) {
-                                      }
-                                  }
-                          )
-
-                          .setNegativeButton(
-
-                                  "MANTENER SILENCIO",
-
-                                  null
-                          )
-
-                          .show();
-              }
-''',
-    'metodos DND MainActivity'
+    r'\.setPositiveButton\(\s*"ACEPTAR",\s*null\s*\)\s*\.show\(\);\s*\n\s*\}',
+    '''.setPositiveButton(\n\n        "ACEPTAR",\n\n        (d, which) -> showPendingDndRestoreDialog()\n    )\n\n    .show();\n}\n\n\nprivate void ensureDndAccess() {\n\n    NotificationManager nm =\n            (NotificationManager)\n                    getSystemService(NOTIFICATION_SERVICE);\n\n    if (nm == null\n            || nm.isNotificationPolicyAccessGranted()\n            || dndDialogVisible\n            || isFinishing()) {\n        return;\n    }\n\n    dndDialogVisible = true;\n\n    AlertDialog dialog =\n            new AlertDialog.Builder(this)\n                    .setTitle("Silencio automático al llegar")\n                    .setMessage(\n                            "piOca puede activar No molestar cuando falten 3 minutos para llegar.\\n\\n"\n                            + "Este permiso se configura una sola vez en Android.\\n\\n"\n                            + "El seguimiento GPS funciona igual aunque no lo habilites."\n                    )\n                    .setPositiveButton(\n                            "CONFIGURAR",\n                            (d, which) -> {\n                                dndDialogVisible = false;\n                                try {\n                                    startActivity(\n                                            new Intent(\n                                                    Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS\n                                            )\n                                    );\n                                } catch (Exception ignored) {\n                                }\n                            }\n                    )\n                    .setNegativeButton(\n                            "AHORA NO",\n                            (d, which) -> dndDialogVisible = false\n                    )\n                    .create();\n\n    dialog.setOnCancelListener(d -> dndDialogVisible = false);\n    dialog.show();\n}\n\n\nprivate void showPendingDndRestoreDialog() {\n\n    SharedPreferences prefs =\n            getSharedPreferences("pioca_tracking", MODE_PRIVATE);\n\n    if (!prefs.getBoolean("dnd_restore_pending", false)) {\n        return;\n    }\n\n    NotificationManager nm =\n            (NotificationManager)\n                    getSystemService(NOTIFICATION_SERVICE);\n\n    if (nm == null || !nm.isNotificationPolicyAccessGranted()) {\n        return;\n    }\n\n    if (nm.getCurrentInterruptionFilter()\n            == NotificationManager.INTERRUPTION_FILTER_ALL) {\n\n        prefs.edit()\n                .putBoolean("dnd_restore_pending", false)\n                .putBoolean("dnd_activated_by_pioca", false)\n                .remove("dnd_previous_filter")\n                .apply();\n        return;\n    }\n\n    new AlertDialog.Builder(this)\n            .setTitle("No molestar sigue activo")\n            .setMessage(\n                    "El seguimiento ya finalizó.\\n\\n"\n                    + "¿Querés quitar el modo No molestar?"\n            )\n            .setPositiveButton(\n                    "QUITAR SILENCIO",\n                    (d, which) -> {\n                        try {\n                            int previous = prefs.getInt(\n                                    "dnd_previous_filter",\n                                    NotificationManager.INTERRUPTION_FILTER_ALL\n                            );\n\n                            nm.setInterruptionFilter(previous);\n\n                            prefs.edit()\n                                    .putBoolean("dnd_restore_pending", false)\n                                    .putBoolean("dnd_activated_by_pioca", false)\n                                    .remove("dnd_previous_filter")\n                                    .apply();\n                        } catch (Exception ignored) {\n                        }\n                    }\n            )\n            .setNegativeButton("MANTENER SILENCIO", null)\n            .show();\n}\n''',
+    'metodos DND MainActivity',
+    re.S
 )
 
-t = replace_once(
+# Al iniciar cada seguimiento pide permiso especial si todavía no fue concedido.
+t = re_once(
     t,
-    '''                      runOnUiThread(() -> {
-
-
-                          checkBatteryOptimization();
-''',
-    '''                      runOnUiThread(() -> {
-
-
-                          ensureDndAccess();
-
-
-                          checkBatteryOptimization();
-''',
+    r'(public void startTracking\([\s\S]*?runOnUiThread\(\(\) -> \{\s*)',
+    r'\1\n      ensureDndAccess();\n',
     'ensureDndAccess startTracking'
 )
 
-main.write_text(t, encoding="utf-8")
+main.write_text(t, encoding='utf-8')
 
-t = service.read_text(encoding="utf-8")
+# ----------------------------------------------------------
+# TRACKING SERVICE
+# ----------------------------------------------------------
+t = service.read_text(encoding='utf-8')
 
-if "import android.app.NotificationManager;" not in t:
-    t = replace_once(
-        t,
-        '''          import android.app.NotificationChannel;
-''',
-        '''          import android.app.NotificationChannel;
-
-          import android.app.NotificationManager;
-''',
-        'import NotificationManager service'
-    )
-
-t = replace_once(
+# Estado de No molestar y ETA real.
+t = re_once(
     t,
-    '''              private volatile boolean ending =
-                      false;
-''',
-    '''              private volatile boolean ending =
-                      false;
+    r'(private volatile boolean ending\s*=\s*false;)',
+    r'''\1
 
+private static final long DND_BEFORE_ARRIVAL_MS =
+        3L * 60L * 1000L;
 
-              private static final long DND_BEFORE_EXPIRES_MS =
-                      8L * 60L * 1000L;
-
-
-              private volatile boolean dndHandled =
-                      false;
-''',
+private volatile long clientArrivalMillis = 0L;
+private volatile boolean dndHandled = false;''',
     'campos DND TrackingService'
 )
 
-t = replace_once(
+# Evaluación cada heartbeat (el servicio ya vive con pantalla bloqueada).
+t = re_once(
     t,
-    '''                              long now =
+    r'(long now\s*=\s*System\.currentTimeMillis\(\);)',
+    r'''\1
 
-                                      System.currentTimeMillis();
-
-
-                              if (
-
-                                      expiresAtMillis > 0
-''',
-    '''                              long now =
-
-                                      System.currentTimeMillis();
-
-
-                              maybeEnableDnd(
-                                      now
-                              );
-
-
-                              if (
-
-                                      expiresAtMillis > 0
-''',
+      maybeEnableDnd(now);''',
     'heartbeat maybeEnableDnd'
 )
 
-t = replace_once(
+# Restaurar estado si Android reinicia el servicio.
+t = re_once(
     t,
-    '''                  if (
-
-                          !loaded
-
-                          || code.isEmpty()
-
-                  ) {
+    r'(if \(\s*!loaded\s*\|\|\s*code\.isEmpty\(\)\s*\) \{[\s\S]*?return START_NOT_STICKY;\s*\})',
+    r'''\1
 
 
-                      stopSelf();
-
-
-                      return START_NOT_STICKY;
-                  }
-
-
-                  Notification n =
-''',
-    '''                  if (
-
-                          !loaded
-
-                          || code.isEmpty()
-
-                  ) {
-
-
-                      stopSelf();
-
-
-                      return START_NOT_STICKY;
-                  }
-
-
-                  dndHandled =
-
-                          prefs.getBoolean(
-
-                                  "dnd_activated_by_pioca",
-
-                                  false
-                          );
-
-
-                  Notification n =
-''',
-    'restore dndHandled'
+dndHandled = prefs.getBoolean(
+        "dnd_activated_by_pioca",
+        false
+);''',
+    'restore dndHandled',
+    re.S
 )
 
-t = replace_once(
+# Persistir ETA.
+t = re_once(
     t,
-    '''              private void ensureWakeLock() {
-''',
-    '''              private void maybeEnableDnd(
-                      long now
-              ) {
-
-
-                  if (
-
-                          dndHandled
-
-                          || expiresAtMillis <= 0
-
-                  ) {
-
-
-                      return;
-                  }
-
-
-                  long triggerAt =
-
-                          expiresAtMillis
-
-                          - DND_BEFORE_EXPIRES_MS;
-
-
-                  if (
-
-                          now < triggerAt
-
-                  ) {
-
-
-                      return;
-                  }
-
-
-                  NotificationManager nm =
-
-                          (NotificationManager)
-
-                                  getSystemService(
-
-                                          NOTIFICATION_SERVICE
-                                  );
-
-
-                  if (
-
-                          nm == null
-
-                          || !nm.isNotificationPolicyAccessGranted()
-
-                  ) {
-
-
-                      return;
-                  }
-
-
-                  int current =
-
-                          nm.getCurrentInterruptionFilter();
-
-
-                  if (
-
-                          current !=
-
-                          NotificationManager.INTERRUPTION_FILTER_ALL
-
-                  ) {
-
-
-                      dndHandled =
-                              true;
-
-
-                      return;
-                  }
-
-
-                  try {
-
-
-                      nm.setInterruptionFilter(
-
-                              NotificationManager.INTERRUPTION_FILTER_PRIORITY
-                      );
-
-
-                      prefs.edit()
-
-                              .putBoolean(
-
-                                      "dnd_activated_by_pioca",
-
-                                      true
-                              )
-
-                              .putBoolean(
-
-                                      "dnd_restore_pending",
-
-                                      true
-                              )
-
-                              .putInt(
-
-                                      "dnd_previous_filter",
-
-                                      current
-                              )
-
-                              .apply();
-
-
-                      dndHandled =
-                              true;
-
-
-                  } catch (Exception ignored) {
-                  }
-              }
-
-
-              private void ensureWakeLock() {
-''',
-    'metodo maybeEnableDnd'
+    r'(\.putLong\(\s*"expires_at",\s*expiresAtMillis\s*\))',
+    r'''\1
+
+        .putLong(
+                "client_arrival",
+                clientArrivalMillis
+        )''',
+    'save clientArrival'
 )
 
-service.write_text(t, encoding="utf-8")
+# Restaurar ETA.
+t = re_once(
+    t,
+    r'(expiresAtMillis\s*=\s*prefs\.getLong\(\s*"expires_at",\s*0L\s*\);)',
+    r'''\1
 
-print("V8 silencio aplicada correctamente.")
+
+clientArrivalMillis = prefs.getLong(
+        "client_arrival",
+        0L
+);''',
+    'restore clientArrival'
+)
+
+# Limpiar ETA cuando finaliza seguimiento, pero conservar flags DND hasta decisión del usuario.
+t = re_once(
+    t,
+    r'(\.remove\(\s*"expires_at"\s*\))',
+    r'''\1
+
+        .remove("client_arrival")''',
+    'clear clientArrival'
+)
+
+# Actualizar ETA desde el snapshot existente de Supabase.
+t = re_once(
+    t,
+    r'(if \(\s*r\.state == RemoteState\.ACTIVE\s*\) \{)',
+    r'''\1
+
+
+    long arrival = loadClientArrival();
+
+    if (arrival > 0) {
+        clientArrivalMillis = arrival;
+        saveActiveConfig();
+    }''',
+    'refresh clientArrival'
+)
+
+# Función para leer client_arrival de get_tracking_snapshot, RPC que ya existe en V7.
+insert_before_send = r'''
+
+private long loadClientArrival() {
+
+    HttpURLConnection c = null;
+
+    try {
+        URL url = new URL(
+                BASE + "/rest/v1/rpc/get_tracking_snapshot"
+        );
+
+        c = (HttpURLConnection) url.openConnection();
+        c.setRequestMethod("POST");
+        c.setDoOutput(true);
+        c.setConnectTimeout(10000);
+        c.setReadTimeout(10000);
+        c.setRequestProperty("apikey", KEY);
+        c.setRequestProperty("Content-Type", "application/json");
+
+        JSONObject body = new JSONObject();
+        body.put("p_code", code);
+
+        try (OutputStream os = c.getOutputStream()) {
+            os.write(
+                    body.toString().getBytes(StandardCharsets.UTF_8)
+            );
+        }
+
+        int status = c.getResponseCode();
+        if (status < 200 || status >= 300) {
+            return 0L;
+        }
+
+        JSONArray arr = new JSONArray(
+                readBody(c.getInputStream())
+        );
+
+        if (arr.length() == 0) {
+            return 0L;
+        }
+
+        JSONObject row = arr.getJSONObject(0);
+
+        return parseTime(
+                row.optString("client_arrival", "")
+        );
+
+    } catch (Exception e) {
+        return 0L;
+
+    } finally {
+        if (c != null) {
+            c.disconnect();
+        }
+    }
+}
+
+
+private void maybeEnableDnd(long now) {
+
+    if (dndHandled || clientArrivalMillis <= 0) {
+        return;
+    }
+
+    long triggerAt =
+            clientArrivalMillis - DND_BEFORE_ARRIVAL_MS;
+
+    if (now < triggerAt) {
+        return;
+    }
+
+    NotificationManager nm =
+            (NotificationManager)
+                    getSystemService(NOTIFICATION_SERVICE);
+
+    if (nm == null || !nm.isNotificationPolicyAccessGranted()) {
+        return;
+    }
+
+    int current = nm.getCurrentInterruptionFilter();
+
+    // Si el teléfono ya estaba en No molestar, piOca no lo toca.
+    if (current != NotificationManager.INTERRUPTION_FILTER_ALL) {
+        dndHandled = true;
+        return;
+    }
+
+    try {
+        prefs.edit()
+                .putInt("dnd_previous_filter", current)
+                .apply();
+
+        nm.setInterruptionFilter(
+                NotificationManager.INTERRUPTION_FILTER_PRIORITY
+        );
+
+        prefs.edit()
+                .putBoolean("dnd_activated_by_pioca", true)
+                .putBoolean("dnd_restore_pending", true)
+                .apply();
+
+        dndHandled = true;
+
+    } catch (Exception ignored) {
+    }
+}
+
+
+'''
+
+t = re_once(
+    t,
+    r'(private void sendAsync\s*\(\s*Location l\s*\) \{)',
+    insert_before_send + r'\1',
+    'insert loadClientArrival and maybeEnableDnd'
+)
+
+service.write_text(t, encoding='utf-8')
+
+print('V8 silencio aplicada correctamente: No molestar 3 min antes de la ETA.')
