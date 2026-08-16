@@ -1445,6 +1445,15 @@
   let rumboRealConfirmado =
     false;
 
+  /*
+    Mientras no haya rumbo GPS confirmado, usamos una referencia
+    estable tomada del mapa. Así el pin no vuelve a "norte"
+    después de un zoom y conserva la orientación relativa elegida
+    por el usuario al rotar el mapa.
+  */
+  let bearingReferenciaSinRumbo =
+    null;
+
   let candidatoRumboPendiente =
     null;
 
@@ -1535,18 +1544,33 @@
       obtenerBearingMapa();
 
     /*
-      Al iniciar, todavía no conocemos el sentido real de marcha.
-      En ese momento la camioneta queda alineada con el mapa:
-      visualmente apunta hacia arriba, acompañando la orientación
-      que tenga el mapa en pantalla.
+      SIN RUMBO REAL CONFIRMADO:
+      guardamos una referencia geográfica inicial y la conservamos.
+      Si el usuario rota el mapa, la camioneta cambia visualmente
+      respecto de la pantalla, pero NO pierde esa referencia.
+      Si sólo hace zoom, no cambia nada.
 
-      Cuando ya existe rumbo real confirmado:
-          rumbo visual = rumbo real - bearing del mapa
+      CON RUMBO REAL CONFIRMADO:
+          rumbo visual = último rumbo real - bearing actual mapa
     */
     if(
       !rumboRealConfirmado
     ){
-      return 0;
+
+      if(
+        !Number.isFinite(
+          bearingReferenciaSinRumbo
+        )
+      ){
+        bearingReferenciaSinRumbo =
+          bearingMapa;
+      }
+
+      return (
+        bearingReferenciaSinRumbo -
+        bearingMapa +
+        360
+      ) % 360;
     }
 
     return (
@@ -2104,6 +2128,9 @@
     rumboRealConfirmado =
       false;
 
+    bearingReferenciaSinRumbo =
+      null;
+
     candidatoRumboPendiente =
       null;
 
@@ -2195,6 +2222,9 @@
 
     rumboRealConfirmado =
       false;
+
+    bearingReferenciaSinRumbo =
+      null;
 
     candidatoRumboPendiente =
       null;
@@ -2652,6 +2682,9 @@
 
       rumboRealConfirmado =
         true;
+
+      bearingReferenciaSinRumbo =
+        null;
 
       candidatosMovimientoConsecutivos =
         0;
@@ -3619,9 +3652,21 @@
         100
       );
 
+      if(
+        !rumboRealConfirmado
+      ){
+        bearingReferenciaSinRumbo =
+          obtenerBearingMapa();
+      }
+
       mapa.on(
         "zoomend",
         function(){
+
+          /*
+            El zoom NO redefine orientación.
+            Sólo redimensiona el pin.
+          */
           actualizarIconoVehiculo();
         }
       );
