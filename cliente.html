@@ -481,6 +481,53 @@
       will-change:transform;
     }
 
+    .piocaPuntoExacto{
+      position:absolute;
+      left:50%;
+      bottom:-2px;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:#ff8a00;
+      border:2px solid #ffffff;
+      transform:translate(-50%,50%);
+      box-shadow:
+        0 1px 4px rgba(0,0,0,.28),
+        0 0 0 3px rgba(255,138,0,.16);
+      z-index:5;
+    }
+
+    .piocaPuntoExacto::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      border:2px solid rgba(255,138,0,.38);
+      transform:translate(-50%,-50%) scale(.72);
+      opacity:.72;
+      animation:piocaPuntoExactoPulse 1.5s ease-out infinite;
+    }
+
+    @keyframes piocaPuntoExactoPulse{
+      0%{
+        transform:translate(-50%,-50%) scale(.72);
+        opacity:.72;
+      }
+
+      75%{
+        transform:translate(-50%,-50%) scale(1.45);
+        opacity:.08;
+      }
+
+      100%{
+        transform:translate(-50%,-50%) scale(1.45);
+        opacity:0;
+      }
+    }
+
     .leaflet-control-attribution{
       background:rgba(255,255,255,.72) !important;
       color:#6f7880 !important;
@@ -1373,6 +1420,8 @@
             '</g>' +
           '</svg>' +
         '</div>' +
+
+        '<div class="piocaPuntoExacto"></div>' +
       '</div>';
 
     return L.divIcon({
@@ -1384,7 +1433,7 @@
       ],
       iconAnchor:[
         dimensiones.ancho / 2,
-        dimensiones.alto * 0.92
+        dimensiones.alto
       ],
       popupAnchor:[
         0,
