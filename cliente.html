@@ -409,7 +409,7 @@
       position:absolute;
       left:50%;
       top:43%;
-      width:72%;
+      width:86%;
       aspect-ratio:1 / 1;
       border-radius:50%;
       border:2px solid rgba(23,105,170,.62);
@@ -479,53 +479,6 @@
     .piocaVehiculoRotador{
       transform-origin:50% 40%;
       will-change:transform;
-    }
-
-    .piocaPuntoExacto{
-      position:absolute;
-      left:50%;
-      bottom:-2px;
-      width:9px;
-      height:9px;
-      border-radius:50%;
-      background:#ff8a00;
-      border:2px solid #ffffff;
-      transform:translate(-50%,50%);
-      box-shadow:
-        0 1px 4px rgba(0,0,0,.28),
-        0 0 0 3px rgba(255,138,0,.16);
-      z-index:5;
-    }
-
-    .piocaPuntoExacto::after{
-      content:"";
-      position:absolute;
-      left:50%;
-      top:50%;
-      width:18px;
-      height:18px;
-      border-radius:50%;
-      border:2px solid rgba(255,138,0,.38);
-      transform:translate(-50%,-50%) scale(.72);
-      opacity:.72;
-      animation:piocaPuntoExactoPulse 1.5s ease-out infinite;
-    }
-
-    @keyframes piocaPuntoExactoPulse{
-      0%{
-        transform:translate(-50%,-50%) scale(.72);
-        opacity:.72;
-      }
-
-      75%{
-        transform:translate(-50%,-50%) scale(1.45);
-        opacity:.08;
-      }
-
-      100%{
-        transform:translate(-50%,-50%) scale(1.45);
-        opacity:0;
-      }
     }
 
     .leaflet-control-attribution{
@@ -1326,26 +1279,27 @@
         : 16;
 
     /*
-      Huella visual intencionalmente chica.
-      El círculo disminuye al alejar el mapa.
+      Tamaño visual reforzado:
+      el pin debe verse claramente como una camioneta piOca.
+      Se reduce al alejar el mapa, pero nunca queda diminuto.
     */
     if(zoom >= 18){
-      return {ancho:42, alto:50};
+      return {ancho:74, alto:92};
     }
 
     if(zoom >= 16){
-      return {ancho:36, alto:43};
+      return {ancho:66, alto:82};
     }
 
     if(zoom >= 14){
-      return {ancho:30, alto:36};
+      return {ancho:58, alto:72};
     }
 
     if(zoom >= 12){
-      return {ancho:25, alto:30};
+      return {ancho:50, alto:62};
     }
 
-    return {ancho:21, alto:25};
+    return {ancho:44, alto:54};
   }
 
   function crearIconoPiocaMarcador(
@@ -1365,63 +1319,69 @@
         '<div class="piocaMarkerPulse"></div>' +
 
         '<div class="piocaMarkerPin">' +
-          '<svg viewBox="0 0 70 86" ' +
+          '<svg viewBox="0 0 86 110" ' +
           'xmlns="http://www.w3.org/2000/svg" ' +
           'aria-hidden="true">' +
 
-            /* Pin azul exterior */
-            '<path d="M35 2 C17 2 6 14 6 31 ' +
-            'C6 48 20 60 35 82 ' +
-            'C50 60 64 48 64 31 ' +
-            'C64 14 53 2 35 2 Z" ' +
-            'fill="#1769aa" stroke="#0d4f8d" stroke-width="2"/>' +
+            /* Gota azul exterior, más ancha y visible */
+            '<path d="M43 3 C21 3 7 17 7 39 ' +
+            'C7 60 24 77 43 102 ' +
+            'C62 77 79 60 79 39 ' +
+            'C79 17 65 3 43 3 Z" ' +
+            'fill="#1769aa" stroke="#0d4f8d" stroke-width="2.4"/>' +
 
-            /* Círculo blanco */
-            '<circle cx="35" cy="31" r="22" ' +
-            'fill="#ffffff" stroke="#dce8f2" stroke-width="1.5"/>' +
+            /* Círculo blanco interior */
+            '<circle cx="43" cy="38" r="29" ' +
+            'fill="#ffffff" stroke="#dce8f2" stroke-width="1.8"/>' +
 
-            /* Grupo camioneta rotativo.
-               Trompa arriba = 0 grados/norte. */
+            /* Camioneta rotativa grande */
             '<g class="piocaVehiculoRotador" ' +
             'style="transform:rotate(' +
             angulo +
             'deg);">' +
 
-              /* flecha pequeña en la trompa */
-              '<path d="M35 10 L40 17 L36.8 16.2 L36.8 20 ' +
-              'L33.2 20 L33.2 16.2 L30 17 Z" ' +
+              /* flecha frontal */
+              '<path d="M43 9 L50 18 L45.5 17 L45.5 22 ' +
+              'L40.5 22 L40.5 17 L36 18 Z" ' +
               'fill="#1769aa"/>' +
 
               /* cuerpo camioneta */
-              '<rect x="26" y="18" width="18" height="34" rx="5.5" ' +
-              'fill="#ffffff" stroke="#1f2a33" stroke-width="1.2"/>' +
+              '<rect x="30" y="19" width="26" height="48" rx="7" ' +
+              'fill="#ffffff" stroke="#1f2a33" stroke-width="1.6"/>' +
 
-              /* parabrisas delantero */
-              '<path d="M28.5 24 Q35 20.5 41.5 24 L40.5 28.5 ' +
-              'Q35 26.7 29.5 28.5 Z" fill="#1d2328"/>' +
+              /* parabrisas */
+              '<path d="M33 28 Q43 23 53 28 L51.5 34 ' +
+              'Q43 31.2 34.5 34 Z" fill="#1d2328"/>' +
 
               /* luneta trasera */
-              '<path d="M29.5 44.5 Q35 46 40.5 44.5 L41 48 ' +
-              'Q35 49.5 29 48 Z" fill="#30373d"/>' +
+              '<path d="M34.5 56 Q43 58.8 51.5 56 L52.3 62 ' +
+              'Q43 64.4 33.7 62 Z" fill="#30373d"/>' +
 
               /* espejos */
-              '<rect x="23.7" y="28" width="2.4" height="5.2" rx="1" fill="#20272d"/>' +
-              '<rect x="43.9" y="28" width="2.4" height="5.2" rx="1" fill="#20272d"/>' +
+              '<rect x="26.7" y="34" width="3.7" height="7" rx="1.2" fill="#20272d"/>' +
+              '<rect x="55.6" y="34" width="3.7" height="7" rx="1.2" fill="#20272d"/>' +
 
               /* luces traseras */
-              '<rect x="26.8" y="44" width="1.7" height="4" rx=".7" fill="#e43b32"/>' +
-              '<rect x="41.5" y="44" width="1.7" height="4" rx=".7" fill="#e43b32"/>' +
+              '<rect x="31.5" y="56" width="2.6" height="5.4" rx="1" fill="#e43b32"/>' +
+              '<rect x="51.9" y="56" width="2.6" height="5.4" rx="1" fill="#e43b32"/>' +
 
-              /* marca */
-              '<text x="35" y="38" text-anchor="middle" ' +
-              'font-family="Arial,sans-serif" font-size="5.5" ' +
+              /* marca piOca más legible */
+              '<text x="43" y="47.5" text-anchor="middle" ' +
+              'font-family="Arial,sans-serif" font-size="8.2" ' +
               'font-weight="700" fill="#1769aa">piOca</text>' +
 
             '</g>' +
+
+            /* Punto naranja EXACTO de posición en la punta de la gota */
+            '<circle cx="43" cy="102" r="7.2" ' +
+            'fill="#ff8a00" stroke="#ffffff" stroke-width="3"/>' +
+
+            /* Halo naranja para reforzar referencia exacta */
+            '<circle cx="43" cy="102" r="11.5" ' +
+            'fill="none" stroke="rgba(255,138,0,.42)" stroke-width="2.6"/>' +
+
           '</svg>' +
         '</div>' +
-
-        '<div class="piocaPuntoExacto"></div>' +
       '</div>';
 
     return L.divIcon({
@@ -1433,11 +1393,11 @@
       ],
       iconAnchor:[
         dimensiones.ancho / 2,
-        dimensiones.alto
+        dimensiones.alto * 0.94
       ],
       popupAnchor:[
         0,
-        -(dimensiones.alto * 0.78)
+        -(dimensiones.alto * 0.80)
       ]
     });
   }
