@@ -1,0 +1,18 @@
+{
+  "id": "/pioca-gps/",
+  "name": "piOca Seguimiento",
+  "short_name": "piOca",
+  "start_url": "/pioca-gps/",
+  "scope": "/pioca-gps/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1769aa",
+  "icons": [
+    {
+      "src": "logo-pioca.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
