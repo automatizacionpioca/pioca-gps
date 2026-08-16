@@ -1365,6 +1365,13 @@
   let animacionMarcadorId =
     null;
 
+  /*
+    Animación independiente para la orientación del mapa.
+    No interfiere con la transición de posición del vehículo.
+  */
+  let animacionBearingId =
+    null;
+
   let ultimoCreatedAtServidor =
     null;
 
@@ -1540,45 +1547,188 @@
 
   function rumboVisualEnPantalla(){
 
-    const bearingMapa =
-      obtenerBearingMapa();
-
     /*
-      SIN RUMBO REAL CONFIRMADO:
-      guardamos una referencia geográfica inicial y la conservamos.
-      Si el usuario rota el mapa, la camioneta cambia visualmente
-      respecto de la pantalla, pero NO pierde esa referencia.
-      Si sólo hace zoom, no cambia nada.
-
-      CON RUMBO REAL CONFIRMADO:
-          rumbo visual = último rumbo real - bearing actual mapa
+      R13 - MODO NAVEGACIÓN:
+      la camioneta permanece visualmente apuntando hacia arriba.
+      Es el MAPA el que rota debajo de ella para representar
+      el rumbo real de circulación.
     */
+    return 0;
+  }
+
+  function detenerAnimacionBearing(){
+
     if(
-      !rumboRealConfirmado
+      animacionBearingId !== null
     ){
 
-      if(
-        !Number.isFinite(
-          bearingReferenciaSinRumbo
-        )
-      ){
-        bearingReferenciaSinRumbo =
-          bearingMapa;
-      }
+      cancelAnimationFrame(
+        animacionBearingId
+      );
 
-      return (
-        bearingReferenciaSinRumbo -
-        bearingMapa +
-        360
-      ) % 360;
+      animacionBearingId =
+        null;
     }
+  }
+
+  function normalizarBearing(
+    grados
+  ){
 
     return (
-      ultimoRumboVisual -
-      bearingMapa +
+      grados %
+      360 +
       360
     ) % 360;
   }
+
+  function deltaBearingCorto(
+    desde,
+    hasta
+  ){
+
+    return (
+      hasta -
+      desde +
+      540
+    ) %
+    360 -
+    180;
+  }
+
+  function orientarMapaAlRumbo(
+    rumboObjetivo
+  ){
+
+    if(
+      !mapa ||
+      !rumboRealConfirmado ||
+      !Number.isFinite(
+        rumboObjetivo
+      ) ||
+      typeof mapa.setBearing !==
+        "function"
+    ){
+      return;
+    }
+
+    detenerAnimacionBearing();
+
+    const bearingInicial =
+      normalizarBearing(
+        obtenerBearingMapa()
+      );
+
+    const bearingFinal =
+      normalizarBearing(
+        rumboObjetivo
+      );
+
+    const delta =
+      deltaBearingCorto(
+        bearingInicial,
+        bearingFinal
+      );
+
+    if(
+      Math.abs(
+        delta
+      ) <
+      1
+    ){
+
+      mapa.setBearing(
+        bearingFinal
+      );
+
+      return;
+    }
+
+    /*
+      Rotación breve y suave.
+      Evita el giro instantáneo del mapa cuando cambia de calle.
+    */
+    const duracionMs =
+      420;
+
+    const inicio =
+      performance.now();
+
+    function pasoBearing(
+      ahora
+    ){
+
+      const progreso =
+        Math.min(
+          1,
+          (
+            ahora -
+            inicio
+          ) /
+          duracionMs
+        );
+
+      const suave =
+        progreso *
+        progreso *
+        (
+          3 -
+          2 *
+          progreso
+        );
+
+      const bearingActual =
+        normalizarBearing(
+          bearingInicial +
+          delta *
+          suave
+        );
+
+      try{
+
+        mapa.setBearing(
+          bearingActual
+        );
+
+      }catch(e){}
+
+      /*
+        La camioneta permanece arriba mientras
+        las calles rotan debajo de ella.
+      */
+      actualizarIconoVehiculo();
+
+      if(
+        progreso <
+        1
+      ){
+
+        animacionBearingId =
+          requestAnimationFrame(
+            pasoBearing
+          );
+
+      }else{
+
+        try{
+          mapa.setBearing(
+            bearingFinal
+          );
+        }catch(e){}
+
+        actualizarIconoVehiculo();
+
+        animacionBearingId =
+          null;
+      }
+    }
+
+    animacionBearingId =
+      requestAnimationFrame(
+        pasoBearing
+      );
+  }
+
 
   function crearIconoVehiculoPioca(){
 
@@ -2133,6 +2283,8 @@
 
     detenerAnimacionMarcador();
 
+    detenerAnimacionBearing();
+
     ultimaActualizacionMs =
       null;
 
@@ -2261,6 +2413,8 @@
     detenerReloj();
 
     detenerAnimacionMarcador();
+
+    detenerAnimacionBearing();
 
     quitarMarcador();
   }
@@ -3631,7 +3785,7 @@
             zoomControl:true,
             rotate:true,
             bearing:0,
-            touchRotate:true,
+            touchRotate:false,
             rotateControl:false,
             attributionControl:false
           }
@@ -3699,24 +3853,6 @@
         }
       );
 
-      /*
-        Mientras el usuario rota el mapa con los dedos,
-        la camioneta y el cono se compensan en tiempo real
-        para conservar su rumbo geográfico real.
-      */
-      mapa.on(
-        "rotate",
-        function(){
-          actualizarIconoVehiculo();
-        }
-      );
-
-      mapa.on(
-        "rotateend",
-        function(){
-          actualizarIconoVehiculo();
-        }
-      );
     }
   }
 
@@ -3812,6 +3948,19 @@
 
     ultimoRumboVisual =
       rumboNuevo;
+
+    /*
+      En modo navegación, cada nuevo rumbo REAL confirmado
+      rota el mapa para que la camioneta continúe mirando
+      hacia adelante en pantalla.
+    */
+    if(
+      rumboRealConfirmado
+    ){
+      orientarMapaAlRumbo(
+        ultimoRumboVisual
+      );
+    }
 
     actualizarIconoVehiculo();
 
