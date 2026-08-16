@@ -3666,8 +3666,29 @@
           /*
             El zoom NO redefine orientación.
             Sólo redimensiona el pin.
+
+            NUEVO R11:
+            cada vez que cambia el zoom, la camioneta
+            vuelve al centro del mapa. Después de eso,
+            el usuario puede desplazar libremente el mapa
+            con los dedos hasta que vuelva a hacer zoom.
           */
           actualizarIconoVehiculo();
+
+          if(
+            marcador
+          ){
+
+            const posicionActual =
+              marcador.getLatLng();
+
+            mapa.panTo(
+              posicionActual,
+              {
+                animate:false
+              }
+            );
+          }
         }
       );
 
