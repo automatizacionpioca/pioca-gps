@@ -43,6 +43,17 @@
       padding:14px;
     }
 
+    body.modoLogin{
+      min-height:100dvh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    body.modoLogin .panel{
+      margin:auto;
+    }
+
     .panel{
       width:100%;
       max-width:620px;
@@ -603,6 +614,10 @@
         padding:8px;
       }
 
+      body.modoLogin{
+        min-height:100dvh;
+      }
+
       .panel{
         border-radius:17px;
       }
@@ -682,7 +697,7 @@
 
 </head>
 
-<body>
+<body class="modoLogin">
 
 
 <div id="splashPioca">
@@ -1351,6 +1366,24 @@
   function cargarHorarios(){
     estimatedArrival.innerHTML = "";
 
+    /*
+      La hora de llegada debe ser elegida manualmente.
+      No dejamos ninguna hora real seleccionada por defecto.
+    */
+    const opcionInicial =
+      document.createElement("option");
+
+    opcionInicial.value = "";
+    opcionInicial.textContent =
+      "Seleccionar hora de llegada";
+
+    opcionInicial.selected = true;
+    opcionInicial.disabled = true;
+
+    estimatedArrival.appendChild(
+      opcionInicial
+    );
+
     const inicio =
       redondearProximo5(new Date());
 
@@ -1804,6 +1837,10 @@
   }
 
   async function mostrarPanelAutenticado(){
+    document.body.classList.remove(
+      "modoLogin"
+    );
+
     loginBox.style.display = "none";
     panelAdmin.style.display = "block";
     await verificarSeguimientoActivo();
@@ -1822,6 +1859,10 @@
 
       return;
     }
+
+    document.body.classList.add(
+      "modoLogin"
+    );
 
     ocultarSplash();
   }
@@ -1867,6 +1908,10 @@
       accionesSeguimiento.style.display = "none";
       verificandoBox.style.display = "none";
       loginBox.style.display = "block";
+
+      document.body.classList.add(
+        "modoLogin"
+      );
     }
   );
 
@@ -1886,6 +1931,20 @@
           "Completá el teléfono.",
           "error"
         );
+        return;
+      }
+
+      if(
+        !estimatedArrival.value
+      ){
+        mostrarEstado(
+          adminEstado,
+          "Seleccioná la hora estimada de llegada.",
+          "error"
+        );
+
+        estimatedArrival.focus();
+
         return;
       }
 
