@@ -386,9 +386,10 @@
     }
 
     /* ==========================================================
-       PIN PIOCA - CAMIONETA VISTA SUPERIOR
-       SVG embebido: no necesita archivo de imagen externo.
-       La flecha azul está en la trompa y marca el rumbo.
+       PIN PIOCA - CAMIONETA DENTRO DE MARCADOR PULSANTE
+       El marcador cambia de tamaño según el zoom para mantener
+       una huella visual chica: el círculo no debe cubrir más
+       de aproximadamente una cuadra en el mapa.
        ========================================================== */
 
     .piocaVehiculoIcon{
@@ -396,23 +397,88 @@
       border:0 !important;
     }
 
-    .piocaVehiculoRotador{
+    .piocaMarkerWrap{
+      position:relative;
       width:100%;
       height:100%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transform-origin:50% 50%;
-      will-change:transform;
-      filter:drop-shadow(0 2px 2px rgba(0,0,0,.28));
       pointer-events:none;
+      overflow:visible;
     }
 
-    .piocaVehiculoRotador svg{
+    .piocaMarkerPulse{
+      position:absolute;
+      left:50%;
+      top:43%;
+      width:72%;
+      aspect-ratio:1 / 1;
+      border-radius:50%;
+      border:2px solid rgba(23,105,170,.62);
+      transform:translate(-50%,-50%) scale(.72);
+      opacity:.68;
+      animation:piocaMarkerPulse 1.65s ease-out infinite;
+      box-sizing:border-box;
+    }
+
+    .piocaMarkerPulse::after{
+      content:"";
+      position:absolute;
+      inset:-7px;
+      border-radius:50%;
+      border:2px solid rgba(23,105,170,.28);
+      opacity:.75;
+      animation:piocaMarkerPulse2 1.65s ease-out infinite;
+    }
+
+    @keyframes piocaMarkerPulse{
+      0%{
+        transform:translate(-50%,-50%) scale(.72);
+        opacity:.72;
+      }
+      70%{
+        transform:translate(-50%,-50%) scale(1.34);
+        opacity:.12;
+      }
+      100%{
+        transform:translate(-50%,-50%) scale(1.34);
+        opacity:0;
+      }
+    }
+
+    @keyframes piocaMarkerPulse2{
+      0%{
+        transform:scale(.78);
+        opacity:.62;
+      }
+      75%{
+        transform:scale(1.22);
+        opacity:.06;
+      }
+      100%{
+        transform:scale(1.22);
+        opacity:0;
+      }
+    }
+
+    .piocaMarkerPin{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:76%;
+      height:82%;
+      transform:translate(-50%,-50%);
+      filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));
+    }
+
+    .piocaMarkerPin svg{
       width:100%;
       height:100%;
       display:block;
       overflow:visible;
+    }
+
+    .piocaVehiculoRotador{
+      transform-origin:50% 40%;
+      will-change:transform;
     }
 
     .leaflet-control-attribution{
@@ -1205,93 +1271,108 @@
   let ultimoRumboMarcador =
     0;
 
-  /*
-    Tamaño visual del vehículo según zoom.
-    A menor zoom, el pin se reduce para no tapar
-    demasiadas calles ni parecer una "limusina".
-  */
-  function dimensionesVehiculoPorZoom(){
+  function dimensionesMarcadorPorZoom(){
 
     const zoom =
       mapa && typeof mapa.getZoom === "function"
         ? mapa.getZoom()
         : 16;
 
+    /*
+      Huella visual intencionalmente chica.
+      El círculo disminuye al alejar el mapa.
+    */
     if(zoom >= 18){
-      return {ancho:26, alto:52};
+      return {ancho:42, alto:50};
     }
 
     if(zoom >= 16){
-      return {ancho:23, alto:46};
+      return {ancho:36, alto:43};
     }
 
     if(zoom >= 14){
-      return {ancho:19, alto:38};
+      return {ancho:30, alto:36};
     }
 
-    return {ancho:16, alto:32};
+    if(zoom >= 12){
+      return {ancho:25, alto:30};
+    }
+
+    return {ancho:21, alto:25};
   }
 
-  function crearIconoPiocaVehiculo(
+  function crearIconoPiocaMarcador(
     rumbo
   ){
 
     const dimensiones =
-      dimensionesVehiculoPorZoom();
+      dimensionesMarcadorPorZoom();
 
     const angulo =
       Number.isFinite(rumbo)
         ? rumbo
         : 0;
 
-    /*
-      La trompa está ARRIBA del SVG.
-      Por eso 0° = norte y la flecha azul apunta hacia delante.
-    */
     const html =
-      '<div class="piocaVehiculoRotador" ' +
-      'style="transform:rotate(' +
-      angulo +
-      'deg)">' +
+      '<div class="piocaMarkerWrap">' +
+        '<div class="piocaMarkerPulse"></div>' +
 
-        '<svg viewBox="0 0 40 80" ' +
-        'xmlns="http://www.w3.org/2000/svg" ' +
-        'aria-hidden="true">' +
+        '<div class="piocaMarkerPin">' +
+          '<svg viewBox="0 0 70 86" ' +
+          'xmlns="http://www.w3.org/2000/svg" ' +
+          'aria-hidden="true">' +
 
-          /* Flecha de rumbo en la trompa */
-          '<path d="M20 1 L28 13 L23 12 L23 18 L17 18 L17 12 L12 13 Z" ' +
-          'fill="#1769aa" stroke="#0d4f8d" stroke-width="1.2"/>' +
+            /* Pin azul exterior */
+            '<path d="M35 2 C17 2 6 14 6 31 ' +
+            'C6 48 20 60 35 82 ' +
+            'C50 60 64 48 64 31 ' +
+            'C64 14 53 2 35 2 Z" ' +
+            'fill="#1769aa" stroke="#0d4f8d" stroke-width="2"/>' +
 
-          /* Sombra inferior */
-          '<ellipse cx="20" cy="72" rx="11.5" ry="3.2" ' +
-          'fill="rgba(0,0,0,.16)"/>' +
+            /* Círculo blanco */
+            '<circle cx="35" cy="31" r="22" ' +
+            'fill="#ffffff" stroke="#dce8f2" stroke-width="1.5"/>' +
 
-          /* Cuerpo */
-          '<rect x="8" y="14" width="24" height="56" rx="8" ' +
-          'fill="#ffffff" stroke="#1d2a36" stroke-width="1.4"/>' +
+            /* Grupo camioneta rotativo.
+               Trompa arriba = 0 grados/norte. */
+            '<g class="piocaVehiculoRotador" ' +
+            'style="transform:rotate(' +
+            angulo +
+            'deg);">' +
 
-          /* Parabrisas delantero: la trompa está arriba */
-          '<path d="M11 24 Q20 19 29 24 L27.5 31 Q20 28.5 12.5 31 Z" ' +
-          'fill="#1d2328"/>' +
+              /* flecha pequeña en la trompa */
+              '<path d="M35 10 L40 17 L36.8 16.2 L36.8 20 ' +
+              'L33.2 20 L33.2 16.2 L30 17 Z" ' +
+              'fill="#1769aa"/>' +
 
-          /* Luneta trasera */
-          '<path d="M12.5 61 Q20 63.5 27.5 61 L28.5 66 Q20 68.5 11.5 66 Z" ' +
-          'fill="#343a40"/>' +
+              /* cuerpo camioneta */
+              '<rect x="26" y="18" width="18" height="34" rx="5.5" ' +
+              'fill="#ffffff" stroke="#1f2a33" stroke-width="1.2"/>' +
 
-          /* Espejos */
-          '<rect x="5.5" y="30" width="3" height="7" rx="1.2" fill="#20272d"/>' +
-          '<rect x="31.5" y="30" width="3" height="7" rx="1.2" fill="#20272d"/>' +
+              /* parabrisas delantero */
+              '<path d="M28.5 24 Q35 20.5 41.5 24 L40.5 28.5 ' +
+              'Q35 26.7 29.5 28.5 Z" fill="#1d2328"/>' +
 
-          /* Luces traseras */
-          '<rect x="9" y="62" width="2.2" height="5" rx="1" fill="#e43b32"/>' +
-          '<rect x="28.8" y="62" width="2.2" height="5" rx="1" fill="#e43b32"/>' +
+              /* luneta trasera */
+              '<path d="M29.5 44.5 Q35 46 40.5 44.5 L41 48 ' +
+              'Q35 49.5 29 48 Z" fill="#30373d"/>' +
 
-          /* Marca */
-          '<text x="20" y="48.5" text-anchor="middle" ' +
-          'font-family="Arial,sans-serif" font-size="8.7" font-weight="700" ' +
-          'fill="#1769aa">piOca</text>' +
+              /* espejos */
+              '<rect x="23.7" y="28" width="2.4" height="5.2" rx="1" fill="#20272d"/>' +
+              '<rect x="43.9" y="28" width="2.4" height="5.2" rx="1" fill="#20272d"/>' +
 
-        '</svg>' +
+              /* luces traseras */
+              '<rect x="26.8" y="44" width="1.7" height="4" rx=".7" fill="#e43b32"/>' +
+              '<rect x="41.5" y="44" width="1.7" height="4" rx=".7" fill="#e43b32"/>' +
+
+              /* marca */
+              '<text x="35" y="38" text-anchor="middle" ' +
+              'font-family="Arial,sans-serif" font-size="5.5" ' +
+              'font-weight="700" fill="#1769aa">piOca</text>' +
+
+            '</g>' +
+          '</svg>' +
+        '</div>' +
       '</div>';
 
     return L.divIcon({
@@ -1303,11 +1384,11 @@
       ],
       iconAnchor:[
         dimensiones.ancho / 2,
-        dimensiones.alto / 2
+        dimensiones.alto * 0.92
       ],
       popupAnchor:[
         0,
-        -(dimensiones.alto / 2) - 4
+        -(dimensiones.alto * 0.78)
       ]
     });
   }
@@ -1319,7 +1400,7 @@
     }
 
     marcador.setIcon(
-      crearIconoPiocaVehiculo(
+      crearIconoPiocaMarcador(
         ultimoRumboMarcador
       )
     );
@@ -3006,7 +3087,7 @@
           [lat, lon],
           {
             icon:
-              crearIconoPiocaVehiculo(
+              crearIconoPiocaMarcador(
                 ultimoRumboMarcador
               ),
             rotateWithView:false
@@ -3035,9 +3116,8 @@
     }
 
     /*
-      Orientación visual:
-      la flecha azul está en la trompa y apunta
-      al rumbo real entre la posición anterior y la nueva.
+      La camioneta rota según el rumbo real.
+      La flecha está en la trompa.
     */
     if(
       ultimoPuntoServidor
