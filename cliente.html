@@ -386,64 +386,58 @@
     }
 
     /* ==========================================================
-       PIN PIOCA - ICONO REAL DE LA APLICACIÓN
-       Usa icono-pioca.png directamente.
-       El punto azul inferior marca la coordenada GPS exacta
-       y emite ondas para llamar la atención.
+       PIN PIOCA - ICONO EXACTO DE LA APLICACIÓN
+       Usa pin-pioca-app.png sin redibujar la camioneta.
+       El círculo azul inferior marca la coordenada GPS exacta
+       y emite ondas pulsantes.
        ========================================================== */
 
-    .piocaAppMarkerIcon{
+    .piocaAppExactIcon{
       background:transparent !important;
       border:0 !important;
     }
 
-    .piocaAppMarkerWrap{
+    .piocaAppExactWrap{
       position:relative;
       width:100%;
       height:100%;
-      pointer-events:none;
       overflow:visible;
+      pointer-events:none;
     }
 
-    .piocaAppMarkerImg{
+    .piocaAppExactImg{
       position:absolute;
       left:50%;
-      top:42%;
-      width:82%;
+      top:44%;
+      width:100%;
       height:auto;
-      max-height:72%;
       object-fit:contain;
       transform:translate(-50%,-50%);
       z-index:3;
-      filter:
-        drop-shadow(0 3px 4px rgba(0,0,0,.28));
+      filter:drop-shadow(0 3px 4px rgba(0,0,0,.24));
     }
 
-    .piocaAppMarkerPunto{
+    .piocaAppExactPunto{
       position:absolute;
       left:50%;
-      bottom:1%;
-      width:16%;
+      bottom:0;
+      width:13%;
       aspect-ratio:1 / 1;
-      min-width:11px;
-      min-height:11px;
+      min-width:10px;
+      min-height:10px;
       transform:translateX(-50%);
       border-radius:50%;
       background:#1769aa;
       border:3px solid #ffffff;
       box-shadow:
-        0 0 0 3px rgba(23,105,170,.26),
-        0 3px 8px rgba(0,0,0,.24);
+        0 0 0 3px rgba(23,105,170,.28),
+        0 3px 8px rgba(0,0,0,.22);
       z-index:6;
-      animation:
-        piocaAppPuntoTitila
-        1.05s
-        ease-in-out
-        infinite;
+      animation:piocaAppExactBlink 1.05s ease-in-out infinite;
     }
 
-    .piocaAppMarkerPunto::before,
-    .piocaAppMarkerPunto::after{
+    .piocaAppExactPunto::before,
+    .piocaAppExactPunto::after{
       content:"";
       position:absolute;
       left:50%;
@@ -451,68 +445,42 @@
       width:100%;
       height:100%;
       border-radius:50%;
-      border:
-        2px solid
-        rgba(23,105,170,.46);
-      transform:
-        translate(-50%,-50%)
-        scale(1);
+      border:2px solid rgba(23,105,170,.46);
+      transform:translate(-50%,-50%) scale(1);
       pointer-events:none;
     }
 
-    .piocaAppMarkerPunto::before{
-      animation:
-        piocaAppOnda
-        1.40s
-        ease-out
-        infinite;
+    .piocaAppExactPunto::before{
+      animation:piocaAppExactWave 1.40s ease-out infinite;
     }
 
-    .piocaAppMarkerPunto::after{
-      animation:
-        piocaAppOnda
-        1.40s
-        ease-out
-        .45s
-        infinite;
+    .piocaAppExactPunto::after{
+      animation:piocaAppExactWave 1.40s ease-out .45s infinite;
     }
 
-    @keyframes piocaAppPuntoTitila{
+    @keyframes piocaAppExactBlink{
       0%,100%{
         opacity:1;
-        transform:
-          translateX(-50%)
-          scale(1);
+        transform:translateX(-50%) scale(1);
       }
-
       50%{
         opacity:.58;
-        transform:
-          translateX(-50%)
-          scale(.86);
+        transform:translateX(-50%) scale(.86);
       }
     }
 
-    @keyframes piocaAppOnda{
+    @keyframes piocaAppExactWave{
       0%{
         opacity:.56;
-        transform:
-          translate(-50%,-50%)
-          scale(1);
+        transform:translate(-50%,-50%) scale(1);
       }
-
       75%{
         opacity:.06;
-        transform:
-          translate(-50%,-50%)
-          scale(2.55);
+        transform:translate(-50%,-50%) scale(2.45);
       }
-
       100%{
         opacity:0;
-        transform:
-          translate(-50%,-50%)
-          scale(2.55);
+        transform:translate(-50%,-50%) scale(2.45);
       }
     }
 
@@ -1303,7 +1271,7 @@
   const DISTANCIA_MINIMA_GIRO_METROS =
     6;
 
-  function dimensionesIconoAppPorZoom(){
+  function dimensionesPinPiocaPorZoom(){
 
     const zoom =
       mapa &&
@@ -1312,62 +1280,47 @@
         : 16;
 
     /*
-      Tamaño intermedio:
-      visible y legible, pero sin tapar demasiado mapa.
+      Tamaño intermedio: ni gigante ni diminuto.
+      Se adapta al zoom manteniendo legible el gráfico.
     */
     if(zoom >= 18){
-      return {
-        ancho:76,
-        alto:92
-      };
+      return {ancho:92, alto:104};
     }
 
     if(zoom >= 16){
-      return {
-        ancho:70,
-        alto:85
-      };
+      return {ancho:84, alto:96};
     }
 
     if(zoom >= 14){
-      return {
-        ancho:62,
-        alto:76
-      };
+      return {ancho:76, alto:87};
     }
 
     if(zoom >= 12){
-      return {
-        ancho:54,
-        alto:67
-      };
+      return {ancho:68, alto:78};
     }
 
-    return {
-      ancho:48,
-      alto:60
-    };
+    return {ancho:60, alto:70};
   }
 
-  function crearIconoPiocaApp(){
+  function crearIconoPiocaExacto(){
 
     const dimensiones =
-      dimensionesIconoAppPorZoom();
+      dimensionesPinPiocaPorZoom();
 
     const html =
-      '<div class="piocaAppMarkerWrap">' +
+      '<div class="piocaAppExactWrap">' +
 
         '<img ' +
-          'class="piocaAppMarkerImg" ' +
-          'src="icono-pioca.png" ' +
+          'class="piocaAppExactImg" ' +
+          'src="pin-pioca-app.png" ' +
           'alt="piOca">' +
 
-        '<div class="piocaAppMarkerPunto"></div>' +
+        '<div class="piocaAppExactPunto"></div>' +
 
       '</div>';
 
     return L.divIcon({
-      className:"piocaAppMarkerIcon",
+      className:"piocaAppExactIcon",
       html:html,
       iconSize:[
         dimensiones.ancho,
@@ -1375,8 +1328,8 @@
       ],
 
       /*
-        La coordenada real coincide con
-        el centro del punto azul inferior.
+        La coordenada real coincide con el centro
+        del círculo azul inferior.
       */
       iconAnchor:[
         dimensiones.ancho / 2,
@@ -1385,21 +1338,19 @@
 
       popupAnchor:[
         0,
-        -(dimensiones.alto * 0.76)
+        -(dimensiones.alto * 0.78)
       ]
     });
   }
 
-  function actualizarIconoPiocaApp(){
+  function actualizarIconoPiocaExacto(){
 
-    if(
-      !marcador
-    ){
+    if(!marcador){
       return;
     }
 
     marcador.setIcon(
-      crearIconoPiocaApp()
+      crearIconoPiocaExacto()
     );
   }
 
@@ -3023,7 +2974,7 @@
         "zoomend",
         function(){
 
-          actualizarIconoPiocaApp();
+          actualizarIconoPiocaExacto();
 
         }
       );
@@ -3080,7 +3031,7 @@
           [lat, lon],
           {
             icon:
-              crearIconoPiocaApp(),
+              crearIconoPiocaExacto(),
             rotateWithView:false
           }
         )
