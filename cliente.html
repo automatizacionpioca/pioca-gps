@@ -16,6 +16,16 @@
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   >
 
+  <link
+    rel="manifest"
+    href="manifest.webmanifest"
+  >
+
+  <meta
+    name="theme-color"
+    content="#1769aa"
+  >
+
   <style>
 
     html,
@@ -970,11 +980,185 @@
       }
     }
 
+    /* ==========================================================
+       V8 - AVISO DE LLEGADA WEB PUSH
+       No altera mapa, GPS, ETA ni animaciones existentes.
+       ========================================================== */
+
+    #pushPromptOverlay{
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:100000;
+      background:rgba(17,34,51,.42);
+      padding:18px;
+      box-sizing:border-box;
+      align-items:center;
+      justify-content:center;
+      backdrop-filter:blur(3px);
+    }
+
+    #pushPromptOverlay.visible{
+      display:flex;
+    }
+
+    .pushPromptCard{
+      width:100%;
+      max-width:390px;
+      background:#fff;
+      border:1px solid #dce5ed;
+      border-radius:20px;
+      box-shadow:0 18px 44px rgba(18,39,58,.22);
+      padding:22px 18px 18px;
+      text-align:center;
+      box-sizing:border-box;
+    }
+
+    .pushPromptIcon{
+      width:52px;
+      height:52px;
+      margin:0 auto 12px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#eaf4fd;
+      color:#1769aa;
+      font-size:25px;
+      font-weight:700;
+    }
+
+    .pushPromptTitulo{
+      margin:0 0 7px;
+      color:#20364b;
+      font-size:18px;
+      line-height:1.2;
+      font-weight:700;
+    }
+
+    .pushPromptTexto{
+      margin:0 auto 16px;
+      max-width:320px;
+      color:#5d6a76;
+      font-size:13px;
+      line-height:1.45;
+      font-weight:400;
+    }
+
+    .pushPromptAcciones{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:9px;
+    }
+
+    .pushPromptBtn{
+      border:0;
+      border-radius:12px;
+      min-height:47px;
+      padding:10px 12px;
+      font-family:Arial,sans-serif;
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    #btnPushAceptar{
+      background:#1769aa;
+      color:#fff;
+    }
+
+    #btnPushOmitir{
+      background:#eef2f5;
+      color:#4c5b68;
+    }
+
+    #pushPromptEstado{
+      display:none;
+      margin-top:12px;
+      padding:9px 10px;
+      border-radius:10px;
+      font-size:11px;
+      line-height:1.35;
+    }
+
+    #pushPromptEstado.ok{
+      display:block;
+      background:#e9f7ed;
+      color:#236b38;
+      border:1px solid #bfe0c7;
+    }
+
+    #pushPromptEstado.info{
+      display:block;
+      background:#eef5fb;
+      color:#315d7b;
+      border:1px solid #cbddea;
+    }
+
+    #pushPromptEstado.error{
+      display:block;
+      background:#fff1f1;
+      color:#902f35;
+      border:1px solid #ecc2c2;
+    }
+
+    @media(max-width:420px){
+      .pushPromptCard{
+        padding:19px 15px 15px;
+        border-radius:17px;
+      }
+
+      .pushPromptTitulo{
+        font-size:17px;
+      }
+
+      .pushPromptTexto{
+        font-size:12px;
+      }
+
+      .pushPromptBtn{
+        font-size:11px;
+      }
+    }
+
   </style>
 
 </head>
 
 <body>
+
+<div id="pushPromptOverlay" aria-hidden="true">
+  <div class="pushPromptCard">
+    <div class="pushPromptIcon">🔔</div>
+
+    <div class="pushPromptTitulo">
+      ¿Querés que te avisemos cuando estemos llegando?
+    </div>
+
+    <div class="pushPromptTexto" id="pushPromptTexto">
+      Podés cerrar o minimizar esta pantalla. Te enviaremos un único aviso cuando estemos por llegar.
+    </div>
+
+    <div class="pushPromptAcciones">
+      <button
+        class="pushPromptBtn"
+        id="btnPushOmitir"
+        type="button">
+        AHORA NO
+      </button>
+
+      <button
+        class="pushPromptBtn"
+        id="btnPushAceptar"
+        type="button">
+        SÍ, AVISARME
+      </button>
+    </div>
+
+    <div id="pushPromptEstado"></div>
+  </div>
+</div>
 
 <div class="panel">
 
@@ -1060,6 +1244,24 @@
 
   const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  const VAPID_PUBLIC_KEY =
+    "BLl2dWCvuNFRN9bLVnpSe4qmgkzEvw_BI1XgwCSc6Zh9EUtBKkj81U2q5QbqWYVjwIhRjNMBnHAl_qGIHa6BCSU";
+
+  const pushPromptOverlay =
+    document.getElementById("pushPromptOverlay");
+
+  const pushPromptTexto =
+    document.getElementById("pushPromptTexto");
+
+  const pushPromptEstado =
+    document.getElementById("pushPromptEstado");
+
+  const btnPushAceptar =
+    document.getElementById("btnPushAceptar");
+
+  const btnPushOmitir =
+    document.getElementById("btnPushOmitir");
 
   const cabeceraCliente =
     document.querySelector(
@@ -1155,6 +1357,12 @@
   let llegadaClienteMs =
     null;
 
+  let evaluandoPush =
+    false;
+
+  let pushEvaluado =
+    false;
+
   /*
     Animación visual del marcador.
     No genera posiciones nuevas ni aumenta consultas.
@@ -1216,6 +1424,424 @@
       iconAnchor:[15,39],
       popupAnchor:[0,-38]
     });
+
+
+  function esIOS(){
+    return /iphone|ipad|ipod/i.test(
+      navigator.userAgent || ""
+    );
+  }
+
+  function esStandaloneIOS(){
+    return (
+      window.matchMedia &&
+      window.matchMedia(
+        "(display-mode: standalone)"
+      ).matches
+    ) ||
+    window.navigator.standalone === true;
+  }
+
+  function clavePromptPush(){
+    return "pioca_push_prompt_" +
+      String(codigo || "")
+      .trim()
+      .toUpperCase();
+  }
+
+  function ocultarPromptPush(){
+    pushPromptOverlay.classList.remove(
+      "visible"
+    );
+
+    pushPromptOverlay.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+  }
+
+  function mostrarEstadoPush(
+    texto,
+    tipo
+  ){
+    pushPromptEstado.textContent =
+      texto;
+
+    pushPromptEstado.className =
+      tipo || "info";
+  }
+
+  function base64UrlAUint8Array(
+    base64String
+  ){
+    const padding =
+      "=".repeat(
+        (
+          4 -
+          base64String.length % 4
+        ) % 4
+      );
+
+    const base64 =
+      (
+        base64String +
+        padding
+      )
+      .replace(/-/g,"+")
+      .replace(/_/g,"/");
+
+    const rawData =
+      window.atob(
+        base64
+      );
+
+    return Uint8Array.from(
+      [...rawData].map(
+        function(c){
+          return c.charCodeAt(0);
+        }
+      )
+    );
+  }
+
+  async function guardarSuscripcionPush(
+    subscription
+  ){
+    const datos =
+      subscription.toJSON();
+
+    const keys =
+      datos.keys ||
+      {};
+
+    const respuesta =
+      await fetch(
+        SUPABASE_URL +
+        "/rest/v1/rpc/register_push_subscription",
+        {
+          method:"POST",
+          headers:{
+            "apikey":SUPABASE_KEY,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            p_code:
+              codigo,
+
+            p_endpoint:
+              datos.endpoint,
+
+            p_p256dh:
+              keys.p256dh,
+
+            p_auth:
+              keys.auth,
+
+            p_user_agent:
+              navigator.userAgent ||
+              null
+          })
+        }
+      );
+
+    if(
+      !respuesta.ok
+    ){
+      throw new Error(
+        "REGISTER_PUSH_FAILED"
+      );
+    }
+
+    const r =
+      await respuesta.json();
+
+    const fila =
+      Array.isArray(r) &&
+      r.length
+        ? r[0]
+        : null;
+
+    if(
+      !fila ||
+      fila.success !== true
+    ){
+      throw new Error(
+        fila &&
+        fila.message
+          ? fila.message
+          : "REGISTER_PUSH_FAILED"
+      );
+    }
+  }
+
+  async function obtenerRegistroSW(){
+    if(
+      !(
+        "serviceWorker" in
+        navigator
+      )
+    ){
+      throw new Error(
+        "SERVICE_WORKER_NO_DISPONIBLE"
+      );
+    }
+
+    await navigator.serviceWorker.register(
+      "./sw.js",
+      {
+        scope:"./"
+      }
+    );
+
+    return await navigator.serviceWorker.ready;
+  }
+
+  async function yaTieneSuscripcionPush(){
+    if(
+      !(
+        "PushManager" in
+        window
+      ) ||
+      !(
+        "Notification" in
+        window
+      )
+    ){
+      return false;
+    }
+
+    try{
+      const registro =
+        await obtenerRegistroSW();
+
+      const suscripcion =
+        await registro.pushManager
+        .getSubscription();
+
+      if(
+        !suscripcion
+      ){
+        return false;
+      }
+
+      await guardarSuscripcionPush(
+        suscripcion
+      );
+
+      return true;
+
+    }catch(e){
+      return false;
+    }
+  }
+
+  async function activarPushCliente(){
+
+    btnPushAceptar.disabled =
+      true;
+
+    btnPushOmitir.disabled =
+      true;
+
+    mostrarEstadoPush(
+      "Activando aviso...",
+      "info"
+    );
+
+    try{
+
+      if(
+        esIOS() &&
+        !esStandaloneIOS()
+      ){
+        pushPromptTexto.textContent =
+          "En iPhone, primero agregá esta página a la pantalla de inicio desde Compartir → Agregar a inicio. Después abrila desde el ícono de piOca y activá el aviso.";
+
+        mostrarEstadoPush(
+          "Este paso es necesario en iPhone para recibir la notificación con la página cerrada.",
+          "info"
+        );
+
+        btnPushAceptar.disabled =
+          false;
+
+        btnPushOmitir.disabled =
+          false;
+
+        return;
+      }
+
+      if(
+        !(
+          "Notification" in
+          window
+        ) ||
+        !(
+          "PushManager" in
+          window
+        )
+      ){
+        throw new Error(
+          "PUSH_NO_DISPONIBLE"
+        );
+      }
+
+      const permiso =
+        await Notification.requestPermission();
+
+      if(
+        permiso !==
+        "granted"
+      ){
+        throw new Error(
+          "PERMISSION_NOT_GRANTED"
+        );
+      }
+
+      const registro =
+        await obtenerRegistroSW();
+
+      let suscripcion =
+        await registro.pushManager
+        .getSubscription();
+
+      if(
+        !suscripcion
+      ){
+        suscripcion =
+          await registro.pushManager
+          .subscribe({
+            userVisibleOnly:true,
+            applicationServerKey:
+              base64UrlAUint8Array(
+                VAPID_PUBLIC_KEY
+              )
+          });
+      }
+
+      await guardarSuscripcionPush(
+        suscripcion
+      );
+
+      localStorage.setItem(
+        clavePromptPush(),
+        "accepted"
+      );
+
+      mostrarEstadoPush(
+        "✓ Aviso activado. Te notificaremos cuando estemos llegando.",
+        "ok"
+      );
+
+      setTimeout(
+        ocultarPromptPush,
+        1700
+      );
+
+    }catch(error){
+
+      btnPushAceptar.disabled =
+        false;
+
+      btnPushOmitir.disabled =
+        false;
+
+      if(
+        error &&
+        error.message ===
+        "PERMISSION_NOT_GRANTED"
+      ){
+        mostrarEstadoPush(
+          "No se activaron las notificaciones. Podés continuar siguiendo el mapa normalmente.",
+          "error"
+        );
+
+        return;
+      }
+
+      mostrarEstadoPush(
+        "No se pudo activar el aviso en este dispositivo. El seguimiento continúa funcionando normalmente.",
+        "error"
+      );
+    }
+  }
+
+  async function evaluarPromptPush(){
+
+    if(
+      terminado ||
+      !codigo ||
+      evaluandoPush ||
+      pushEvaluado
+    ){
+      return;
+    }
+
+    evaluandoPush =
+      true;
+
+    const guardado =
+      localStorage.getItem(
+        clavePromptPush()
+      );
+
+    if(
+      guardado ===
+      "dismissed"
+    ){
+      pushEvaluado = true;
+      evaluandoPush = false;
+      return;
+    }
+
+    const existente =
+      await yaTieneSuscripcionPush();
+
+    if(
+      existente
+    ){
+      localStorage.setItem(
+        clavePromptPush(),
+        "accepted"
+      );
+
+      pushEvaluado = true;
+      evaluandoPush = false;
+      return;
+    }
+
+    if(
+      guardado ===
+      "accepted"
+    ){
+      localStorage.removeItem(
+        clavePromptPush()
+      );
+    }
+
+    if(
+      esIOS() &&
+      !esStandaloneIOS()
+    ){
+      pushPromptTexto.textContent =
+        "En iPhone, para recibir el aviso aunque cierres Safari, primero agregá esta página a la pantalla de inicio. Después abrila desde el ícono de piOca y tocá “Sí, avisarme”.";
+    }
+
+    pushPromptOverlay.classList.add(
+      "visible"
+    );
+
+    pushPromptOverlay.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+    pushEvaluado =
+      true;
+
+    evaluandoPush =
+      false;
+  }
 
   function detenerReloj(){
 
@@ -1652,6 +2278,8 @@
 
     terminado =
       true;
+
+    ocultarPromptPush();
 
     detenerReloj();
 
@@ -3165,6 +3793,12 @@
         p.client_arrival
       );
 
+      /*
+        El permiso sólo se solicita mediante el botón del cliente.
+        Esta evaluación no altera el seguimiento ni el mapa.
+      */
+      evaluarPromptPush();
+
       if(
         p.latitude ===
           null ||
@@ -3275,6 +3909,24 @@
         Date.now();
     }
   }
+
+  btnPushAceptar.addEventListener(
+    "click",
+    activarPushCliente
+  );
+
+  btnPushOmitir.addEventListener(
+    "click",
+    function(){
+
+      localStorage.setItem(
+        clavePromptPush(),
+        "dismissed"
+      );
+
+      ocultarPromptPush();
+    }
+  );
 
   btnRefrescarPosicion.addEventListener(
     "click",
