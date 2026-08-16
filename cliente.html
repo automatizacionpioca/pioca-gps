@@ -386,39 +386,33 @@
     }
 
     /* ==========================================================
-       PIN CLÁSICO TIPO MAPA
-       Marcador rojo en forma de gota, sin imagen externa.
+       PIN PIOCA - CAMIONETA VISTA SUPERIOR
+       SVG embebido: no necesita archivo de imagen externo.
+       La flecha azul está en la trompa y marca el rumbo.
        ========================================================== */
 
-    .piocaPinIcon{
+    .piocaVehiculoIcon{
       background:transparent !important;
       border:0 !important;
     }
 
-    .piocaPin{
-      position:relative;
-      width:30px;
-      height:30px;
-      background:#e94235;
-      border:2px solid #ffffff;
-      border-radius:50% 50% 50% 0;
-      transform:rotate(-45deg);
-      box-sizing:border-box;
-      box-shadow:
-        0 2px 5px rgba(0,0,0,.34),
-        0 1px 2px rgba(0,0,0,.18);
+    .piocaVehiculoRotador{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transform-origin:50% 50%;
+      will-change:transform;
+      filter:drop-shadow(0 2px 2px rgba(0,0,0,.28));
+      pointer-events:none;
     }
 
-    .piocaPin::after{
-      content:"";
-      position:absolute;
-      width:10px;
-      height:10px;
-      left:8px;
-      top:8px;
-      background:#ffffff;
-      border-radius:50%;
-      box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    .piocaVehiculoRotador svg{
+      width:100%;
+      height:100%;
+      display:block;
+      overflow:visible;
     }
 
     .leaflet-control-attribution{
@@ -1208,14 +1202,128 @@
   const DISTANCIA_MINIMA_GIRO_METROS =
     6;
 
-  const iconoPioca =
-    L.divIcon({
-      className:"piocaPinIcon",
-      html:'<div class="piocaPin"></div>',
-      iconSize:[30,42],
-      iconAnchor:[15,39],
-      popupAnchor:[0,-38]
+  let ultimoRumboMarcador =
+    0;
+
+  /*
+    Tamaño visual del vehículo según zoom.
+    A menor zoom, el pin se reduce para no tapar
+    demasiadas calles ni parecer una "limusina".
+  */
+  function dimensionesVehiculoPorZoom(){
+
+    const zoom =
+      mapa && typeof mapa.getZoom === "function"
+        ? mapa.getZoom()
+        : 16;
+
+    if(zoom >= 18){
+      return {ancho:26, alto:52};
+    }
+
+    if(zoom >= 16){
+      return {ancho:23, alto:46};
+    }
+
+    if(zoom >= 14){
+      return {ancho:19, alto:38};
+    }
+
+    return {ancho:16, alto:32};
+  }
+
+  function crearIconoPiocaVehiculo(
+    rumbo
+  ){
+
+    const dimensiones =
+      dimensionesVehiculoPorZoom();
+
+    const angulo =
+      Number.isFinite(rumbo)
+        ? rumbo
+        : 0;
+
+    /*
+      La trompa está ARRIBA del SVG.
+      Por eso 0° = norte y la flecha azul apunta hacia delante.
+    */
+    const html =
+      '<div class="piocaVehiculoRotador" ' +
+      'style="transform:rotate(' +
+      angulo +
+      'deg)">' +
+
+        '<svg viewBox="0 0 40 80" ' +
+        'xmlns="http://www.w3.org/2000/svg" ' +
+        'aria-hidden="true">' +
+
+          /* Flecha de rumbo en la trompa */
+          '<path d="M20 1 L28 13 L23 12 L23 18 L17 18 L17 12 L12 13 Z" ' +
+          'fill="#1769aa" stroke="#0d4f8d" stroke-width="1.2"/>' +
+
+          /* Sombra inferior */
+          '<ellipse cx="20" cy="72" rx="11.5" ry="3.2" ' +
+          'fill="rgba(0,0,0,.16)"/>' +
+
+          /* Cuerpo */
+          '<rect x="8" y="14" width="24" height="56" rx="8" ' +
+          'fill="#ffffff" stroke="#1d2a36" stroke-width="1.4"/>' +
+
+          /* Parabrisas delantero: la trompa está arriba */
+          '<path d="M11 24 Q20 19 29 24 L27.5 31 Q20 28.5 12.5 31 Z" ' +
+          'fill="#1d2328"/>' +
+
+          /* Luneta trasera */
+          '<path d="M12.5 61 Q20 63.5 27.5 61 L28.5 66 Q20 68.5 11.5 66 Z" ' +
+          'fill="#343a40"/>' +
+
+          /* Espejos */
+          '<rect x="5.5" y="30" width="3" height="7" rx="1.2" fill="#20272d"/>' +
+          '<rect x="31.5" y="30" width="3" height="7" rx="1.2" fill="#20272d"/>' +
+
+          /* Luces traseras */
+          '<rect x="9" y="62" width="2.2" height="5" rx="1" fill="#e43b32"/>' +
+          '<rect x="28.8" y="62" width="2.2" height="5" rx="1" fill="#e43b32"/>' +
+
+          /* Marca */
+          '<text x="20" y="48.5" text-anchor="middle" ' +
+          'font-family="Arial,sans-serif" font-size="8.7" font-weight="700" ' +
+          'fill="#1769aa">piOca</text>' +
+
+        '</svg>' +
+      '</div>';
+
+    return L.divIcon({
+      className:"piocaVehiculoIcon",
+      html:html,
+      iconSize:[
+        dimensiones.ancho,
+        dimensiones.alto
+      ],
+      iconAnchor:[
+        dimensiones.ancho / 2,
+        dimensiones.alto / 2
+      ],
+      popupAnchor:[
+        0,
+        -(dimensiones.alto / 2) - 4
+      ]
     });
+  }
+
+  function actualizarIconoVehiculo(){
+
+    if(!marcador){
+      return;
+    }
+
+    marcador.setIcon(
+      crearIconoPiocaVehiculo(
+        ultimoRumboMarcador
+      )
+    );
+  }
 
   function detenerReloj(){
 
@@ -1674,6 +1782,9 @@
     ultimaVelocidadValidaKmh =
       null;
 
+    ultimoRumboMarcador =
+      0;
+
     quitarMarcador();
 
     mapaWrap.style.display =
@@ -1753,6 +1864,9 @@
 
     ultimaVelocidadValidaKmh =
       null;
+
+    ultimoRumboMarcador =
+      0;
 
     detenerReloj();
 
@@ -2832,6 +2946,13 @@
 
         100
       );
+
+      mapa.on(
+        "zoomend",
+        function(){
+          actualizarIconoVehiculo();
+        }
+      );
     }
   }
 
@@ -2884,7 +3005,10 @@
         L.marker(
           [lat, lon],
           {
-            icon:iconoPioca,
+            icon:
+              crearIconoPiocaVehiculo(
+                ultimoRumboMarcador
+              ),
             rotateWithView:false
           }
         )
@@ -2908,6 +3032,41 @@
         createdAt;
 
       return;
+    }
+
+    /*
+      Orientación visual:
+      la flecha azul está en la trompa y apunta
+      al rumbo real entre la posición anterior y la nueva.
+    */
+    if(
+      ultimoPuntoServidor
+    ){
+
+      const distanciaParaRumbo =
+        distanciaMetros(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon,
+          lat,
+          lon
+        );
+
+      if(
+        Number.isFinite(
+          distanciaParaRumbo
+        ) &&
+        distanciaParaRumbo >= 4
+      ){
+        ultimoRumboMarcador =
+          rumboGrados(
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon,
+            lat,
+            lon
+          );
+
+        actualizarIconoVehiculo();
+      }
     }
 
     const velocidadInterna =
