@@ -1026,9 +1026,10 @@
 
 
     /* ==========================================================
-       AJUSTE FINAL CABECERA - 16/08/2026 R3
-       Dos columnas iguales y centradas:
-       logo y panel de hora con márgenes laterales simétricos.
+       AJUSTE FINAL CABECERA - 16/08/2026 R5
+       Panel de hora con más presencia:
+       título arriba + hora abajo con "hs".
+       Mantiene simetría y entra completo en móvil.
        ========================================================== */
 
     .cabeceraCliente{
@@ -1045,33 +1046,61 @@
     }
 
     #horaLlegadaBox{
-      width:86%;
-      max-width:190px;
+      width:92%;
+      max-width:205px;
       min-width:0;
-      min-height:92px;
+      min-height:108px;
       justify-self:center;
-      padding:11px 10px;
+      padding:11px 12px 12px;
       border-radius:18px;
       box-sizing:border-box;
-      grid-template-columns:minmax(0,1fr) auto;
-      column-gap:5px;
+
+      display:none;
+      grid-template-columns:1fr;
+      grid-template-rows:auto auto;
+      row-gap:7px;
+      align-content:center;
+      align-items:center;
     }
 
     #horaLlegadaTitulo{
       min-width:0;
-      font-size:8.8px;
+      min-height:0;
+      padding:0;
+      background:transparent;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      text-align:center;
+      font-size:9.4px;
       line-height:1.18;
       letter-spacing:.34px;
+      color:#536272;
+      white-space:normal;
+    }
+
+    #horaLlegadaTitulo::before{
+      width:30px;
+      height:30px;
+      flex:0 0 30px;
+      font-size:17px;
     }
 
     #horaLlegada{
       min-width:0;
-      max-width:72px;
-      font-size:21px;
-      padding-left:0;
-      overflow:hidden;
+      max-width:none;
+      min-height:0;
+      padding:0;
+      background:transparent;
+      color:#1769aa;
+      font-size:28px;
+      line-height:1;
+      letter-spacing:.2px;
       white-space:nowrap;
-      justify-content:flex-end;
+      justify-content:center;
+      text-align:center;
+      overflow:visible;
     }
 
     @media(max-width:600px){
@@ -1091,37 +1120,41 @@
       }
 
       #horaLlegadaBox{
-        width:88%;
-        max-width:158px;
+        width:94%;
+        max-width:170px;
         min-width:0;
-        min-height:88px;
+        min-height:102px;
         justify-self:center;
-        padding:9px 8px;
-        grid-template-columns:minmax(0,1fr) auto;
-        column-gap:4px;
+        padding:10px 9px 11px;
+        grid-template-columns:1fr;
+        grid-template-rows:auto auto;
+        row-gap:7px;
       }
 
       #horaLlegadaTitulo{
         min-width:0;
-        font-size:7.7px;
+        font-size:8.5px;
         line-height:1.16;
-        letter-spacing:.24px;
+        letter-spacing:.26px;
+        gap:6px;
       }
 
       #horaLlegadaTitulo::before{
-        width:26px;
-        height:26px;
-        flex-basis:26px;
+        width:27px;
+        height:27px;
+        flex-basis:27px;
         font-size:15px;
       }
 
       #horaLlegada{
         min-width:0;
-        max-width:62px;
-        font-size:18px;
-        padding-left:0;
-        justify-content:flex-end;
-        overflow:hidden;
+        max-width:none;
+        font-size:24px;
+        line-height:1;
+        padding:0;
+        justify-content:center;
+        text-align:center;
+        overflow:visible;
         white-space:nowrap;
       }
     }
@@ -1826,7 +1859,9 @@
           minute:"2-digit",
           hour12:false
         }
-      );
+      ) +
+
+      " hs";
 
     horaLlegadaBox.style.display =
       "grid";
