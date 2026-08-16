@@ -1026,15 +1026,17 @@
 
 
     /* ==========================================================
-       AJUSTE FINAL CABECERA - 16/08/2026 R5
-       Panel de hora con más presencia:
-       título arriba + hora abajo con "hs".
-       Mantiene simetría y entra completo en móvil.
+       AJUSTE FINAL CABECERA - 16/08/2026 R6
+       Panel de hora:
+       - apenas más grande
+       - levemente desplazado hacia la derecha
+       - mantiene título arriba y hora abajo con "hs"
+       - sin tocar pin, mapa ni lógica de rumbo
        ========================================================== */
 
     .cabeceraCliente{
       grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-      gap:16px;
+      gap:14px;
       width:100%;
       box-sizing:border-box;
       align-items:center;
@@ -1046,19 +1048,21 @@
     }
 
     #horaLlegadaBox{
-      width:92%;
-      max-width:205px;
+      width:96%;
+      max-width:218px;
       min-width:0;
-      min-height:108px;
+      min-height:114px;
       justify-self:center;
-      padding:11px 12px 12px;
+      margin-right:0;
+      transform:translateX(-4px);
+      padding:12px 13px 13px;
       border-radius:18px;
       box-sizing:border-box;
 
       display:none;
       grid-template-columns:1fr;
       grid-template-rows:auto auto;
-      row-gap:7px;
+      row-gap:8px;
       align-content:center;
       align-items:center;
     }
@@ -1073,7 +1077,7 @@
       justify-content:center;
       gap:8px;
       text-align:center;
-      font-size:9.4px;
+      font-size:9.7px;
       line-height:1.18;
       letter-spacing:.34px;
       color:#536272;
@@ -1081,10 +1085,10 @@
     }
 
     #horaLlegadaTitulo::before{
-      width:30px;
-      height:30px;
-      flex:0 0 30px;
-      font-size:17px;
+      width:31px;
+      height:31px;
+      flex:0 0 31px;
+      font-size:18px;
     }
 
     #horaLlegada{
@@ -1094,7 +1098,7 @@
       padding:0;
       background:transparent;
       color:#1769aa;
-      font-size:28px;
+      font-size:29px;
       line-height:1;
       letter-spacing:.2px;
       white-space:nowrap;
@@ -1106,7 +1110,7 @@
     @media(max-width:600px){
       .cabeceraCliente{
         grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-        gap:14px;
+        gap:12px;
       }
 
       .logo{
@@ -1120,36 +1124,38 @@
       }
 
       #horaLlegadaBox{
-        width:94%;
-        max-width:170px;
+        width:98%;
+        max-width:181px;
         min-width:0;
-        min-height:102px;
+        min-height:108px;
         justify-self:center;
-        padding:10px 9px 11px;
+        margin-right:0;
+        transform:translateX(-4px);
+        padding:11px 10px 12px;
         grid-template-columns:1fr;
         grid-template-rows:auto auto;
-        row-gap:7px;
+        row-gap:8px;
       }
 
       #horaLlegadaTitulo{
         min-width:0;
-        font-size:8.5px;
+        font-size:8.8px;
         line-height:1.16;
         letter-spacing:.26px;
         gap:6px;
       }
 
       #horaLlegadaTitulo::before{
-        width:27px;
-        height:27px;
-        flex-basis:27px;
-        font-size:15px;
+        width:28px;
+        height:28px;
+        flex-basis:28px;
+        font-size:16px;
       }
 
       #horaLlegada{
         min-width:0;
         max-width:none;
-        font-size:24px;
+        font-size:26px;
         line-height:1;
         padding:0;
         justify-content:center;
