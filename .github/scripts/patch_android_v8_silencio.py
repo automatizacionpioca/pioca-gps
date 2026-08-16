@@ -100,6 +100,29 @@ t = re_once(
     'ensureDndAccess startTracking'
 )
 
+
+# Al finalizar manualmente desde el panel, preguntar inmediatamente
+# si se desea quitar el No molestar que piOca activó.
+t = re_once(
+    t,
+    r'(public void stopTracking\(\)\s*\{[\s\S]*?stopService\(\s*new Intent\(\s*MainActivity\.this,\s*TrackingService\.class\s*\)\s*\);)',
+    r'''\1
+
+
+                          if (web != null) {
+
+
+                              web.postDelayed(
+
+                                      MainActivity.this::showPendingDndRestoreDialog,
+
+                                      350
+                              );
+                          }''',
+    'pregunta DND al finalizar manual',
+    re.S
+)
+
 main.write_text(t, encoding='utf-8')
 
 # ----------------------------------------------------------
@@ -260,14 +283,7 @@ private long loadClientArrival() {
 
 private void maybeEnableDnd(long now) {
 
-    if (dndHandled || clientArrivalMillis <= 0) {
-        return;
-    }
-
-    long triggerAt =
-            clientArrivalMillis - DND_BEFORE_ARRIVAL_MS;
-
-    if (now < triggerAt) {
+    if (clientArrivalMillis <= 0) {
         return;
     }
 
@@ -279,17 +295,82 @@ private void maybeEnableDnd(long now) {
         return;
     }
 
-    int current = nm.getCurrentInterruptionFilter();
+    long triggerAt =
+            clientArrivalMillis - DND_BEFORE_ARRIVAL_MS;
 
-    // Si el teléfono ya estaba en No molestar, piOca no lo toca.
-    if (current != NotificationManager.INTERRUPTION_FILTER_ALL) {
+    boolean activatedByPioca =
+            prefs.getBoolean(
+                    "dnd_activated_by_pioca",
+                    false
+            );
+
+    /*
+     * Si el técnico atrasó la ETA y volvimos a estar
+     * a MÁS de 3 minutos, piOca deshace solamente
+     * el No molestar que ella misma había activado.
+     */
+    if (now < triggerAt) {
+
+        if (activatedByPioca) {
+
+            int previous =
+                    prefs.getInt(
+                            "dnd_previous_filter",
+                            NotificationManager.INTERRUPTION_FILTER_ALL
+                    );
+
+            try {
+                nm.setInterruptionFilter(previous);
+            } catch (Exception ignored) {
+            }
+
+            prefs.edit()
+                    .putBoolean(
+                            "dnd_activated_by_pioca",
+                            false
+                    )
+                    .putBoolean(
+                            "dnd_restore_pending",
+                            false
+                    )
+                    .remove(
+                            "dnd_previous_filter"
+                    )
+                    .apply();
+        }
+
+        dndHandled = false;
+        return;
+    }
+
+    /*
+     * Ya estamos dentro de los 3 minutos.
+     * Si piOca ya lo activó, no hacemos nada más.
+     */
+    if (activatedByPioca) {
         dndHandled = true;
         return;
     }
 
+    int current =
+            nm.getCurrentInterruptionFilter();
+
+    /*
+     * Si el teléfono ya estaba en No molestar por decisión
+     * del usuario, piOca no lo modifica ni se adjudica el estado.
+     */
+    if (current != NotificationManager.INTERRUPTION_FILTER_ALL) {
+        dndHandled = false;
+        return;
+    }
+
     try {
+
         prefs.edit()
-                .putInt("dnd_previous_filter", current)
+                .putInt(
+                        "dnd_previous_filter",
+                        current
+                )
                 .apply();
 
         nm.setInterruptionFilter(
@@ -297,8 +378,14 @@ private void maybeEnableDnd(long now) {
         );
 
         prefs.edit()
-                .putBoolean("dnd_activated_by_pioca", true)
-                .putBoolean("dnd_restore_pending", true)
+                .putBoolean(
+                        "dnd_activated_by_pioca",
+                        true
+                )
+                .putBoolean(
+                        "dnd_restore_pending",
+                        true
+                )
                 .apply();
 
         dndHandled = true;
