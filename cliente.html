@@ -1026,55 +1026,99 @@
 
 
     /* ==========================================================
-       AJUSTE FINAL CABECERA - 16/08/2026
-       Panel de hora: menos ancho, apenas más alto y con más aire
-       respecto del logo, manteniendo composición horizontal.
+       AJUSTE FINAL CABECERA - 16/08/2026 R2
+       Evita desborde lateral en móviles.
        ========================================================== */
 
     .cabeceraCliente{
-      grid-template-columns:0.94fr 1.06fr;
-      gap:24px;
+      grid-template-columns:minmax(0,1fr) minmax(0,.94fr);
+      gap:16px;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .logo{
+      min-width:0;
     }
 
     #horaLlegadaBox{
-      width:92%;
-      max-width:248px;
+      width:100%;
+      max-width:220px;
+      min-width:0;
       min-height:84px;
-      justify-self:center;
-      padding:10px 12px;
+      justify-self:end;
+      padding:10px 10px;
       border-radius:18px;
+      box-sizing:border-box;
+      grid-template-columns:minmax(0,1fr) auto;
+      column-gap:6px;
     }
 
     #horaLlegadaTitulo{
-      font-size:9.5px;
-      line-height:1.22;
+      min-width:0;
+      font-size:9px;
+      line-height:1.18;
+      letter-spacing:.38px;
     }
 
     #horaLlegada{
-      font-size:24px;
-      padding-left:10px;
+      min-width:0;
+      max-width:78px;
+      font-size:22px;
+      padding-left:0;
+      overflow:hidden;
+      white-space:nowrap;
+      justify-content:flex-end;
     }
 
     @media(max-width:600px){
       .cabeceraCliente{
-        grid-template-columns:0.94fr 1.06fr;
-        gap:18px;
+        grid-template-columns:minmax(0,1fr) minmax(0,.90fr);
+        gap:11px;
+      }
+
+      .logo{
+        min-width:0;
+      }
+
+      .logo img{
+        width:136px;
+        max-width:100%;
       }
 
       #horaLlegadaBox{
-        width:90%;
-        max-width:216px;
-        min-height:78px;
-        padding:9px 10px;
+        width:100%;
+        max-width:196px;
+        min-width:0;
+        min-height:76px;
+        justify-self:end;
+        padding:8px 8px;
+        grid-template-columns:minmax(0,1fr) auto;
+        column-gap:4px;
       }
 
       #horaLlegadaTitulo{
-        font-size:8.6px;
+        min-width:0;
+        font-size:7.9px;
+        line-height:1.16;
+        letter-spacing:.28px;
+      }
+
+      #horaLlegadaTitulo::before{
+        width:27px;
+        height:27px;
+        flex-basis:27px;
+        font-size:15px;
       }
 
       #horaLlegada{
-        font-size:21px;
-        padding-left:7px;
+        min-width:0;
+        max-width:68px;
+        font-size:18px;
+        padding-left:0;
+        justify-content:flex-end;
+        overflow:hidden;
+        white-space:nowrap;
       }
     }
 
@@ -1307,6 +1351,12 @@
   const DISTANCIA_DETENIDO_METROS =
     3;
 
+  const DISTANCIA_MINIMA_CAMBIO_RUMBO_METROS =
+    8;
+
+  const VELOCIDAD_MINIMA_CAMBIO_RUMBO_KMH =
+    7;
+
   const VELOCIDAD_GIRO_PROTEGIDO_KMH =
     40;
 
@@ -1343,22 +1393,22 @@
         : 16;
 
     if(zoom >= 18){
-      return {ancho:84, alto:108};
-    }
-
-    if(zoom >= 16){
       return {ancho:76, alto:98};
     }
 
+    if(zoom >= 16){
+      return {ancho:69, alto:89};
+    }
+
     if(zoom >= 14){
-      return {ancho:68, alto:88};
+      return {ancho:62, alto:80};
     }
 
     if(zoom >= 12){
-      return {ancho:60, alto:78};
+      return {ancho:55, alto:71};
     }
 
-    return {ancho:54, alto:70};
+    return {ancho:50, alto:64};
   }
 
   function crearIconoVehiculoPioca(){
@@ -1675,9 +1725,7 @@
           minute:"2-digit",
           hour12:false
         }
-      ) +
-
-      " hs";
+      );
 
     horaLlegadaBox.style.display =
       "grid";
@@ -2276,6 +2324,44 @@
     }
 
     return diferencia;
+  }
+
+  function suavizarRumboVisual(
+    rumboActual,
+    rumboObjetivo
+  ){
+
+    if(
+      !Number.isFinite(
+        rumboActual
+      )
+    ){
+      return rumboObjetivo;
+    }
+
+    let delta =
+      (
+        rumboObjetivo -
+        rumboActual +
+        540
+      ) %
+      360 -
+      180;
+
+    delta =
+      Math.max(
+        -55,
+        Math.min(
+          55,
+          delta
+        )
+      );
+
+    return (
+      rumboActual +
+      delta +
+      360
+    ) % 360;
   }
 
   function esGiroProtegidoBajaVelocidad(
@@ -3308,6 +3394,13 @@
       return;
     }
 
+    const velocidadInterna =
+      calcularVelocidadInterna(
+        lat,
+        lon,
+        createdAt
+      );
+
     let rumboNuevo =
       ultimoRumboVisual;
 
@@ -3323,24 +3416,31 @@
           lon
         );
 
-      /*
-        El rumbo visual sólo cambia con desplazamiento real,
-        evitando que el cono rote por ruido GPS.
-      */
       if(
         Number.isFinite(
           distanciaParaRumbo
         ) &&
         distanciaParaRumbo >=
-          DISTANCIA_DETENIDO_METROS
+          DISTANCIA_MINIMA_CAMBIO_RUMBO_METROS &&
+        Number.isFinite(
+          velocidadInterna
+        ) &&
+        velocidadInterna >=
+          VELOCIDAD_MINIMA_CAMBIO_RUMBO_KMH
       ){
 
-        rumboNuevo =
+        const rumboCalculado =
           rumboGrados(
             ultimoPuntoServidor.lat,
             ultimoPuntoServidor.lon,
             lat,
             lon
+          );
+
+        rumboNuevo =
+          suavizarRumboVisual(
+            ultimoRumboVisual,
+            rumboCalculado
           );
       }
     }
@@ -3349,13 +3449,6 @@
       rumboNuevo;
 
     actualizarIconoVehiculo();
-
-    const velocidadInterna =
-      calcularVelocidadInterna(
-        lat,
-        lon,
-        createdAt
-      );
 
     const duracion =
       calcularDuracionAnimacion(
