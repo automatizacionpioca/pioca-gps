@@ -386,10 +386,11 @@
     }
 
     /* ==========================================================
-       PIN PIOCA - CAMIONETA DENTRO DE MARCADOR PULSANTE
-       El marcador cambia de tamaño según el zoom para mantener
-       una huella visual chica: el círculo no debe cubrir más
-       de aproximadamente una cuadra en el mapa.
+       PIN PIOCA - CAMIONETA LATERAL + PIN AZUL
+       Modelo basado en el diseño aprobado:
+       camioneta blanca lateral delante del pin azul.
+       La punta inferior marca la coordenada GPS exacta.
+       El círculo inferior titila y emite ondas.
        ========================================================== */
 
     .piocaVehiculoIcon{
@@ -397,7 +398,7 @@
       border:0 !important;
     }
 
-    .piocaMarkerWrap{
+    .piocaPinLateralWrap{
       position:relative;
       width:100%;
       height:100%;
@@ -405,80 +406,110 @@
       overflow:visible;
     }
 
-    .piocaMarkerPulse{
+    .piocaPinAzulFondo{
       position:absolute;
       left:50%;
       top:43%;
-      width:86%;
-      aspect-ratio:1 / 1;
-      border-radius:50%;
-      border:2px solid rgba(23,105,170,.62);
-      transform:translate(-50%,-50%) scale(.72);
-      opacity:.68;
-      animation:piocaMarkerPulse 1.65s ease-out infinite;
-      box-sizing:border-box;
-    }
-
-    .piocaMarkerPulse::after{
-      content:"";
-      position:absolute;
-      inset:-7px;
-      border-radius:50%;
-      border:2px solid rgba(23,105,170,.28);
-      opacity:.75;
-      animation:piocaMarkerPulse2 1.65s ease-out infinite;
-    }
-
-    @keyframes piocaMarkerPulse{
-      0%{
-        transform:translate(-50%,-50%) scale(.72);
-        opacity:.72;
-      }
-      70%{
-        transform:translate(-50%,-50%) scale(1.34);
-        opacity:.12;
-      }
-      100%{
-        transform:translate(-50%,-50%) scale(1.34);
-        opacity:0;
-      }
-    }
-
-    @keyframes piocaMarkerPulse2{
-      0%{
-        transform:scale(.78);
-        opacity:.62;
-      }
-      75%{
-        transform:scale(1.22);
-        opacity:.06;
-      }
-      100%{
-        transform:scale(1.22);
-        opacity:0;
-      }
-    }
-
-    .piocaMarkerPin{
-      position:absolute;
-      left:50%;
-      top:50%;
-      width:76%;
+      width:74%;
       height:82%;
       transform:translate(-50%,-50%);
-      filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));
+      z-index:1;
+      filter:drop-shadow(0 4px 5px rgba(0,0,0,.24));
     }
 
-    .piocaMarkerPin svg{
+    .piocaPinAzulFondo svg{
       width:100%;
       height:100%;
       display:block;
       overflow:visible;
     }
 
-    .piocaVehiculoRotador{
-      transform-origin:50% 40%;
-      will-change:transform;
+    .piocaCamionetaLateral{
+      position:absolute;
+      left:50%;
+      top:42%;
+      width:96%;
+      height:48%;
+      transform:translate(-50%,-50%);
+      z-index:3;
+      filter:drop-shadow(0 3px 4px rgba(0,0,0,.28));
+    }
+
+    .piocaCamionetaLateral svg{
+      width:100%;
+      height:100%;
+      display:block;
+      overflow:visible;
+    }
+
+    .piocaPuntoExacto{
+      position:absolute;
+      left:50%;
+      bottom:0;
+      width:14%;
+      aspect-ratio:1 / 1;
+      min-width:11px;
+      min-height:11px;
+      transform:translateX(-50%);
+      border-radius:50%;
+      background:#1769aa;
+      border:3px solid #ffffff;
+      box-shadow:
+        0 0 0 3px rgba(23,105,170,.30),
+        0 3px 8px rgba(0,0,0,.24);
+      z-index:6;
+      animation:piocaPuntoTitila 1.05s ease-in-out infinite;
+    }
+
+    .piocaPuntoExacto::before,
+    .piocaPuntoExacto::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:100%;
+      height:100%;
+      border-radius:50%;
+      border:2px solid rgba(23,105,170,.48);
+      transform:translate(-50%,-50%) scale(1);
+      pointer-events:none;
+    }
+
+    .piocaPuntoExacto::before{
+      animation:piocaPuntoOnda 1.35s ease-out infinite;
+    }
+
+    .piocaPuntoExacto::after{
+      animation:piocaPuntoOnda 1.35s ease-out .42s infinite;
+    }
+
+    @keyframes piocaPuntoTitila{
+      0%,100%{
+        opacity:1;
+        transform:translateX(-50%) scale(1);
+      }
+
+      50%{
+        opacity:.54;
+        transform:translateX(-50%) scale(.84);
+      }
+    }
+
+    @keyframes piocaPuntoOnda{
+      0%{
+        opacity:.58;
+        transform:translate(-50%,-50%) scale(1);
+      }
+
+      75%{
+        opacity:.06;
+        transform:translate(-50%,-50%) scale(2.35);
+      }
+
+      100%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(2.35);
+      }
     }
 
     .leaflet-control-attribution{
@@ -1268,10 +1299,7 @@
   const DISTANCIA_MINIMA_GIRO_METROS =
     6;
 
-  let ultimoRumboMarcador =
-    0;
-
-  function dimensionesMarcadorPorZoom(){
+  function dimensionesPinLateralPorZoom(){
 
     const zoom =
       mapa && typeof mapa.getZoom === "function"
@@ -1279,109 +1307,166 @@
         : 16;
 
     /*
-      Tamaño visual reforzado:
-      el pin debe verse claramente como una camioneta piOca.
-      Se reduce al alejar el mapa, pero nunca queda diminuto.
+      Mantenerlo visible y legible.
+      A menor zoom baja progresivamente, sin quedar diminuto.
     */
     if(zoom >= 18){
-      return {ancho:74, alto:92};
+      return {ancho:104, alto:118};
     }
 
     if(zoom >= 16){
-      return {ancho:66, alto:82};
+      return {ancho:94, alto:108};
     }
 
     if(zoom >= 14){
-      return {ancho:58, alto:72};
+      return {ancho:84, alto:96};
     }
 
     if(zoom >= 12){
-      return {ancho:50, alto:62};
+      return {ancho:74, alto:86};
     }
 
-    return {ancho:44, alto:54};
+    return {ancho:66, alto:76};
   }
 
-  function crearIconoPiocaMarcador(
-    rumbo
-  ){
+  function crearIconoPiocaLateral(){
 
     const dimensiones =
-      dimensionesMarcadorPorZoom();
-
-    const angulo =
-      Number.isFinite(rumbo)
-        ? rumbo
-        : 0;
+      dimensionesPinLateralPorZoom();
 
     const html =
-      '<div class="piocaMarkerWrap">' +
-        '<div class="piocaMarkerPulse"></div>' +
+      '<div class="piocaPinLateralWrap">' +
 
-        '<div class="piocaMarkerPin">' +
-          '<svg viewBox="0 0 86 110" ' +
+        /* PIN AZUL GRANDE DETRÁS */
+        '<div class="piocaPinAzulFondo">' +
+          '<svg viewBox="0 0 100 128" ' +
           'xmlns="http://www.w3.org/2000/svg" ' +
           'aria-hidden="true">' +
 
-            /* Gota azul exterior, más ancha y visible */
-            '<path d="M43 3 C21 3 7 17 7 39 ' +
-            'C7 60 24 77 43 102 ' +
-            'C62 77 79 60 79 39 ' +
-            'C79 17 65 3 43 3 Z" ' +
-            'fill="#1769aa" stroke="#0d4f8d" stroke-width="2.4"/>' +
+            '<path d="M50 4 ' +
+            'C24 4 7 22 7 48 ' +
+            'C7 73 28 91 50 123 ' +
+            'C72 91 93 73 93 48 ' +
+            'C93 22 76 4 50 4 Z" ' +
+            'fill="#1769aa" ' +
+            'stroke="#0d4f8d" ' +
+            'stroke-width="3"/>' +
 
-            /* Círculo blanco interior */
-            '<circle cx="43" cy="38" r="29" ' +
-            'fill="#ffffff" stroke="#dce8f2" stroke-width="1.8"/>' +
-
-            /* Camioneta rotativa grande */
-            '<g class="piocaVehiculoRotador" ' +
-            'style="transform:rotate(' +
-            angulo +
-            'deg);">' +
-
-              /* flecha frontal */
-              '<path d="M43 9 L50 18 L45.5 17 L45.5 22 ' +
-              'L40.5 22 L40.5 17 L36 18 Z" ' +
-              'fill="#1769aa"/>' +
-
-              /* cuerpo camioneta */
-              '<rect x="30" y="19" width="26" height="48" rx="7" ' +
-              'fill="#ffffff" stroke="#1f2a33" stroke-width="1.6"/>' +
-
-              /* parabrisas */
-              '<path d="M33 28 Q43 23 53 28 L51.5 34 ' +
-              'Q43 31.2 34.5 34 Z" fill="#1d2328"/>' +
-
-              /* luneta trasera */
-              '<path d="M34.5 56 Q43 58.8 51.5 56 L52.3 62 ' +
-              'Q43 64.4 33.7 62 Z" fill="#30373d"/>' +
-
-              /* espejos */
-              '<rect x="26.7" y="34" width="3.7" height="7" rx="1.2" fill="#20272d"/>' +
-              '<rect x="55.6" y="34" width="3.7" height="7" rx="1.2" fill="#20272d"/>' +
-
-              /* luces traseras */
-              '<rect x="31.5" y="56" width="2.6" height="5.4" rx="1" fill="#e43b32"/>' +
-              '<rect x="51.9" y="56" width="2.6" height="5.4" rx="1" fill="#e43b32"/>' +
-
-              /* marca piOca más legible */
-              '<text x="43" y="47.5" text-anchor="middle" ' +
-              'font-family="Arial,sans-serif" font-size="8.2" ' +
-              'font-weight="700" fill="#1769aa">piOca</text>' +
-
-            '</g>' +
-
-            /* Punto naranja EXACTO de posición en la punta de la gota */
-            '<circle cx="43" cy="102" r="7.2" ' +
-            'fill="#ff8a00" stroke="#ffffff" stroke-width="3"/>' +
-
-            /* Halo naranja para reforzar referencia exacta */
-            '<circle cx="43" cy="102" r="11.5" ' +
-            'fill="none" stroke="rgba(255,138,0,.42)" stroke-width="2.6"/>' +
+            '<circle cx="50" cy="47" r="29" ' +
+            'fill="#ffffff"/>' +
 
           '</svg>' +
         '</div>' +
+
+        /* CAMIONETA BLANCA DE COSTADO, DELANTE DEL PIN */
+        '<div class="piocaCamionetaLateral">' +
+          '<svg viewBox="0 0 150 70" ' +
+          'xmlns="http://www.w3.org/2000/svg" ' +
+          'aria-hidden="true">' +
+
+            /* sombra inferior */
+            '<ellipse cx="74" cy="62" rx="63" ry="4" ' +
+            'fill="rgba(0,0,0,.18)"/>' +
+
+            /* cuerpo principal */
+            '<path d="M18 16 ' +
+            'Q19 10 27 10 ' +
+            'H88 ' +
+            'Q97 10 104 16 ' +
+            'L119 31 ' +
+            'Q123 35 132 36 ' +
+            'Q138 37 139 44 ' +
+            'V50 ' +
+            'Q139 55 134 55 ' +
+            'H126 ' +
+            'Q124 43 112 43 ' +
+            'Q100 43 98 55 ' +
+            'H52 ' +
+            'Q50 43 38 43 ' +
+            'Q26 43 24 55 ' +
+            'H18 ' +
+            'Q12 55 12 49 ' +
+            'V24 ' +
+            'Q12 17 18 16 Z" ' +
+            'fill="#ffffff" ' +
+            'stroke="#d7dce1" ' +
+            'stroke-width="2"/>' +
+
+            /* cabina */
+            '<path d="M88 13 ' +
+            'Q97 13 103 18 ' +
+            'L117 32 ' +
+            'H91 Z" ' +
+            'fill="#1b1f23"/>' +
+
+            /* borde vidrio */
+            '<path d="M91 15 ' +
+            'Q98 15 103 20 ' +
+            'L113 30 ' +
+            'H92 Z" ' +
+            'fill="#20262b"/>' +
+
+            /* línea puerta */
+            '<line x1="87" y1="12" x2="87" y2="54" ' +
+            'stroke="#c9ced3" stroke-width="1.5"/>' +
+
+            /* manija */
+            '<rect x="90" y="35" width="9" height="3.5" rx="1.5" ' +
+            'fill="#1f2327"/>' +
+
+            /* paragolpes delantero */
+            '<path d="M132 42 H140 V52 H132 Z" ' +
+            'fill="#202326"/>' +
+
+            /* paragolpes trasero */
+            '<path d="M9 40 H16 V53 H9 Z" ' +
+            'fill="#202326"/>' +
+
+            /* faro trasero */
+            '<rect x="13" y="27" width="4" height="12" rx="1.2" ' +
+            'fill="#e43b32"/>' +
+
+            /* ruedas */
+            '<circle cx="38" cy="54" r="12" fill="#111"/>' +
+            '<circle cx="38" cy="54" r="6.2" fill="#bfc4c8"/>' +
+            '<circle cx="38" cy="54" r="4.5" fill="#eceff1"/>' +
+
+            '<circle cx="112" cy="54" r="12" fill="#111"/>' +
+            '<circle cx="112" cy="54" r="6.2" fill="#bfc4c8"/>' +
+            '<circle cx="112" cy="54" r="4.5" fill="#eceff1"/>' +
+
+            /* moldura lateral */
+            '<rect x="55" y="42" width="42" height="4" rx="2" ' +
+            'fill="#202326"/>' +
+
+            /* marca piOca */
+            '<text x="53" y="32" ' +
+            'text-anchor="middle" ' +
+            'font-family="Arial,sans-serif" ' +
+            'font-size="18" ' +
+            'font-weight="700" ' +
+            'fill="#111827">pi</text>' +
+
+            '<text x="66.5" y="32" ' +
+            'text-anchor="middle" ' +
+            'font-family="Arial,sans-serif" ' +
+            'font-size="18" ' +
+            'font-weight="700" ' +
+            'fill="#1769aa">O</text>' +
+
+            '<text x="82" y="32" ' +
+            'text-anchor="middle" ' +
+            'font-family="Arial,sans-serif" ' +
+            'font-size="18" ' +
+            'font-weight="700" ' +
+            'fill="#111827">ca</text>' +
+
+          '</svg>' +
+        '</div>' +
+
+        /* PUNTO EXACTO: coincide con la coordenada real */
+        '<div class="piocaPuntoExacto"></div>' +
+
       '</div>';
 
     return L.divIcon({
@@ -1393,7 +1478,7 @@
       ],
       iconAnchor:[
         dimensiones.ancho / 2,
-        dimensiones.alto * 0.94
+        dimensiones.alto * 0.95
       ],
       popupAnchor:[
         0,
@@ -1402,16 +1487,14 @@
     });
   }
 
-  function actualizarIconoVehiculo(){
+  function actualizarIconoPiocaLateral(){
 
     if(!marcador){
       return;
     }
 
     marcador.setIcon(
-      crearIconoPiocaMarcador(
-        ultimoRumboMarcador
-      )
+      crearIconoPiocaLateral()
     );
   }
 
@@ -1872,9 +1955,6 @@
     ultimaVelocidadValidaKmh =
       null;
 
-    ultimoRumboMarcador =
-      0;
-
     quitarMarcador();
 
     mapaWrap.style.display =
@@ -1954,9 +2034,6 @@
 
     ultimaVelocidadValidaKmh =
       null;
-
-    ultimoRumboMarcador =
-      0;
 
     detenerReloj();
 
@@ -3040,7 +3117,7 @@
       mapa.on(
         "zoomend",
         function(){
-          actualizarIconoVehiculo();
+          actualizarIconoPiocaLateral();
         }
       );
     }
@@ -3096,9 +3173,7 @@
           [lat, lon],
           {
             icon:
-              crearIconoPiocaMarcador(
-                ultimoRumboMarcador
-              ),
+              crearIconoPiocaLateral(),
             rotateWithView:false
           }
         )
@@ -3122,40 +3197,6 @@
         createdAt;
 
       return;
-    }
-
-    /*
-      La camioneta rota según el rumbo real.
-      La flecha está en la trompa.
-    */
-    if(
-      ultimoPuntoServidor
-    ){
-
-      const distanciaParaRumbo =
-        distanciaMetros(
-          ultimoPuntoServidor.lat,
-          ultimoPuntoServidor.lon,
-          lat,
-          lon
-        );
-
-      if(
-        Number.isFinite(
-          distanciaParaRumbo
-        ) &&
-        distanciaParaRumbo >= 4
-      ){
-        ultimoRumboMarcador =
-          rumboGrados(
-            ultimoPuntoServidor.lat,
-            ultimoPuntoServidor.lon,
-            lat,
-            lon
-          );
-
-        actualizarIconoVehiculo();
-      }
     }
 
     const velocidadInterna =
