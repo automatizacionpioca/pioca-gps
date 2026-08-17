@@ -386,13 +386,221 @@
     }
 
     /* ==========================================================
-       PIN ROJO TRADICIONAL TIPO GOOGLE MAPS
-       La punta inferior representa la posición GPS.
+       PRUEBA DE 6 PINS
+       La punta inferior es la coordenada GPS.
        ========================================================== */
 
-    .piocaPinIcon{background:transparent !important;border:0 !important;}
-    .piocaPin{position:relative;width:30px;height:30px;background:#e94235;border:2px solid #ffffff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-sizing:border-box;box-shadow:0 2px 5px rgba(0,0,0,.34),0 1px 2px rgba(0,0,0,.18);}
-    .piocaPin::after{content:"";position:absolute;width:10px;height:10px;left:8px;top:8px;background:#ffffff;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);}
+    .piocaPinIcon{
+      background:transparent !important;
+      border:0 !important;
+    }
+
+    .pinBase{
+      position:relative;
+      box-sizing:border-box;
+      filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));
+    }
+
+    /* 1 - R15 ACTUAL */
+    .pin1{
+      width:30px;
+      height:30px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+    }
+
+    .pin1::after{
+      content:"";
+      position:absolute;
+      width:10px;
+      height:10px;
+      left:8px;
+      top:8px;
+      background:#fff;
+      border-radius:50%;
+    }
+
+    /* 2 - CLÁSICO FINO */
+    .pin2{
+      width:25px;
+      height:34px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 46% 46% / 42% 42% 58% 58%;
+      clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);
+    }
+
+    .pin2::after{
+      content:"";
+      position:absolute;
+      width:9px;
+      height:9px;
+      left:6px;
+      top:7px;
+      background:#fff;
+      border-radius:50%;
+    }
+
+    /* 3 - GOOGLE-LIKE MODERNO */
+    .pin3{
+      width:30px;
+      height:38px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 48% 48% / 40% 40% 60% 60%;
+      clip-path:polygon(4% 0,96% 0,100% 65%,50% 100%,0 65%);
+    }
+
+    .pin3::after{
+      content:"";
+      position:absolute;
+      width:11px;
+      height:11px;
+      left:7.5px;
+      top:7px;
+      background:#fff;
+      border-radius:50%;
+    }
+
+    /* 4 - COMPACTO */
+    .pin4{
+      width:24px;
+      height:29px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 48% 48% / 42% 42% 58% 58%;
+      clip-path:polygon(3% 0,97% 0,100% 68%,50% 100%,0 68%);
+    }
+
+    .pin4::after{
+      content:"";
+      position:absolute;
+      width:8px;
+      height:8px;
+      left:6px;
+      top:6px;
+      background:#fff;
+      border-radius:50%;
+    }
+
+    /* 5 - CENTRO GRANDE */
+    .pin5{
+      width:31px;
+      height:39px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 48% 48% / 40% 40% 60% 60%;
+      clip-path:polygon(3% 0,97% 0,100% 65%,50% 100%,0 65%);
+    }
+
+    .pin5::after{
+      content:"";
+      position:absolute;
+      width:15px;
+      height:15px;
+      left:6px;
+      top:5px;
+      background:#fff;
+      border-radius:50%;
+      box-shadow:inset 0 0 0 2px rgba(233,66,53,.12);
+    }
+
+    /* 6 - SÓLIDO */
+    .pin6{
+      width:28px;
+      height:36px;
+      background:#e94235;
+      border:2px solid #fff;
+      border-radius:50% 50% 48% 48% / 40% 40% 60% 60%;
+      clip-path:polygon(3% 0,97% 0,100% 66%,50% 100%,0 66%);
+    }
+
+    /* Selector de prueba */
+    #selectorPins{
+      display:none;
+      flex:0 0 auto;
+      margin:0 0 10px;
+      padding:8px 7px;
+      border:1px solid #dce4eb;
+      border-radius:14px;
+      background:#fff;
+      box-shadow:0 4px 12px rgba(25,45,65,.06);
+    }
+
+    #selectorPins.activo{
+      display:block;
+    }
+
+    .selectorPinsTitulo{
+      text-align:center;
+      font-size:10px;
+      font-weight:700;
+      color:#64717d;
+      margin-bottom:7px;
+      letter-spacing:.25px;
+    }
+
+    .selectorPinsFila{
+      display:grid;
+      grid-template-columns:repeat(6,1fr);
+      gap:5px;
+    }
+
+    .pinOpcion{
+      border:1px solid #e1e7ed;
+      background:#f8fafc;
+      border-radius:10px;
+      min-height:58px;
+      padding:4px 2px 3px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:3px;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    .pinOpcion.seleccionado{
+      border-color:#1769aa;
+      background:#eef6fc;
+      box-shadow:inset 0 0 0 1px #1769aa;
+    }
+
+    .pinMiniWrap{
+      height:40px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .pinMiniEscala{
+      transform:scale(.78);
+      transform-origin:center center;
+    }
+
+    .pinNumero{
+      font-size:10px;
+      font-weight:800;
+      color:#26384a;
+      line-height:1;
+    }
+
+    @media(max-width:430px){
+      .selectorPinsFila{
+        gap:3px;
+      }
+
+      .pinOpcion{
+        min-height:54px;
+      }
+
+      .pinMiniEscala{
+        transform:scale(.70);
+      }
+    }
 
     .leaflet-control-attribution{
       background:rgba(255,255,255,.72) !important;
@@ -1129,6 +1337,48 @@
     Seguimiento no disponible
   </div>
 
+  <div id="selectorPins">
+
+    <div class="selectorPinsTitulo">
+      PRUEBA DE PIN · TOCÁ UN NÚMERO
+    </div>
+
+    <div class="selectorPinsFila">
+
+      <button class="pinOpcion seleccionado" type="button" data-pin="1">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin1"></span></span></span>
+        <span class="pinNumero">1</span>
+      </button>
+
+      <button class="pinOpcion" type="button" data-pin="2">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin2"></span></span></span>
+        <span class="pinNumero">2</span>
+      </button>
+
+      <button class="pinOpcion" type="button" data-pin="3">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin3"></span></span></span>
+        <span class="pinNumero">3</span>
+      </button>
+
+      <button class="pinOpcion" type="button" data-pin="4">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin4"></span></span></span>
+        <span class="pinNumero">4</span>
+      </button>
+
+      <button class="pinOpcion" type="button" data-pin="5">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin5"></span></span></span>
+        <span class="pinNumero">5</span>
+      </button>
+
+      <button class="pinOpcion" type="button" data-pin="6">
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin6"></span></span></span>
+        <span class="pinNumero">6</span>
+      </button>
+
+    </div>
+
+  </div>
+
   <div id="mapaWrap">
 
     <div id="mapaContenedor">
@@ -1352,14 +1602,148 @@
   const DISTANCIA_MAXIMA_MICROPROYECCION_METROS =
     15;
 
-  const iconoPioca =
-    L.divIcon({
+  let pinSeleccionado =
+    1;
+
+  const selectorPins =
+    document.getElementById(
+      "selectorPins"
+    );
+
+  function datosPin(
+    numero
+  ){
+
+    switch(
+      Number(numero)
+    ){
+
+      case 2:
+        return {
+          clase:"pin2",
+          size:[25,34],
+          anchor:[12.5,34],
+          popup:[0,-34]
+        };
+
+      case 3:
+        return {
+          clase:"pin3",
+          size:[30,38],
+          anchor:[15,38],
+          popup:[0,-38]
+        };
+
+      case 4:
+        return {
+          clase:"pin4",
+          size:[24,29],
+          anchor:[12,29],
+          popup:[0,-29]
+        };
+
+      case 5:
+        return {
+          clase:"pin5",
+          size:[31,39],
+          anchor:[15.5,39],
+          popup:[0,-39]
+        };
+
+      case 6:
+        return {
+          clase:"pin6",
+          size:[28,36],
+          anchor:[14,36],
+          popup:[0,-36]
+        };
+
+      case 1:
+      default:
+        return {
+          clase:"pin1",
+          size:[30,42],
+          anchor:[15,39],
+          popup:[0,-38]
+        };
+    }
+  }
+
+  function crearIconoPin(
+    numero
+  ){
+
+    const d =
+      datosPin(
+        numero
+      );
+
+    return L.divIcon({
       className:"piocaPinIcon",
-      html:'<div class="piocaPin"></div>',
-      iconSize:[30,42],
-      iconAnchor:[15,39],
-      popupAnchor:[0,-38]
+      html:
+        '<div class="pinBase ' +
+        d.clase +
+        '"></div>',
+      iconSize:d.size,
+      iconAnchor:d.anchor,
+      popupAnchor:d.popup
     });
+  }
+
+  function elegirPin(
+    numero
+  ){
+
+    pinSeleccionado =
+      Number(
+        numero
+      ) || 1;
+
+    document
+      .querySelectorAll(
+        ".pinOpcion"
+      )
+      .forEach(
+        function(btn){
+
+          btn.classList.toggle(
+            "seleccionado",
+            Number(
+              btn.dataset.pin
+            ) ===
+              pinSeleccionado
+          );
+        }
+      );
+
+    if(
+      marcador
+    ){
+      marcador.setIcon(
+        crearIconoPin(
+          pinSeleccionado
+        )
+      );
+    }
+  }
+
+  document
+    .querySelectorAll(
+      ".pinOpcion"
+    )
+    .forEach(
+      function(btn){
+
+        btn.addEventListener(
+          "click",
+          function(){
+            elegirPin(
+              btn.dataset.pin
+            );
+          }
+        );
+      }
+    );
 
   function detenerReloj(){
 
@@ -1854,6 +2238,14 @@
     mapaWrap.style.display =
       "none";
 
+    if(
+      selectorPins
+    ){
+      selectorPins.classList.remove(
+        "activo"
+      );
+    }
+
     horaLlegadaBox.style.display =
       "none";
 
@@ -1911,6 +2303,14 @@
 
     mapaWrap.style.display =
       "none";
+
+    if(
+      selectorPins
+    ){
+      selectorPins.classList.remove(
+        "activo"
+      );
+    }
 
     ocultarHoraLlegada();
 
@@ -3102,6 +3502,14 @@
       "flex";
 
     if(
+      selectorPins
+    ){
+      selectorPins.classList.add(
+        "activo"
+      );
+    }
+
+    if(
       mapa
     ){
       requestAnimationFrame(
@@ -3224,7 +3632,10 @@
         L.marker(
           [lat, lon],
           {
-            icon:iconoPioca,
+            icon:
+              crearIconoPin(
+                pinSeleccionado
+              ),
             rotateWithView:false
           }
         )
