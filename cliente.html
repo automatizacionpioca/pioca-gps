@@ -422,6 +422,57 @@
       border-radius:50%;
     }
 
+    /*
+      Punto rojo de posición:
+      queda exactamente en la punta inferior del pin
+      y pulsa como señal de ubicación.
+    */
+    .pinPosicionPunto{
+      position:absolute;
+      left:50%;
+      bottom:-7px;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:#e94235;
+      border:2px solid #fff;
+      transform:translateX(-50%);
+      box-sizing:border-box;
+      z-index:5;
+      box-shadow:
+        0 1px 3px rgba(0,0,0,.24);
+    }
+
+    .pinPosicionPunto::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:rgba(233,66,53,.34);
+      transform:translate(-50%,-50%) scale(1);
+      animation:piocaPinPulse 1.55s ease-out infinite;
+    }
+
+    @keyframes piocaPinPulse{
+      0%{
+        opacity:.75;
+        transform:translate(-50%,-50%) scale(1);
+      }
+
+      70%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(3.1);
+      }
+
+      100%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(3.1);
+      }
+    }
+
     /* 2 - CLÁSICO FINO */
     .pin2{
       width:25px;
@@ -1346,7 +1397,7 @@
     <div class="selectorPinsFila">
 
       <button class="pinOpcion seleccionado" type="button" data-pin="1">
-        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin1"></span></span></span>
+        <span class="pinMiniWrap"><span class="pinMiniEscala"><span class="pinBase pin1"><span class="pinPosicionPunto"></span></span></span></span>
         <span class="pinNumero">1</span>
       </button>
 
@@ -1662,9 +1713,9 @@
       default:
         return {
           clase:"pin1",
-          size:[30,42],
-          anchor:[15,39],
-          popup:[0,-38]
+          size:[30,49],
+          anchor:[15,46],
+          popup:[0,-45]
         };
     }
   }
@@ -1678,12 +1729,19 @@
         numero
       );
 
+    const punto =
+      Number(numero) === 1
+        ? '<span class="pinPosicionPunto"></span>'
+        : '';
+
     return L.divIcon({
       className:"piocaPinIcon",
       html:
         '<div class="pinBase ' +
         d.clase +
-        '"></div>',
+        '">' +
+        punto +
+        '</div>',
       iconSize:d.size,
       iconAnchor:d.anchor,
       popupAnchor:d.popup
