@@ -1,0 +1,111 @@
+name: Compilar piOca Android APK V9 Definitiva 2s
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Generar proyecto base V7
+        shell: bash
+        run: |
+          set -e
+          python3 -m pip install --quiet pyyaml
+          python3 - <<'PY'
+          import yaml
+          from pathlib import Path
+
+          source = Path(".github/workflows/build-android-apk.yml")
+
+          with source.open("r", encoding="utf-8") as f:
+              data = yaml.safe_load(f)
+
+          script = None
+
+          for step in data["jobs"]["build"]["steps"]:
+              name = str(step.get("name", ""))
+
+              if name.startswith("Crear proyecto Android v7"):
+                  script = step.get("run")
+                  break
+
+          if not script:
+              raise SystemExit(
+                  "ERROR: No encontré el bloque de generación V7 "
+                  "en build-android-apk.yml"
+              )
+
+          Path("/tmp/pioca-genera-v7.sh").write_text(
+              script,
+              encoding="utf-8"
+          )
+          PY
+
+          bash /tmp/pioca-genera-v7.sh
+
+      - name: Aplicar V8 silencio No molestar
+        run: |
+          python3 .github/scripts/patch_android_v8_silencio.py
+
+      - name: Aplicar V9 GPS cada 2 segundos
+        run: |
+          python3 .github/scripts/patch_android_v9_gps_2s.py
+
+      - name: Verificar configuración V9
+        shell: bash
+        run: |
+          set -e
+
+          SERVICE="android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java"
+          GRADLE="android-pioca/app/build.gradle"
+
+          grep -q 'versionCode 9' "$GRADLE"
+          grep -q 'versionName "0.9-definitiva-2s"' "$GRADLE"
+          grep -q 'GPS_PROVIDER' "$SERVICE"
+          grep -q '2000L' "$SERVICE"
+          grep -q 'piOca V9 DEFINITIVA' "$SERVICE"
+          grep -q 'maybeEnableDnd' "$SERVICE"
+
+          echo "Configuración V9 verificada."
+
+      - name: Compilar APK debug
+        working-directory: android-pioca
+        run: |
+          gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK
+        run: |
+          cp \
+            android-pioca/app/build/outputs/apk/debug/app-debug.apk \
+            piOca-Seguimiento-V9-definitiva-2s.apk
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-Seguimiento-APK-V9-definitiva-2s
+          path: piOca-Seguimiento-V9-definitiva-2s.apk
+          retention-days: 90
