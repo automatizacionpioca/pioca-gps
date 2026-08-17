@@ -22,6 +22,100 @@ gradle.write_text(t, encoding="utf-8")
 
 t = service.read_text(encoding="utf-8")
 
+# ==========================================================
+# V9 - PROTECCIÓN CONTRA POSICIONES GPS ATRASADAS / CACHEADAS
+# ==========================================================
+
+field_anchor = "private Location last;"
+
+if field_anchor not in t:
+    raise SystemExit(
+        "ERROR PATCH V9: no encontre campo Location last"
+    )
+
+stale_fields = """private Location last;
+
+              private volatile long lastAcceptedLocationElapsedNanos = 0L;
+
+              private static final long MAX_LOCATION_AGE_MS =
+                      6000L;
+"""
+
+t = t.replace(
+    field_anchor,
+    stale_fields,
+    1
+)
+
+onloc_anchor = """@Override
+              public void onLocationChanged(
+                      Location l
+              ) {
+"""
+
+if onloc_anchor not in t:
+    raise SystemExit(
+        "ERROR PATCH V9: no encontre onLocationChanged"
+    )
+
+onloc_filtered = """@Override
+              public void onLocationChanged(
+                      Location l
+              ) {
+
+                  if (l == null) {
+                      return;
+                  }
+
+                  /*
+                   * V9:
+                   * evita puntos viejos/cacheados entregados por Android
+                   * al reactivar pantalla/proveedor/proceso.
+                   */
+                  try {
+
+                      long nowElapsed =
+                              android.os.SystemClock.elapsedRealtimeNanos();
+
+                      long locationElapsed =
+                              l.getElapsedRealtimeNanos();
+
+                      if (locationElapsed > 0L) {
+
+                          long ageMs =
+                                  Math.max(
+                                          0L,
+                                          (nowElapsed - locationElapsed)
+                                          / 1000000L
+                                  );
+
+                          if (ageMs > MAX_LOCATION_AGE_MS) {
+                              return;
+                          }
+
+                          if (
+                                  lastAcceptedLocationElapsedNanos > 0L
+                                  && locationElapsed
+                                  <= lastAcceptedLocationElapsedNanos
+                          ) {
+                              return;
+                          }
+
+                          lastAcceptedLocationElapsedNanos =
+                                  locationElapsed;
+                      }
+
+                  } catch (Exception ignored) {
+                  }
+
+"""
+
+t = t.replace(
+    onloc_anchor,
+    onloc_filtered,
+    1
+)
+
 t = re_once(t, r'(LocationManager\.GPS_PROVIDER,\s*)5000L', r'\g<1>2000L', "GPS_PROVIDER 2 segundos", re.S)
 t = re_once(t, r'(LocationManager\.NETWORK_PROVIDER,\s*)10000L', r'\g<1>5000L', "NETWORK_PROVIDER 5 segundos", re.S)
 t = re_once(t, r'(System\.currentTimeMillis\(\)\s*-\s*lastOk\s*>=\s*)5000L', r'\g<1>2000L', "envio normal cada 2 segundos", re.S)
@@ -51,7 +145,10 @@ for token in [
     "5000L",
     "maybeEnableDnd",
     "piOca V9 DEFINITIVA",
-    "private void startLocations() {"
+    "private void startLocations() {",
+    "lastAcceptedLocationElapsedNanos",
+    "MAX_LOCATION_AGE_MS",
+    "getElapsedRealtimeNanos"
 ]:
     if token not in t:
         raise SystemExit("ERROR PATCH V9: falta token esperado " + token)
