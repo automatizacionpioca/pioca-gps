@@ -75,7 +75,7 @@ jobs:
         run: |
           python3 .github/scripts/patch_android_v9_gps_2s.py
 
-      - name: Verificar configuración V9
+      - name: Verificar configuración V9 estable
         shell: bash
         run: |
           set -e
@@ -84,13 +84,14 @@ jobs:
           GRADLE="android-pioca/app/build.gradle"
 
           grep -q 'versionCode 9' "$GRADLE"
-          grep -q 'versionName "0.9-definitiva-2s"' "$GRADLE"
+          grep -q 'versionName "0.9-estable-2s"' "$GRADLE"
           grep -q 'GPS_PROVIDER' "$SERVICE"
           grep -q '2000L' "$SERVICE"
-          grep -q 'piOca V9 DEFINITIVA' "$SERVICE"
+          grep -q 'NETWORK_PROVIDER' "$SERVICE"
+          grep -q '10000L' "$SERVICE"
           grep -q 'maybeEnableDnd' "$SERVICE"
 
-          echo "Configuración V9 verificada."
+          echo "Configuración V9 estable verificada."
 
       - name: Compilar APK debug
         working-directory: android-pioca
@@ -99,13 +100,11 @@ jobs:
 
       - name: Preparar APK
         run: |
-          cp \
-            android-pioca/app/build/outputs/apk/debug/app-debug.apk \
-            piOca-Seguimiento-V9-definitiva-2s.apk
+          cp             android-pioca/app/build/outputs/apk/debug/app-debug.apk             piOca-Seguimiento-V9-estable-2s.apk
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: piOca-Seguimiento-APK-V9-definitiva-2s
-          path: piOca-Seguimiento-V9-definitiva-2s.apk
+          name: piOca-Seguimiento-APK-V9-estable-2s
+          path: piOca-Seguimiento-V9-estable-2s.apk
           retention-days: 90
