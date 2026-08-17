@@ -594,6 +594,25 @@
       SUPABASE_KEY
     );
 
+  /*
+    V9 - ARQUITECTURA DE EMISOR ÚNICO
+
+    Dentro de la APK Android:
+    - TrackingService nativo es la única fuente que escribe GPS.
+    - El WebView funciona solamente como panel de control.
+    - Se evita que navigator.geolocation/heartbeat JS reenvíen
+      una posición vieja al desbloquear el teléfono.
+
+    Fuera de la APK (navegador común), el GPS JavaScript
+    sigue disponible como respaldo.
+  */
+  const usaGpsNativo =
+    !!(
+      window.PiocaNative &&
+      typeof window.PiocaNative.startTracking ===
+        "function"
+    );
+
   const bloqueGPS =
     document.getElementById("bloqueGPS");
 
@@ -1883,6 +1902,16 @@
     intento
   ){
 
+    /*
+      En Android nativo esta función NO escribe posiciones.
+      TrackingService es la única fuente de verdad.
+    */
+    if(
+      usaGpsNativo
+    ){
+      return;
+    }
+
     if(
       !posicion ||
       seguimientoFinalizado
@@ -2039,6 +2068,16 @@
 
   function iniciarHeartbeat(){
 
+    /*
+      En APK no existe heartbeat GPS JavaScript.
+      Evita reenvíos de ultimaPosicion al despertar el WebView.
+    */
+    if(
+      usaGpsNativo
+    ){
+      return;
+    }
+
     if(
       heartbeatId !==
       null
@@ -2084,6 +2123,45 @@
   }
 
   function iniciarGPS(){
+
+    /*
+      Dentro de la APK, el GPS ya está iniciado por
+      iniciarNativoConServidor() -> PiocaNative.startTracking().
+
+      No abrimos navigator.geolocation porque generaría
+      un segundo emisor independiente.
+    */
+    if(
+      usaGpsNativo
+    ){
+
+      if(
+        watchId !== null
+      ){
+        try{
+          navigator.geolocation.clearWatch(
+            watchId
+          );
+        }catch(e){}
+
+        watchId =
+          null;
+      }
+
+      ultimaPosicion =
+        null;
+
+      estado.textContent =
+        "🟢 GPS NATIVO ACTIVO";
+
+      estado.style.background =
+        "#dff5e1";
+
+      btnReactivar.style.display =
+        "none";
+
+      return;
+    }
 
     if(
       seguimientoFinalizado ||
@@ -2362,7 +2440,40 @@
 
   btnReactivar.addEventListener(
     "click",
-    iniciarGPS
+    async function(){
+
+      if(
+        usaGpsNativo
+      ){
+        try{
+          const s =
+            await obtenerEstadoServidor();
+
+          if(
+            s &&
+            s.state === "active" &&
+            s.status === "active"
+          ){
+            await iniciarNativoConServidor(
+              s
+            );
+
+            estado.textContent =
+              "🟢 GPS NATIVO ACTIVO";
+
+            estado.style.background =
+              "#dff5e1";
+
+            btnReactivar.style.display =
+              "none";
+          }
+        }catch(e){}
+
+        return;
+      }
+
+      iniciarGPS();
+    }
   );
 
   btnRestar5.addEventListener(
