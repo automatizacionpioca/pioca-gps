@@ -38,14 +38,14 @@ t = replace_once(
     t,
     "versionCode 8",
     "versionCode 9",
-    "versionCode 9"
+    "versionCode"
 )
 
-t = re_once(
+t = replace_once(
     t,
-    r'versionName\\s+"0\\.8[^"]*"',
+    'versionName "0.8-silencio"',
     'versionName "0.9-definitiva-2s"',
-    "versionName V9"
+    "versionName"
 )
 
 gradle.write_text(
@@ -62,55 +62,50 @@ t = service.read_text(
     encoding="utf-8"
 )
 
-
-# GPS_PROVIDER: 5 s -> 2 s
 t = re_once(
     t,
-    r'(LocationManager\\.GPS_PROVIDER,\\s*)5000L',
-    r'\\g<1>2000L',
+    r'(LocationManager\.GPS_PROVIDER,\s*)5000L',
+    r'\g<1>2000L',
     "GPS_PROVIDER 2 segundos",
     re.S
 )
 
-# NETWORK_PROVIDER: 10 s -> 5 s
 t = re_once(
     t,
-    r'(LocationManager\\.NETWORK_PROVIDER,\\s*)10000L',
-    r'\\g<1>5000L',
+    r'(LocationManager\.NETWORK_PROVIDER,\s*)10000L',
+    r'\g<1>5000L',
     "NETWORK_PROVIDER 5 segundos",
     re.S
 )
 
-# Envío normal: 5 s -> 2 s
 t = re_once(
     t,
-    r'(System\\.currentTimeMillis\\(\\)\\s*-\\s*lastOk\\s*>=\\s*)5000L',
-    r'\\g<1>2000L',
-    "envío normal cada 2 segundos",
+    r'(System\.currentTimeMillis\(\)\s*-\s*lastOk\s*>=\s*)5000L',
+    r'\g<1>2000L',
+    "envio normal cada 2 segundos",
     re.S
 )
 
-# Heartbeat de respaldo: 10 s -> 5 s
 t = re_once(
     t,
-    r'(last\\s*!=\\s*null\\s*&&\\s*now\\s*-\\s*lastOk\\s*>=\\s*)10000L',
-    r'\\g<1>5000L',
+    r'(last\s*!=\s*null\s*&&\s*now\s*-\s*lastOk\s*>=\s*)10000L',
+    r'\g<1>5000L',
     "heartbeat respaldo 5 segundos",
     re.S
 )
 
-marker = """
+marker = '''
               /*
                * piOca V9 DEFINITIVA
                *
                * GPS_PROVIDER: 2 s
-               * envío normal: 2 s
+               * envio normal: 2 s
                * NETWORK_PROVIDER respaldo: 5 s
-               * heartbeat sin envío exitoso: 5 s
+               * heartbeat sin envio exitoso: 5 s
                *
-               * La lógica de No molestar de V8 permanece intacta.
+               * La logica de No molestar de V8 permanece intacta.
                */
-"""
+'''
 
 anchor = "              private void startLocations() {"
 
@@ -126,7 +121,8 @@ for token in [
     "LocationManager.NETWORK_PROVIDER",
     "2000L",
     "5000L",
-    "maybeEnableDnd"
+    "maybeEnableDnd",
+    "piOca V9 DEFINITIVA"
 ]:
     if token not in t:
         raise SystemExit(
@@ -140,6 +136,6 @@ service.write_text(
 
 print(
     "V9 aplicada correctamente: "
-    "GPS 2 s + envío 2 s + respaldo 5 s, "
+    "GPS 2 s + envio 2 s + respaldo 5 s, "
     "manteniendo V8 No molestar."
 )
