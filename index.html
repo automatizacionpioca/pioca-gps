@@ -1154,6 +1154,27 @@
         trackingCode
       );
 
+
+    /*
+      V9:
+      El botón de WhatsApp depende de que exista un seguimiento
+      activo con link válido, NO de los envíos GPS JavaScript.
+
+      Dentro de la APK el GPS lo transmite TrackingService nativo,
+      por eso "envios" del WebView puede quedar en 0 aunque el
+      seguimiento esté funcionando perfectamente.
+    */
+    if(
+      trackingCode &&
+      linkCliente
+    ){
+      btnWhatsapp.style.display =
+        "block";
+    }else{
+      btnWhatsapp.style.display =
+        "none";
+    }
+
     localStorage.setItem(
       "pioca_tracking_code",
       trackingCode
@@ -2002,15 +2023,6 @@
         .toLocaleTimeString(
           "es-AR"
         );
-
-      if(
-        envios >=
-        1
-      ){
-
-        btnWhatsapp.style.display =
-          "block";
-      }
 
       ocultarError();
 
