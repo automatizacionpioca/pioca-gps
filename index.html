@@ -509,8 +509,8 @@
       </div>
 
       <div>
-        <strong>Envíos:</strong>
-        <span id="gpsEnvios">0</span>
+        <strong>Transmisión:</strong>
+        <span id="gpsEnvios">⏳ ESPERANDO GPS</span>
       </div>
 
     </div>
@@ -707,6 +707,12 @@
   let clienteFueVisualizado = false;
   let clienteUltimaVistaMs = null;
 
+  /*
+    V9 - monitor visual de transmisión real.
+    Se alimenta exclusivamente de last_position_at recibido desde Supabase.
+  */
+  let ultimoReporteServidorMs = null;
+
   let nombreCliente = "";
   let telefonoCliente = "";
   let linkCliente = "";
@@ -806,6 +812,84 @@
     btnSumar5.textContent =
       "+ 1 min";
   }
+
+  function pintarEstadoTransmision(){
+
+    if(
+      !ultimoReporteServidorMs ||
+      !Number.isFinite(
+        ultimoReporteServidorMs
+      )
+    ){
+      enviosTxt.textContent =
+        "⏳ ESPERANDO GPS";
+
+      enviosTxt.style.color =
+        "#6f5a13";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    const segundos =
+      Math.max(
+        0,
+        Math.floor(
+          (
+            Date.now() -
+            ultimoReporteServidorMs
+          ) / 1000
+        )
+      );
+
+    if(
+      segundos <= 5
+    ){
+      enviosTxt.textContent =
+        "🟢 REPORTANDO · hace " +
+        segundos +
+        " s";
+
+      enviosTxt.style.color =
+        "#1f7a35";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    if(
+      segundos <= 10
+    ){
+      enviosTxt.textContent =
+        "🟡 DEMORA · hace " +
+        segundos +
+        " s";
+
+      enviosTxt.style.color =
+        "#9a6a00";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    enviosTxt.textContent =
+      "🔴 SIN REPORTE · hace " +
+      segundos +
+      " s";
+
+    enviosTxt.style.color =
+      "#b3262e";
+
+    enviosTxt.style.fontWeight =
+      "800";
+  }
+
 
   function textoHace(ms){
     if(!ms || !Number.isFinite(ms)){
@@ -1280,10 +1364,17 @@
       s.last_position_at
     ){
 
+      ultimoReporteServidorMs =
+        new Date(
+          s.last_position_at
+        ).getTime();
+
       hora.textContent =
         formatearFechaHora(
           s.last_position_at
         );
+
+      pintarEstadoTransmision();
     }
   }
 
@@ -2013,11 +2104,6 @@
       enviando =
         false;
 
-      envios++;
-
-      enviosTxt.textContent =
-        envios;
-
       envioHora.textContent =
         new Date()
         .toLocaleTimeString(
@@ -2539,6 +2625,7 @@
       function(){
         if(!seguimientoFinalizado){
           pintarHoraCliente();
+          pintarEstadoTransmision();
         }
       },
       1000
