@@ -386,94 +386,13 @@
     }
 
     /* ==========================================================
-       INDICADOR DE VEHÍCULO PIOCA
-       - camioneta vista desde arriba
-       - punto azul EXACTAMENTE en la trompa = posición GPS real
-       - cono azul nace desde ese punto y apunta hacia el rumbo
+       PIN ROJO TRADICIONAL TIPO GOOGLE MAPS
+       La punta inferior representa la posición GPS.
        ========================================================== */
 
-    .piocaVehiculoIcon{
-      background:transparent !important;
-      border:0 !important;
-      overflow:visible !important;
-    }
-
-    .piocaVehiculoWrap{
-      position:relative;
-      width:100%;
-      height:100%;
-      overflow:visible;
-      pointer-events:none;
-      transform-origin:50% 20%;
-    }
-
-    .piocaRumboCono{
-      position:absolute;
-      left:50%;
-      top:20%;
-      width:50%;
-      height:62%;
-      transform:translate(-50%,-100%);
-      transform-origin:50% 100%;
-      clip-path:polygon(50% 100%, 8% 0%, 92% 0%);
-      background:linear-gradient(
-        to top,
-        rgba(47,111,232,.52) 0%,
-        rgba(68,132,248,.24) 55%,
-        rgba(68,132,248,.04) 100%
-      );
-      z-index:1;
-    }
-
-    .piocaRumboCono::after{
-      content:"";
-      position:absolute;
-      left:50%;
-      bottom:0;
-      width:18%;
-      height:100%;
-      transform:translateX(-50%);
-      background:linear-gradient(
-        to top,
-        rgba(38,97,222,.52),
-        rgba(68,132,248,.02)
-      );
-    }
-
-    .piocaPuntoTrompa{
-      position:absolute;
-      left:50%;
-      top:20%;
-      width:11px;
-      height:11px;
-      border-radius:50%;
-      background:#2d6fe8;
-      border:2px solid #ffffff;
-      box-sizing:border-box;
-      transform:translate(-50%,-50%);
-      box-shadow:
-        0 0 0 3px rgba(45,111,232,.20),
-        0 2px 5px rgba(0,0,0,.20);
-      z-index:5;
-    }
-
-    .piocaCamionetaTop{
-      position:absolute;
-      left:50%;
-      top:20%;
-      width:44%;
-      height:72%;
-      transform:translate(-50%,0);
-      z-index:3;
-      filter:drop-shadow(0 3px 3px rgba(0,0,0,.28));
-    }
-
-    .piocaCamionetaTop svg{
-      width:100%;
-      height:100%;
-      display:block;
-      overflow:visible;
-    }
+    .piocaPinIcon{background:transparent !important;border:0 !important;}
+    .piocaPin{position:relative;width:30px;height:30px;background:#e94235;border:2px solid #ffffff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-sizing:border-box;box-shadow:0 2px 5px rgba(0,0,0,.34),0 1px 2px rgba(0,0,0,.18);}
+    .piocaPin::after{content:"";position:absolute;width:10px;height:10px;left:8px;top:8px;background:#ffffff;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);}
 
     .leaflet-control-attribution{
       background:rgba(255,255,255,.72) !important;
@@ -1365,12 +1284,6 @@
   let animacionMarcadorId =
     null;
 
-  /*
-    Animación independiente para la orientación del mapa.
-    No interfiere con la transición de posición del vehículo.
-  */
-  let animacionBearingId =
-    null;
 
   let ultimoCreatedAtServidor =
     null;
@@ -1439,391 +1352,14 @@
   const DISTANCIA_MAXIMA_MICROPROYECCION_METROS =
     15;
 
-  let ultimoRumboVisual =
-    0;
-
-  /*
-    Mientras todavía no existe un rumbo real confirmado,
-    la camioneta se muestra alineada con la orientación
-    actual del mapa (visualmente apunta hacia arriba).
-
-    Una vez confirmado movimiento real, se utiliza rumbo GPS.
-  */
-  let rumboRealConfirmado =
-    false;
-
-  /*
-    Mientras no haya rumbo GPS confirmado, usamos una referencia
-    estable tomada del mapa. Así el pin no vuelve a "norte"
-    después de un zoom y conserva la orientación relativa elegida
-    por el usuario al rotar el mapa.
-  */
-  let bearingReferenciaSinRumbo =
-    null;
-
-  let candidatoRumboPendiente =
-    null;
-
-  let candidatosMovimientoConsecutivos =
-    0;
-
-  const MOVIMIENTOS_CONSECUTIVOS_PARA_RUMBO =
-    2;
-
-  const DIFERENCIA_MAXIMA_CANDIDATOS_RUMBO =
-    38;
-
-  function dimensionesVehiculoPorZoom(){
-
-    const zoom =
-      mapa &&
-      typeof mapa.getZoom === "function"
-        ? mapa.getZoom()
-        : 16;
-
-    if(zoom >= 18){
-      return {ancho:68, alto:88};
-    }
-
-    if(zoom >= 16){
-      return {ancho:62, alto:80};
-    }
-
-    if(zoom >= 14){
-      return {ancho:56, alto:72};
-    }
-
-    if(zoom >= 12){
-      return {ancho:50, alto:64};
-    }
-
-    return {ancho:45, alto:58};
-  }
-
-  function obtenerBearingMapa(){
-
-    if(
-      !mapa
-    ){
-      return 0;
-    }
-
-    try{
-
-      if(
-        typeof mapa.getBearing === "function"
-      ){
-        const bearing =
-          Number(
-            mapa.getBearing()
-          );
-
-        if(
-          Number.isFinite(
-            bearing
-          )
-        ){
-          return bearing;
-        }
-      }
-
-    }catch(e){}
-
-    /*
-      Fallback defensivo para versiones del plugin
-      que expongan el bearing internamente.
-    */
-    const interno =
-      Number(
-        mapa._bearing
-      );
-
-    return Number.isFinite(
-      interno
-    )
-      ? interno
-      : 0;
-  }
-
-  function rumboVisualEnPantalla(){
-
-    /*
-      R13 - MODO NAVEGACIÓN:
-      la camioneta permanece visualmente apuntando hacia arriba.
-      Es el MAPA el que rota debajo de ella para representar
-      el rumbo real de circulación.
-    */
-    return 0;
-  }
-
-  function detenerAnimacionBearing(){
-
-    if(
-      animacionBearingId !== null
-    ){
-
-      cancelAnimationFrame(
-        animacionBearingId
-      );
-
-      animacionBearingId =
-        null;
-    }
-  }
-
-  function normalizarBearing(
-    grados
-  ){
-
-    return (
-      grados %
-      360 +
-      360
-    ) % 360;
-  }
-
-  function deltaBearingCorto(
-    desde,
-    hasta
-  ){
-
-    return (
-      hasta -
-      desde +
-      540
-    ) %
-    360 -
-    180;
-  }
-
-  function orientarMapaAlRumbo(
-    rumboObjetivo
-  ){
-
-    if(
-      !mapa ||
-      !rumboRealConfirmado ||
-      !Number.isFinite(
-        rumboObjetivo
-      ) ||
-      typeof mapa.setBearing !==
-        "function"
-    ){
-      return;
-    }
-
-    detenerAnimacionBearing();
-
-    const bearingInicial =
-      normalizarBearing(
-        obtenerBearingMapa()
-      );
-
-    /*
-      IMPORTANTE R14:
-      leaflet-rotate necesita el bearing opuesto al heading
-      para que el rumbo geográfico del vehículo quede
-      visualmente hacia arriba en pantalla.
-
-      Ejemplo:
-      vehículo rumbo Este = 90°
-      mapa bearing = -90°
-    */
-    const bearingFinal =
-      normalizarBearing(
-        -rumboObjetivo
-      );
-
-    const delta =
-      deltaBearingCorto(
-        bearingInicial,
-        bearingFinal
-      );
-
-    if(
-      Math.abs(
-        delta
-      ) <
-      1
-    ){
-
-      mapa.setBearing(
-        bearingFinal
-      );
-
-      return;
-    }
-
-    /*
-      Rotación breve y suave.
-      Evita el giro instantáneo del mapa cuando cambia de calle.
-    */
-    const duracionMs =
-      320;
-
-    const inicio =
-      performance.now();
-
-    function pasoBearing(
-      ahora
-    ){
-
-      const progreso =
-        Math.min(
-          1,
-          (
-            ahora -
-            inicio
-          ) /
-          duracionMs
-        );
-
-      const suave =
-        progreso *
-        progreso *
-        (
-          3 -
-          2 *
-          progreso
-        );
-
-      const bearingActual =
-        normalizarBearing(
-          bearingInicial +
-          delta *
-          suave
-        );
-
-      try{
-
-        mapa.setBearing(
-          bearingActual
-        );
-
-      }catch(e){}
-
-      /*
-        La camioneta permanece arriba mientras
-        las calles rotan debajo de ella.
-      */
-      actualizarIconoVehiculo();
-
-      if(
-        progreso <
-        1
-      ){
-
-        animacionBearingId =
-          requestAnimationFrame(
-            pasoBearing
-          );
-
-      }else{
-
-        try{
-          mapa.setBearing(
-            bearingFinal
-          );
-        }catch(e){}
-
-        actualizarIconoVehiculo();
-
-        animacionBearingId =
-          null;
-      }
-    }
-
-    animacionBearingId =
-      requestAnimationFrame(
-        pasoBearing
-      );
-  }
-
-
-  function crearIconoVehiculoPioca(){
-
-    const dimensiones =
-      dimensionesVehiculoPorZoom();
-
-    const rumboPantalla =
-      rumboVisualEnPantalla();
-
-    const html =
-      '<div class="piocaVehiculoWrap" ' +
-      'style="transform:rotate(' +
-      rumboPantalla +
-      'deg);">' +
-
-        '<div class="piocaRumboCono"></div>' +
-        '<div class="piocaPuntoTrompa"></div>' +
-
-        '<div class="piocaCamionetaTop">' +
-          '<svg viewBox="0 0 42 82" ' +
-          'xmlns="http://www.w3.org/2000/svg" ' +
-          'aria-hidden="true">' +
-
-            '<rect x="7" y="5" width="28" height="71" rx="9" ' +
-            'fill="#ffffff" stroke="#1c2731" stroke-width="2"/>' +
-
-            '<path d="M10 18 Q21 12 32 18 L30.5 27 ' +
-            'Q21 23.5 11.5 27 Z" fill="#1f252a"/>' +
-
-            '<path d="M11.5 61 Q21 64.5 30.5 61 L31.5 69 ' +
-            'Q21 72.5 10.5 69 Z" fill="#2d3439"/>' +
-
-            '<rect x="3.5" y="28" width="4" height="10" rx="1.5" ' +
-            'fill="#20272d"/>' +
-            '<rect x="34.5" y="28" width="4" height="10" rx="1.5" ' +
-            'fill="#20272d"/>' +
-
-            '<rect x="8.5" y="63" width="3" height="7" rx="1" ' +
-            'fill="#e33b32"/>' +
-            '<rect x="30.5" y="63" width="3" height="7" rx="1" ' +
-            'fill="#e33b32"/>' +
-
-            '<text x="21" y="48" text-anchor="middle" ' +
-            'font-family="Arial,sans-serif" font-size="10" ' +
-            'font-weight="700" fill="#1769aa">piOca</text>' +
-
-          '</svg>' +
-        '</div>' +
-
-      '</div>';
-
-    return L.divIcon({
-      className:"piocaVehiculoIcon",
-      html:html,
-      iconSize:[
-        dimensiones.ancho,
-        dimensiones.alto
-      ],
-
-      /*
-        La coordenada GPS queda clavada en el punto azul
-        de la trompa. Todo el conjunto gira alrededor de allí.
-      */
-      iconAnchor:[
-        dimensiones.ancho / 2,
-        dimensiones.alto * 0.20
-      ],
-
-      popupAnchor:[
-        0,
-        -(dimensiones.alto * 0.42)
-      ]
+  const iconoPioca =
+    L.divIcon({
+      className:"piocaPinIcon",
+      html:'<div class="piocaPin"></div>',
+      iconSize:[30,42],
+      iconAnchor:[15,39],
+      popupAnchor:[0,-38]
     });
-  }
-
-  function actualizarIconoVehiculo(){
-
-    if(!marcador){
-      return;
-    }
-
-    marcador.setIcon(
-      crearIconoVehiculoPioca()
-    );
-  }
 
   function detenerReloj(){
 
@@ -2293,8 +1829,6 @@
 
     detenerAnimacionMarcador();
 
-    detenerAnimacionBearing();
-
     ultimaActualizacionMs =
       null;
 
@@ -2310,20 +1844,10 @@
     ultimaVelocidadValidaKmh =
       null;
 
-    ultimoRumboVisual =
-      0;
 
-    rumboRealConfirmado =
-      false;
 
-    bearingReferenciaSinRumbo =
-      null;
 
-    candidatoRumboPendiente =
-      null;
 
-    candidatosMovimientoConsecutivos =
-      0;
 
     quitarMarcador();
 
@@ -2405,26 +1929,14 @@
     ultimaVelocidadValidaKmh =
       null;
 
-    ultimoRumboVisual =
-      0;
 
-    rumboRealConfirmado =
-      false;
 
-    bearingReferenciaSinRumbo =
-      null;
 
-    candidatoRumboPendiente =
-      null;
 
-    candidatosMovimientoConsecutivos =
-      0;
 
     detenerReloj();
 
     detenerAnimacionMarcador();
-
-    detenerAnimacionBearing();
 
     quitarMarcador();
   }
@@ -2712,189 +2224,6 @@
     }
 
     return diferencia;
-  }
-
-  function suavizarRumboVisual(
-    rumboActual,
-    rumboObjetivo
-  ){
-
-    if(
-      !Number.isFinite(
-        rumboActual
-      )
-    ){
-      return rumboObjetivo;
-    }
-
-    let delta =
-      (
-        rumboObjetivo -
-        rumboActual +
-        540
-      ) %
-      360 -
-      180;
-
-    delta =
-      Math.max(
-        -55,
-        Math.min(
-          55,
-          delta
-        )
-      );
-
-    return (
-      rumboActual +
-      delta +
-      360
-    ) % 360;
-  }
-
-  function evaluarRumboReal(
-    latNuevo,
-    lonNuevo,
-    velocidadKmh
-  ){
-
-    if(
-      !ultimoPuntoServidor
-    ){
-      return ultimoRumboVisual;
-    }
-
-    const distancia =
-      distanciaMetros(
-        ultimoPuntoServidor.lat,
-        ultimoPuntoServidor.lon,
-        latNuevo,
-        lonNuevo
-      );
-
-    /*
-      Si está parado o casi parado, NO tocamos el rumbo.
-      Además descartamos cualquier candidato pendiente.
-      La camioneta queda mirando exactamente hacia donde venía.
-    */
-    if(
-      !Number.isFinite(
-        distancia
-      ) ||
-      distancia <
-        DISTANCIA_MINIMA_CAMBIO_RUMBO_METROS ||
-      !Number.isFinite(
-        velocidadKmh
-      ) ||
-      velocidadKmh <
-        VELOCIDAD_MINIMA_CAMBIO_RUMBO_KMH
-    ){
-
-      candidatoRumboPendiente =
-        null;
-
-      candidatosMovimientoConsecutivos =
-        0;
-
-      return ultimoRumboVisual;
-    }
-
-    const rumboCalculado =
-      rumboGrados(
-        ultimoPuntoServidor.lat,
-        ultimoPuntoServidor.lon,
-        latNuevo,
-        lonNuevo
-      );
-
-    /*
-      Para evitar que una deriva GPS aislada haga girar
-      la camioneta, exigimos dos segmentos consecutivos
-      compatibles antes de aceptar un rumbo nuevo.
-    */
-    if(
-      candidatoRumboPendiente ===
-        null
-    ){
-
-      candidatoRumboPendiente =
-        rumboCalculado;
-
-      candidatosMovimientoConsecutivos =
-        1;
-
-      return ultimoRumboVisual;
-    }
-
-    const diferenciaCandidatos =
-      diferenciaRumboGrados(
-        candidatoRumboPendiente,
-        rumboCalculado
-      );
-
-    if(
-      diferenciaCandidatos >
-        DIFERENCIA_MAXIMA_CANDIDATOS_RUMBO
-    ){
-
-      candidatoRumboPendiente =
-        rumboCalculado;
-
-      candidatosMovimientoConsecutivos =
-        1;
-
-      return ultimoRumboVisual;
-    }
-
-    candidatosMovimientoConsecutivos +=
-      1;
-
-    candidatoRumboPendiente =
-      rumboCalculado;
-
-    if(
-      candidatosMovimientoConsecutivos <
-        MOVIMIENTOS_CONSECUTIVOS_PARA_RUMBO
-    ){
-      return ultimoRumboVisual;
-    }
-
-    /*
-      Primer rumbo real confirmado:
-      lo tomamos directamente para que la camioneta se alinee
-      rápido con la calle/sentido de circulación.
-
-      Luego los cambios normales siguen suavizados.
-    */
-    if(
-      !rumboRealConfirmado
-    ){
-
-      rumboRealConfirmado =
-        true;
-
-      bearingReferenciaSinRumbo =
-        null;
-
-      candidatosMovimientoConsecutivos =
-        0;
-
-      candidatoRumboPendiente =
-        null;
-
-      return rumboCalculado;
-    }
-
-    candidatosMovimientoConsecutivos =
-      0;
-
-    candidatoRumboPendiente =
-      null;
-
-    return suavizarRumboVisual(
-      ultimoRumboVisual,
-      rumboCalculado
-    );
   }
 
   function esGiroProtegidoBajaVelocidad(
@@ -3795,7 +3124,7 @@
             zoomControl:true,
             rotate:true,
             bearing:0,
-            touchRotate:false,
+            touchRotate:true,
             rotateControl:false,
             attributionControl:false
           }
@@ -3842,26 +3171,6 @@
         100
       );
 
-      if(
-        !rumboRealConfirmado
-      ){
-        bearingReferenciaSinRumbo =
-          obtenerBearingMapa();
-      }
-
-      mapa.on(
-        "zoomend",
-        function(){
-
-          /*
-            R12:
-            zoom totalmente libre.
-            No recentramos el mapa automáticamente.
-            Sólo actualizamos el tamaño del icono.
-          */
-          actualizarIconoVehiculo();
-        }
-      );
 
     }
   }
@@ -3915,8 +3224,7 @@
         L.marker(
           [lat, lon],
           {
-            icon:
-              crearIconoVehiculoPioca(),
+            icon:iconoPioca,
             rotateWithView:false
           }
         )
@@ -3949,89 +3257,18 @@
         createdAt
       );
 
-    /*
-      Primero comprobamos si esta lectura representa
-      un giro protegido real. Esa detección ya usa:
-      - velocidad baja
-      - distancia mínima
-      - cambio angular fuerte
-      - puntos anteriores reales
-
-      Por eso, si se confirma un giro, NO debemos esperar
-      una segunda lectura para orientar el mapa.
-    */
-    const giroProtegido =
-      esGiroProtegidoBajaVelocidad(
-        lat,
-        lon,
-        velocidadInterna
-      );
-
-    let rumboNuevo =
-      ultimoRumboVisual;
-
-    if(
-      giroProtegido &&
-      ultimoPuntoServidor
-    ){
-
-      /*
-        R14:
-        nuevo rumbo confirmado por giro real.
-        Lo tomamos inmediatamente para que mapa y calle
-        roten antes de que la camioneta parezca desplazarse
-        lateralmente.
-      */
-      rumboNuevo =
-        rumboGrados(
-          ultimoPuntoServidor.lat,
-          ultimoPuntoServidor.lon,
-          lat,
-          lon
-        );
-
-      rumboRealConfirmado =
-        true;
-
-      candidatoRumboPendiente =
-        null;
-
-      candidatosMovimientoConsecutivos =
-        0;
-
-    }else{
-
-      rumboNuevo =
-        evaluarRumboReal(
-          lat,
-          lon,
-          velocidadInterna
-        );
-    }
-
-    ultimoRumboVisual =
-      rumboNuevo;
-
-    /*
-      Heading-up real:
-      la camioneta permanece hacia arriba.
-      Es el mapa el que se orienta al sentido de circulación.
-    */
-    if(
-      rumboRealConfirmado
-    ){
-      orientarMapaAlRumbo(
-        ultimoRumboVisual
-      );
-    }
-
-    actualizarIconoVehiculo();
-
     const duracion =
       calcularDuracionAnimacion(
         lat,
         lon,
         createdAt,
+        velocidadInterna
+      );
+
+    const giroProtegido =
+      esGiroProtegidoBajaVelocidad(
+        lat,
+        lon,
         velocidadInterna
       );
 
@@ -4060,10 +3297,20 @@
         }
       );
 
+      const rumboPostGiro =
+        ultimoPuntoServidor
+          ? rumboGrados(
+              ultimoPuntoServidor.lat,
+              ultimoPuntoServidor.lon,
+              lat,
+              lon
+            )
+          : 0;
+
       iniciarMicroproyeccionPostGiro(
         lat,
         lon,
-        rumboNuevo
+        rumboPostGiro
       );
 
     }else{
