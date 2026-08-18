@@ -728,6 +728,80 @@
     errorBox.style.display = "none";
   }
 
+
+  /*
+    V9 - FINALIZACION SEGURA
+
+    Un campo state/status ausente, null o temporalmente incompleto
+    NUNCA se interpreta como seguimiento finalizado.
+
+    El cierre automático ocurre solamente cuando Supabase devuelve
+    explícitamente "finished".
+  */
+  function servidorConfirmaFinalizado(
+    s
+  ){
+
+    if(
+      !s ||
+      typeof s !== "object"
+    ){
+      return false;
+    }
+
+    const state =
+      String(
+        s.state || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    const status =
+      String(
+        s.status || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    return (
+      state === "finished" ||
+      status === "finished"
+    );
+  }
+
+
+  function servidorConfirmaActivo(
+    s
+  ){
+
+    if(
+      !s ||
+      typeof s !== "object" ||
+      servidorConfirmaFinalizado(s)
+    ){
+      return false;
+    }
+
+    const state =
+      String(
+        s.state || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    const status =
+      String(
+        s.status || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    return (
+      state === "active" ||
+      status === "active"
+    );
+  }
+
   function mostrarEstadoHora(texto,ok){
     horaEstado.textContent = texto;
     horaEstado.style.display = "block";
@@ -1587,23 +1661,9 @@
       }
 
       if(
-        s.state &&
-        s.state !==
-          "active"
-      ){
-
-        mostrarFinalizado(
-          s.client_name ||
-          ""
-        );
-
-        return false;
-      }
-
-      if(
-        s.status &&
-        s.status !==
-          "active"
+        servidorConfirmaFinalizado(
+          s
+        )
       ){
 
         mostrarFinalizado(
@@ -1725,10 +1785,9 @@
       }
 
       if(
-        s.state !==
-          "active" ||
-        s.status !==
-          "active"
+        servidorConfirmaFinalizado(
+          s
+        )
       ){
 
         mostrarFinalizado(
@@ -1736,6 +1795,19 @@
           nombreCliente
         );
 
+        return;
+      }
+
+      if(
+        !servidorConfirmaActivo(
+          s
+        )
+      ){
+
+        /*
+          Respuesta transitoria/incompleta:
+          conservamos el panel y esperamos la próxima sincronización.
+        */
         return;
       }
 
@@ -1825,9 +1897,9 @@
       ){
 
         if(
-          r &&
-          r.state ===
-            "finished"
+          servidorConfirmaFinalizado(
+            r
+          )
         ){
 
           mostrarFinalizado(
@@ -2138,9 +2210,9 @@
           await obtenerEstadoServidor();
 
         if(
-          s &&
-          s.state !==
-            "active"
+          servidorConfirmaFinalizado(
+            s
+          )
         ){
 
           mostrarFinalizado(
@@ -2544,9 +2616,9 @@
           await obtenerEstadoServidor();
 
         if(
-          s &&
-          s.state !==
-            "active"
+          servidorConfirmaFinalizado(
+            s
+          )
         ){
 
           mostrarFinalizado(
