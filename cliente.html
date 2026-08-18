@@ -17,6 +17,14 @@
   >
 
   <style>
+    :root{
+      --pioca-azul:#0833A2;
+      --pioca-verde:#249447;
+      --pioca-rojo:#e94235;
+      --texto:#22303d;
+    }
+
+    *{ box-sizing:border-box; }
 
     html,
     body{
@@ -24,133 +32,194 @@
       padding:0;
       width:100%;
       height:100%;
+      overflow:hidden;
       font-family:Arial,sans-serif;
-      background:#ffffff;
-      color:#1d2a36;
+      background:#eef1f3;
+      color:var(--texto);
     }
 
     body{
-      box-sizing:border-box;
       height:100dvh;
       min-height:100dvh;
-      overflow:hidden;
-      padding:
-        max(10px, env(safe-area-inset-top))
-        12px
-        max(8px, env(safe-area-inset-bottom))
-        12px;
     }
 
     .panel{
+      position:fixed;
+      inset:0;
       width:100%;
-      max-width:620px;
-      height:100%;
-      margin:0 auto;
-      background:#fff;
-      box-sizing:border-box;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
+      height:100dvh;
+      margin:0;
+      padding:0;
+      background:transparent;
+      overflow:hidden;
     }
 
+    /* ==========================================================
+       MAPA FULLSCREEN
+       ========================================================== */
+
+    #mapaWrap{
+      display:none;
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      z-index:1;
+    }
+
+    #mapaContenedor{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+    }
+
+    #mapa{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      border:0;
+      border-radius:0;
+    }
+
+    /* Bajamos los controles + / - para que nunca se pisen con el logo */
+    .leaflet-top.leaflet-left{
+      top:138px !important;
+      left:9px !important;
+    }
+
+    .leaflet-control-zoom{
+      margin:0 !important;
+      box-shadow:0 4px 12px rgba(0,0,0,.15) !important;
+    }
+
+    .leaflet-control-attribution{
+      background:rgba(255,255,255,.68) !important;
+      color:#6f7880 !important;
+      font-size:7px !important;
+      padding:2px 4px !important;
+      opacity:.58;
+    }
+
+    .leaflet-control-attribution a{
+      color:#6f7880 !important;
+      text-decoration:none !important;
+    }
+
+    /* Popup del pin completamente anulado */
+    .leaflet-popup,
+    .leaflet-popup-pane{
+      display:none !important;
+      visibility:hidden !important;
+      pointer-events:none !important;
+    }
+
+    /* ==========================================================
+       LOGO SUPERIOR
+       ========================================================== */
+
     .cabeceraCliente{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:18px;
-      align-items:center;
-      margin-bottom:22px;
-      flex:0 0 auto;
+      position:absolute;
+      z-index:1200;
+      top:max(13px, env(safe-area-inset-top));
+      left:max(13px, env(safe-area-inset-left));
+      width:auto;
+      height:auto;
+      margin:0;
+      display:block;
+      pointer-events:none;
     }
 
     .logo{
-      text-align:center;
+      width:124px;
+      height:124px;
+      min-height:124px;
       margin:0;
+      padding:0;
       display:flex;
       align-items:center;
       justify-content:center;
-      position:relative;
-      min-height:150px;
+      border-radius:50%;
+      background:rgba(255,255,255,.88);
+      border:1px solid rgba(255,255,255,.94);
+      box-shadow:0 6px 20px rgba(20,35,50,.16);
+      backdrop-filter:blur(7px);
+      -webkit-backdrop-filter:blur(7px);
+      overflow:hidden;
     }
 
-    .logo::after{
-      content:"";
-      position:absolute;
-      right:-9px;
-      top:16%;
-      bottom:16%;
-      width:1px;
-      background:#e7edf3;
-    }
+    .logo::after{ display:none; }
 
     .logo img{
-      width:168px;
-      max-width:95%;
-      height:auto;
+      width:120px;
+      height:120px;
+      max-width:120px;
+      object-fit:contain;
       display:block;
     }
 
-    .cabeceraCliente.finalizado{
-      grid-template-columns:1fr;
-      justify-items:center;
-      margin-bottom:18px;
-    }
-
-    .cabeceraCliente.finalizado .logo{
-      width:100%;
-      min-height:150px;
-    }
-
-    .cabeceraCliente.finalizado .logo::after{
-      display:none;
-    }
-
-    .cabeceraCliente.finalizado #horaLlegadaBox{
+    #horaLlegadaBox{
       display:none !important;
     }
 
-    .subtitulo{
-      text-align:center;
-      font-size:16px;
-      color:#444;
-      margin-bottom:18px;
-    }
+    /* ==========================================================
+       SEGUIMIENTO EN VIVO - MISMO CONCEPTO ACTUAL, MÁS COMPACTO
+       ========================================================== */
 
     #estado{
-      flex:0 0 auto;
-      min-height:58px;
-      padding:10px 14px;
-      box-sizing:border-box;
-      background:#fff;
-      border:1px solid #e3e8ee;
-      border-radius:14px;
-      text-align:left;
-      font-size:15px;
-      font-weight:700;
-      margin:0 0 16px 0;
-      box-shadow:
-        0 5px 16px rgba(25,45,65,.07),
-        0 1px 3px rgba(25,45,65,.04);
+      position:absolute;
+      z-index:1202;
+      top:max(14px, env(safe-area-inset-top));
+      right:max(12px, env(safe-area-inset-right));
+      width:230px;
+      max-width:calc(100vw - 158px);
+      min-height:43px;
+      margin:0;
+      padding:7px 9px;
+      border:1px solid #bfe4ca;
+      border-radius:13px;
+      background:rgba(237,249,240,.95);
+      box-shadow:0 5px 15px rgba(25,45,65,.12);
       display:flex;
       align-items:center;
       justify-content:center;
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+      font-weight:700;
     }
 
     .estadoEnVivo{
       width:100%;
       display:grid;
-      grid-template-columns:auto 1fr auto;
+      grid-template-columns:auto minmax(0,1fr) auto;
       align-items:center;
-      gap:10px;
+      gap:7px;
     }
 
     .puntoEnVivo{
       position:relative;
-      width:10px;
-      height:10px;
+      width:20px;
+      height:20px;
+      flex:0 0 20px;
       border-radius:50%;
-      background:#28bf59;
-      flex:0 0 10px;
-      margin-left:4px;
+      background:#2db45a;
+    }
+
+    .puntoEnVivo::before{
+      content:"✓";
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-size:11px;
+      font-weight:700;
+      z-index:1;
     }
 
     .puntoEnVivo::after{
@@ -158,236 +227,122 @@
       position:absolute;
       left:50%;
       top:50%;
-      width:10px;
-      height:10px;
+      width:20px;
+      height:20px;
       border-radius:50%;
-      background:rgba(40,191,89,.34);
+      background:rgba(40,191,89,.25);
       transform:translate(-50%,-50%) scale(1);
       animation:piocaLivePulse 1.7s ease-out infinite;
     }
 
     .estadoTexto{
-      color:#22364a;
+      min-width:0;
+      color:#1f6f3a;
+      font-size:11px;
+      line-height:1.05;
       font-weight:700;
-      font-size:15px;
-      letter-spacing:.05px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
     .estadoBadge{
+      position:relative;
       justify-self:end;
-      padding:6px 10px;
-      border-radius:999px;
-      background:#e8f8ed;
-      color:#28a84f;
-      font-size:10px;
-      font-weight:700;
-      letter-spacing:.35px;
+      padding:4px 18px 4px 5px;
+      color:#29994c;
+      background:transparent;
+      font-size:7.5px;
+      font-weight:800;
+      letter-spacing:.15px;
       white-space:nowrap;
     }
 
-    @keyframes piocaLivePulse{
-      0%{
-        opacity:.8;
-        transform:translate(-50%,-50%) scale(1);
-      }
-
-      70%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(2.7);
-      }
-
-      100%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(2.7);
-      }
-    }
-
-    #horaLlegadaBox{
-      display:none;
-      width:92%;
-      max-width:275px;
-      justify-self:center;
-      overflow:hidden;
-      border:1px solid #e1e7ed;
-      border-radius:16px;
-      background:#fff;
-      box-shadow:
-        0 8px 22px rgba(24,45,65,.10),
-        0 2px 5px rgba(24,45,65,.05);
-    }
-
-    #horaLlegadaTitulo{
-      min-height:56px;
-      padding:10px 14px 9px;
-      box-sizing:border-box;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      text-align:left;
-      color:#5a6671;
-      font-size:11px;
-      line-height:1.25;
-      font-weight:700;
-      letter-spacing:.55px;
-      text-transform:uppercase;
-      background:#fff;
-    }
-
-    #horaLlegadaTitulo::before{
-      content:"◷";
-      width:34px;
-      height:34px;
-      border-radius:50%;
-      background:#1769aa;
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:21px;
-      line-height:1;
-      flex:0 0 34px;
-      box-shadow:0 3px 9px rgba(23,105,170,.22);
-    }
-
-    #horaLlegada{
-      min-height:86px;
-      padding:10px 14px;
-      box-sizing:border-box;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      background:linear-gradient(
-        135deg,
-        #182b3c 0%,
-        #243d53 100%
-      );
-      color:#fff;
-      font-size:34px;
-      font-weight:700;
-      letter-spacing:.7px;
-      animation:piocaHoraBlink 1.7s ease-in-out infinite;
-    }
-
-    @keyframes piocaHoraBlink{
-      0%{
-        opacity:1;
-      }
-
-      50%{
-        opacity:.48;
-      }
-
-      100%{
-        opacity:1;
-      }
-    }
-
-    #mapaWrap{
-      display:none;
-      position:relative;
-      width:100%;
-      flex:1 1 auto;
-      min-height:0;
-      flex-direction:column;
-    }
-
-    #mapaContenedor{
-      position:relative;
-      width:100%;
-      flex:1 1 auto;
-      min-height:220px;
-      display:flex;
-    }
-
-    #mapa{
-      width:100%;
-      flex:1 1 auto;
-      min-height:220px;
-      height:auto;
-      border-radius:18px;
-      overflow:hidden;
-      border:1px solid #e0e5ea;
-      box-sizing:border-box;
-      box-shadow:
-        0 6px 18px rgba(20,45,65,.07);
-    }
-
-    #btnRefrescarPosicion{
+    .estadoBadge::after{
+      content:"";
       position:absolute;
-      right:12px;
-      bottom:12px;
-      z-index:1002;
-      border:1px solid rgba(32,50,70,.16);
-      background:rgba(255,255,255,.95);
-      color:#203246;
-      border-radius:999px;
-      padding:9px 12px;
-      font-family:Arial,sans-serif;
-      font-size:11px;
-      font-weight:700;
-      line-height:1;
-      box-shadow:0 4px 12px rgba(0,0,0,.14);
-      cursor:pointer;
-      -webkit-tap-highlight-color:transparent;
-      backdrop-filter:blur(5px);
-    }
-
-    #btnRefrescarPosicion:active{
-      transform:scale(.97);
-    }
-
-    #btnRefrescarPosicion:disabled{
-      opacity:.62;
-      cursor:default;
-    }
-
-    #fraseServicio{
-      flex:0 0 auto;
-      margin-top:12px;
-      margin-bottom:0;
-      padding:12px 14px;
-      text-align:center;
-      font-size:12px;
-      line-height:1.35;
-      color:#4e5963;
-      font-weight:400;
-      background:#fff;
-      border:1px solid #e2e8ee;
-      border-radius:14px;
-      box-shadow:
-        0 5px 16px rgba(25,45,65,.06);
-      box-sizing:border-box;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-    }
-
-    #fraseServicio::before{
-      content:"◷";
-      width:28px;
-      height:28px;
-      border:2px solid #9ec1e5;
-      color:#1769aa;
+      right:4px;
+      top:50%;
+      width:7px;
+      height:7px;
       border-radius:50%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:16px;
-      flex:0 0 28px;
-      box-sizing:border-box;
+      background:#28bf59;
+      transform:translateY(-50%);
+      box-shadow:0 0 0 3px rgba(40,191,89,.10);
+      animation:piocaLiveDot 1.7s ease-in-out infinite;
     }
 
-    #fraseServicio strong{
-      color:#1769aa;
-      font-weight:700;
+    @keyframes piocaLivePulse{
+      0%{opacity:.8;transform:translate(-50%,-50%) scale(1);}
+      70%,100%{opacity:0;transform:translate(-50%,-50%) scale(2.4);}
+    }
+
+    @keyframes piocaLiveDot{
+      0%,100%{opacity:1;}
+      50%{opacity:.45;}
     }
 
     /* ==========================================================
-       PIN ROJO DEFINITIVO
-       La punta inferior representa la posición GPS.
+       UBICACIÓN ACTUALIZADA - CONSERVA EL LOOK ACTUAL
+       ========================================================== */
+
+    #actualizacionBox{
+      position:absolute;
+      z-index:1201;
+      top:67px;
+      right:max(12px, env(safe-area-inset-right));
+      width:176px;
+      min-width:176px;
+      padding:9px 11px;
+      border-radius:12px;
+      background:linear-gradient(
+        135deg,
+        rgba(22,39,54,.96) 0%,
+        rgba(30,54,74,.96) 100%
+      );
+      color:#4ee07d;
+      box-shadow:0 5px 14px rgba(0,0,0,.20);
+      font-size:10px;
+      font-weight:700;
+      line-height:1.22;
+      pointer-events:none;
+    }
+
+    #actualizacionBox::before{
+      content:"⌖";
+      display:inline-block;
+      margin-right:5px;
+      color:#4ee07d;
+      font-size:15px;
+      vertical-align:-1px;
+    }
+
+    #actualizacionTexto{ display:block; }
+
+    #actualizacionSegundos{
+      display:block;
+      margin-top:2px;
+      font-size:10px;
+    }
+
+    .actualizacionOk{ color:#38e06f !important; }
+    .actualizacionError{ color:#ff4b4b !important; }
+
+    .actualizacionOk #actualizacionTexto{
+      animation:piocaBlink 1.2s ease-in-out infinite;
+    }
+
+    .actualizacionError #actualizacionTexto{
+      animation:piocaBlink 1.1s ease-in-out infinite;
+    }
+
+    @keyframes piocaBlink{
+      0%,100%{opacity:1;}
+      50%{opacity:.48;}
+    }
+
+    /* ==========================================================
+       PIN ACTUAL - EXACTAMENTE EL VIGENTE
        ========================================================== */
 
     .piocaPinIcon{
@@ -401,7 +356,6 @@
       filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));
     }
 
-    /* 1 - R15 ACTUAL */
     .pin1{
       width:30px;
       height:30px;
@@ -423,242 +377,326 @@
       border-radius:50%;
     }
 
-    /*
-      Punto rojo de posición:
-      queda exactamente en la punta inferior del pin
-      y pulsa como señal de ubicación.
-    */
     .pinPosicionPunto{
       position:absolute;
-
-      /*
-        Ajuste fino:
-        - apenas más a la izquierda
-        - un poco más abajo
-        - deja una pequeña luz entre la punta del pin
-          y el punto rojo de señal
-      */
       left:-14px;
       top:28px;
-
       width:13px;
       height:13px;
-
       border-radius:50%;
       background:#e94235;
       border:2px solid #fff;
-
-      /*
-        Compensamos la rotación del pin padre para que
-        el punto se vea circular y no rotado.
-      */
       transform:rotate(45deg);
-
       box-sizing:border-box;
       z-index:6;
-
-      box-shadow:
-        0 1px 3px rgba(0,0,0,.25);
+      box-shadow:0 1px 3px rgba(0,0,0,.25);
     }
 
     .pinPosicionPunto::after{
       content:"";
       position:absolute;
-
       left:50%;
       top:50%;
-
       width:8px;
       height:8px;
-
       border-radius:50%;
       background:rgba(233,66,53,.34);
-
-      transform:
-        translate(-50%,-50%)
-        scale(1);
-
-      animation:
-        piocaPinPulse
-        1.55s
-        ease-out
-        infinite;
+      transform:translate(-50%,-50%) scale(1);
+      animation:piocaPinPulse 1.55s ease-out infinite;
     }
 
     @keyframes piocaPinPulse{
-      0%{
-        opacity:.75;
-        transform:translate(-50%,-50%) scale(1);
-      }
-
-      70%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(3.1);
-      }
-
-      100%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(3.1);
-      }
+      0%{opacity:.75;transform:translate(-50%,-50%) scale(1);}
+      70%,100%{opacity:0;transform:translate(-50%,-50%) scale(3.1);}
     }
 
-    .leaflet-control-attribution{
-      background:rgba(255,255,255,.72) !important;
-      color:#6f7880 !important;
-      font-size:8px !important;
-      line-height:1.15 !important;
-      padding:2px 4px !important;
-      border-radius:0 5px 0 0 !important;
-      box-shadow:none !important;
-      opacity:.62;
-      backdrop-filter:blur(3px);
-    }
+    /* ==========================================================
+       BOTÓN REFRESCAR
+       Se ancla respecto del panel inferior mediante variable CSS.
+       JS actualiza la variable con la altura real del panel.
+       ========================================================== */
 
-    .leaflet-control-attribution a{
-      color:#6f7880 !important;
-      text-decoration:none !important;
-    }
-
-    .leaflet-popup-content{
-      width:145px !important;
-      max-width:145px;
-      text-align:center;
-      line-height:1.2;
-      margin:10px 12px;
-      font-size:11px;
-      color:#203246;
-      font-weight:700;
-    }
-
-    .leaflet-popup-content-wrapper{
-      border-radius:13px;
-      box-shadow:0 8px 18px rgba(0,0,0,.16);
-    }
-
-    #actualizacionBox{
+    #btnRefrescarPosicion{
       position:absolute;
-      top:14px;
       right:14px;
-      z-index:1000;
-      background:linear-gradient(
-        135deg,
-        rgba(22,39,54,.96) 0%,
-        rgba(30,54,74,.96) 100%
+      bottom:calc(
+        var(--pioca-panel-height, 245px) +
+        max(16px, env(safe-area-inset-bottom))
       );
-      color:#4ee07d;
-      padding:10px 13px;
-      border-radius:12px;
-      font-size:11px;
-      font-weight:700;
-      line-height:1.25;
+      z-index:1210;
+      width:auto;
+      margin:0;
+      padding:8px 11px;
+      border:1px solid rgba(32,50,70,.16);
+      border-radius:999px;
+      background:rgba(255,255,255,.91);
+      color:#203246;
+      box-shadow:0 4px 12px rgba(0,0,0,.14);
+      backdrop-filter:blur(7px);
+      -webkit-backdrop-filter:blur(7px);
+      font-family:Arial,sans-serif;
+      font-size:9.5px;
+      line-height:1;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    #btnRefrescarPosicion:active{ transform:scale(.97); }
+    #btnRefrescarPosicion:disabled{ opacity:.62; }
+
+    /* ==========================================================
+       PANEL INFERIOR SEMITRANSPARENTE
+       ========================================================== */
+
+    #piocaTrayectoPanel{
+      position:absolute;
+      z-index:1200;
+      left:16px;
+      right:16px;
+      bottom:max(10px, env(safe-area-inset-bottom));
+      padding:16px 16px 12px;
+      border:1px solid rgba(255,255,255,.92);
+      border-radius:20px;
+      background:rgba(255,255,255,.83);
+      box-shadow:0 9px 28px rgba(17,30,45,.18);
+      backdrop-filter:blur(13px);
+      -webkit-backdrop-filter:blur(13px);
+    }
+
+    #piocaTrayectoCabecera{
+      display:block;
+      width:100%;
+      margin:0 0 15px;
+    }
+
+    #piocaTrayectoTitulo{
+      margin:0;
       text-align:left;
-      box-shadow:0 5px 14px rgba(0,0,0,.20);
-      pointer-events:none;
-      min-width:145px;
+      color:#202c38;
+      font-size:18px;
+      line-height:1.08;
+      font-weight:900;
+      letter-spacing:.15px;
+      text-transform:uppercase;
     }
 
-    #actualizacionBox::before{
-      content:"⌖";
+    #piocaTrayectoTitulo::before{
+      content:"⌁";
       display:inline-block;
-      margin-right:6px;
-      color:#4ee07d;
-      font-size:16px;
-      vertical-align:-1px;
+      margin-right:7px;
+      color:var(--pioca-azul);
+      font-size:23px;
+      font-weight:900;
+      vertical-align:-2px;
     }
 
-    #actualizacionTexto{
+    #piocaEtaLinea{
+      display:block;
+      margin-top:8px;
+      text-align:center;
+      color:#39434d;
+      font-size:12.5px;
+      line-height:1.15;
+    }
+
+    #piocaEtaHora{
+      display:inline-block;
+      margin-left:7px;
+      color:var(--pioca-azul);
+      font-size:27px;
+      line-height:1;
+      font-weight:900;
+      vertical-align:-2px;
+      white-space:nowrap;
+    }
+
+    /* ==========================================================
+       4 ETAPAS - GRID FIJO, SIN SELECTORES AMBIGUOS
+       ========================================================== */
+
+    #piocaTrayecto{
+      position:relative;
+      width:100%;
+      height:119px;
+      margin:0;
+    }
+
+    #piocaLineaBase{
+      position:absolute;
+      left:8%;
+      right:8%;
+      top:25px;
+      height:4px;
+      border-radius:999px;
+      background:rgba(82,92,104,.26);
+    }
+
+    #piocaLineaProgreso{
+      position:absolute;
+      left:8%;
+      top:25px;
+      width:28%;
+      height:4px;
+      border-radius:999px;
+      background:var(--pioca-azul);
+      transition:width .55s cubic-bezier(.22,.75,.25,1);
+    }
+
+    .piocaEtapa{
+      position:absolute;
+      top:17px;
+      width:23%;
+      transform:translateX(-50%);
+      text-align:center;
+      color:#2d3741;
+    }
+
+    #piocaEtapa1{ left:8%; }
+    #piocaEtapa2{ left:36%; }
+    #piocaEtapa3{ left:64%; }
+    #piocaEtapa4{ left:92%; }
+
+    .piocaEtapaPunto{
+      width:18px;
+      height:18px;
+      margin:0 auto 10px;
+      border:2px solid rgba(255,255,255,.96);
+      border-radius:50%;
+      background:#b8bdc4;
+      box-shadow:0 1px 4px rgba(0,0,0,.14);
+      transition:background .35s ease,transform .35s ease;
+    }
+
+    .piocaEtapa.completa .piocaEtapaPunto,
+    .piocaEtapa.actual .piocaEtapaPunto{
+      background:var(--pioca-azul);
+    }
+
+    .piocaEtapa.actual .piocaEtapaPunto{
+      transform:scale(1.12);
+    }
+
+    .piocaEtapaNumero{
+      display:block;
+      margin:0 0 4px;
+      color:#27323c;
+      font-size:10.5px;
+      font-weight:800;
+    }
+
+    .piocaEtapa.actual .piocaEtapaNumero{
+      color:var(--pioca-azul);
+    }
+
+    .piocaEtapaTexto{
+      display:block;
+      min-height:31px;
+      padding:0 2px;
+      color:#27323c;
+      font-size:9.6px;
+      line-height:1.18;
+      font-weight:600;
+    }
+
+    .piocaEtapaHora{
+      display:block;
+      min-height:14px;
+      margin-top:4px;
+      color:#53606c;
+      font-size:9px;
+      line-height:1;
+      font-weight:700;
+      white-space:nowrap;
+    }
+
+    .piocaEtapa.actual .piocaEtapaHora{
+      color:var(--pioca-azul);
+      font-weight:900;
+    }
+
+    /* En etapas 1 y 2 no inventamos horarios */
+    #piocaHoraEtapa1,
+    #piocaHoraEtapa2{
+      visibility:hidden;
+    }
+
+    /* Camioneta sobre la línea */
+    #piocaCamionetaProgreso{
+      position:absolute;
+      z-index:6;
+      top:-4px;
+      left:36%;
+      width:58px;
+      height:58px;
+      transform:translateX(-50%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(255,255,255,.95);
+      border-radius:50%;
+      background:rgba(255,255,255,.91);
+      box-shadow:0 4px 13px rgba(24,40,60,.16);
+      transition:left .58s cubic-bezier(.22,.75,.25,1);
+      overflow:hidden;
+    }
+
+    #piocaCamionetaProgreso img{
+      width:56px;
+      height:56px;
+      object-fit:contain;
       display:block;
     }
 
-    #actualizacionSegundos{
-      display:block;
+    /* ==========================================================
+       FRASE FINAL - MISMA FRASE, SIN LOGO EXTRA
+       ========================================================== */
+
+    #fraseServicio{
+      width:100%;
+      margin:10px 0 0;
+      padding:11px 5px 1px;
+      border:0;
+      border-top:1px solid rgba(65,75,88,.16);
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:9px;
+      color:#4e5963;
+      text-align:center;
       font-size:11px;
-      margin-top:2px;
+      line-height:1.28;
     }
 
-    .actualizacionOk{
-      color:#38e06f !important;
+    #fraseServicio::before{
+      content:"◷";
+      width:25px;
+      height:25px;
+      flex:0 0 25px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:2px solid rgba(8,51,162,.35);
+      border-radius:50%;
+      color:var(--pioca-azul);
+      font-size:14px;
     }
 
-    .actualizacionOk #actualizacionTexto{
-      animation:piocaBlink 1.2s ease-in-out infinite;
-    }
-
-    .actualizacionError{
-      color:#ff4b4b !important;
-    }
-
-    .actualizacionError #actualizacionTexto{
-      animation:piocaPulse 1.1s ease-in-out infinite;
-    }
-
-    @keyframes piocaBlink{
-
-      0%{
-        opacity:1;
-      }
-
-      50%{
-        opacity:.45;
-      }
-
-      100%{
-        opacity:1;
-      }
-
-    }
-
-    @keyframes piocaPulse{
-
-      0%{
-        opacity:1;
-      }
-
-      50%{
-        opacity:.65;
-      }
-
-      100%{
-        opacity:1;
-      }
-
-    }
-
-
-
-    /* Estado especial cuando faltan 3 minutos o menos */
+    /* Estado próximo: no transforma el panel superior; el cambio principal vive abajo */
     #estado.estadoProximo{
-      background:#fff4d6 !important;
-      border-color:#f0c45b;
-      color:#8a5a00;
-      animation:piocaLlegandoPulse 1.15s ease-in-out infinite;
+      background:rgba(237,249,240,.95) !important;
+      border-color:#bfe4ca !important;
+      color:#1f6f3a !important;
+      animation:none !important;
     }
 
-    @keyframes piocaLlegandoPulse{
-      0%,100%{ box-shadow:0 5px 16px rgba(25,45,65,.07),0 1px 3px rgba(25,45,65,.04); }
-      50%{ box-shadow:0 0 0 5px rgba(240,196,91,.22),0 5px 18px rgba(25,45,65,.10); }
-    }
-
-    .leaflet-popup.popupProximo .leaflet-popup-content-wrapper{
-      background:#fff1b8;
-      border:2px solid #f0b429;
-      animation:piocaPopupPulse 1.05s ease-in-out infinite;
-    }
-
-    .leaflet-popup.popupProximo .leaflet-popup-tip{
-      background:#fff1b8;
-    }
-
-    @keyframes piocaPopupPulse{
-      0%,100%{transform:scale(1);}
-      50%{transform:scale(1.055);}
-    }
-
+    /* Finalización existente */
     .llegadaFinal{
       width:100%;
       text-align:center;
       padding:8px 4px;
-      box-sizing:border-box;
     }
 
     .llegadaFinalTitulo{
@@ -680,1036 +718,92 @@
       font-size:.38em;
       line-height:1;
       position:relative;
-      top:-0.78em;
+      top:-.78em;
       margin-left:1px;
       font-weight:700;
     }
 
     .llegadaFinalFrase{
       font-size:12px;
-      font-weight:400;
       color:#596672;
-      line-height:1.4;
     }
 
-    @media(max-height:760px){
-
-      .cabeceraCliente{
-        gap:12px;
-        margin-bottom:12px;
-      }
-
-      .logo img{
-        width:135px;
-      }
-
-      #estado{
-        padding:10px 8px;
-        margin-bottom:10px;
-        font-size:14px;
-      }
-
-      #horaLlegadaTitulo{
-        min-height:36px;
-        padding:7px 9px;
-        font-size:9px;
-      }
-
-      #horaLlegada{
-        min-height:46px;
-        padding:7px 9px;
-        font-size:21px;
-      }
-
-      #fraseServicio{
-        margin-top:7px;
-        padding:8px 9px;
-        font-size:11.5px;
-      }
-    }
-
-    @media(max-width:600px){
-
-      body{
-        padding:
-          max(8px, env(safe-area-inset-top))
-          10px
-          max(5px, env(safe-area-inset-bottom))
-          10px;
-      }
-
-      .cabeceraCliente{
-        grid-template-columns:1fr 1fr;
-        gap:14px;
-        margin-bottom:18px;
-      }
-
-      .logo{
-        min-height:136px;
-      }
-
-      .logo img{
-        width:152px;
-        max-width:95%;
-      }
-
-      #horaLlegadaBox{
-        width:94%;
-        max-width:235px;
-      }
-
-      #horaLlegadaTitulo{
-        min-height:50px;
-        padding:8px 10px;
-        font-size:9.5px;
-      }
-
-      #horaLlegadaTitulo::before{
-        width:30px;
-        height:30px;
-        flex-basis:30px;
-        font-size:18px;
-      }
-
-      #horaLlegada{
-        min-height:76px;
-        font-size:31px;
-      }
-
-      #estado{
-        min-height:54px;
-        padding:9px 12px;
-        margin-bottom:13px;
-      }
-
-      .estadoTexto{
-        font-size:14px;
-      }
-
-      .estadoBadge{
-        padding:5px 8px;
-        font-size:9px;
-      }
-
-      #actualizacionBox{
-        top:10px;
-        right:10px;
-        padding:9px 10px;
-        font-size:10px;
-        min-width:132px;
-      }
-
-      #actualizacionSegundos{
-        font-size:10px;
-      }
-
-      #btnRefrescarPosicion{
-        right:10px;
-        bottom:10px;
-        padding:8px 10px;
-        font-size:10px;
-      }
-
-      #fraseServicio{
-        margin-top:9px;
-        padding:10px 11px;
-        font-size:11.5px;
-      }
-    }
-
-  
-
-    /* ==========================================================
-       RENOVACIÓN VISUAL CLIENTE - 15/08/2026
-       Sólo presentación: conserva IDs, estados y animaciones.
-       ========================================================== */
-
-    .cabeceraCliente{
-      gap:12px;
-      margin-bottom:14px;
-    }
-
-    .logo{
-      min-height:132px;
-    }
-
-    .logo::after{
-      display:none;
-    }
-
-    .logo img{
-      width:154px;
-    }
-
-    #horaLlegadaBox{
-      width:100%;
-      max-width:none;
-      border:1px solid #d9e3ec;
-      border-radius:17px;
-      background:linear-gradient(135deg,#f8fbff 0%,#eef5fb 100%);
-      box-shadow:0 6px 18px rgba(25,45,65,.08);
-      overflow:hidden;
-      grid-template-columns:auto 1fr;
-      align-items:center;
-      min-height:72px;
-      padding:8px 11px;
-      box-sizing:border-box;
-    }
-
-    #horaLlegadaTitulo{
-      min-height:0;
-      padding:0;
-      background:transparent;
-      justify-content:flex-start;
-      font-size:9.5px;
-      line-height:1.22;
-      letter-spacing:.5px;
-      color:#536272;
-    }
-
-    #horaLlegadaTitulo::before{
-      width:34px;
-      height:34px;
-      flex:0 0 34px;
-      font-size:19px;
-      background:linear-gradient(135deg,#1769aa,#2389d7);
-      box-shadow:0 3px 9px rgba(23,105,170,.18);
-    }
-
-    #horaLlegada{
-      min-height:0;
-      padding:0 0 0 9px;
-      background:transparent;
-      color:#1769aa;
-      font-size:25px;
-      letter-spacing:.2px;
-      white-space:nowrap;
-      justify-content:flex-end;
-      animation:piocaHoraBlink 1.7s ease-in-out infinite;
-    }
-
-    #estado{
-      min-height:50px;
-      padding:8px 13px;
-      margin:0 0 14px 0;
-      border:1px solid #bfe4ca;
-      border-radius:15px;
-      background:#edf9f0;
-      box-shadow:0 4px 12px rgba(25,45,65,.05);
-    }
-
-    .estadoEnVivo{
-      gap:9px;
-    }
-
-    .puntoEnVivo{
-      width:22px;
-      height:22px;
-      flex:0 0 22px;
-      margin-left:0;
-      background:#2db45a;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
-    }
-
-    .puntoEnVivo::before{
-      content:"✓";
-      position:absolute;
-      inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:#fff;
-      font-size:13px;
-      font-weight:700;
-      z-index:1;
-    }
-
-    .puntoEnVivo::after{
-      width:22px;
-      height:22px;
-      background:rgba(40,191,89,.25);
-    }
-
-    .estadoTexto{
-      color:#1f6f3a;
-      font-size:13px;
-      font-weight:700;
-    }
-
-    .estadoBadge{
-      position:relative;
-      padding:5px 24px 5px 9px;
-      background:transparent;
-      color:#29994c;
-      font-size:9px;
-      letter-spacing:.25px;
-    }
-
-    .estadoBadge::after{
-      content:"";
-      position:absolute;
-      right:7px;
-      top:50%;
-      width:8px;
-      height:8px;
-      border-radius:50%;
-      background:#28bf59;
-      transform:translateY(-50%);
-      box-shadow:0 0 0 4px rgba(40,191,89,.10);
-      animation:piocaLiveDot 1.7s ease-in-out infinite;
-    }
-
-    @keyframes piocaLiveDot{
-      0%,100%{opacity:1;transform:translateY(-50%) scale(1);}
-      50%{opacity:.48;transform:translateY(-50%) scale(.82);}
-    }
-
-    @media(max-width:600px){
-      .cabeceraCliente{
-        gap:10px;
-        margin-bottom:13px;
-      }
-
-      .logo{
-        min-height:118px;
-      }
-
-      .logo img{
-        width:142px;
-      }
-
-      #horaLlegadaBox{
-        width:100%;
-        max-width:none;
-        min-height:66px;
-        padding:7px 9px;
-      }
-
-      #horaLlegadaTitulo{
-        min-height:0;
-        padding:0;
-        font-size:8.5px;
-      }
-
-      #horaLlegadaTitulo::before{
-        width:29px;
-        height:29px;
-        flex-basis:29px;
-        font-size:17px;
-      }
-
-      #horaLlegada{
-        min-height:0;
-        padding:0 0 0 6px;
-        font-size:21px;
-      }
-
-      #estado{
-        min-height:48px;
-        padding:7px 10px;
-        margin-bottom:12px;
-      }
-
-      .puntoEnVivo{
-        width:20px;
-        height:20px;
-        flex-basis:20px;
-      }
-
-      .puntoEnVivo::after{
-        width:20px;
-        height:20px;
-      }
-
-      .puntoEnVivo::before{
-        font-size:12px;
-      }
-
-      .estadoTexto{
-        font-size:12.5px;
-      }
-    }
-
-
-    /* ==========================================================
-       AJUSTE FINAL CABECERA - 16/08/2026 R6
-       Panel de hora:
-       - apenas más grande
-       - levemente desplazado hacia la derecha
-       - mantiene título arriba y hora abajo con "hs"
-       - sin tocar pin, mapa ni lógica de rumbo
-       ========================================================== */
-
-    .cabeceraCliente{
-      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-      gap:14px;
-      width:100%;
-      box-sizing:border-box;
-      align-items:center;
-    }
-
-    .logo{
-      min-width:0;
-      justify-self:center;
-    }
-
-    #horaLlegadaBox{
-      width:96%;
-      max-width:218px;
-      min-width:0;
-      min-height:114px;
-      justify-self:center;
-      margin-right:0;
-      transform:translateX(-18px);
-      padding:12px 13px 13px;
-      border-radius:18px;
-      box-sizing:border-box;
-
-      display:none;
-      grid-template-columns:1fr;
-      grid-template-rows:auto auto;
-      row-gap:8px;
-      align-content:center;
-      align-items:center;
-    }
-
-    #horaLlegadaTitulo{
-      min-width:0;
-      min-height:0;
-      padding:0 4px;
-      background:transparent;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:7px;
-      text-align:center;
-      font-size:10.4px;
-      line-height:1.18;
-      letter-spacing:.30px;
-      color:#536272;
-      white-space:normal;
-      width:100%;
-      box-sizing:border-box;
-    }
-
-    #horaLlegadaTitulo::before{
-      width:31px;
-      height:31px;
-      flex:0 0 31px;
-      font-size:18px;
-    }
-
-    #horaLlegada{
-      min-width:0;
-      max-width:none;
-      min-height:0;
-      padding:2px 0 0;
-      background:transparent;
-      color:#1769aa;
-      font-size:30px;
-      line-height:1;
-      letter-spacing:.2px;
-      white-space:nowrap;
-      justify-content:center;
-      text-align:center;
-      align-self:end;
-      width:100%;
-      overflow:visible;
-    }
-
-    @media(max-width:600px){
-      .cabeceraCliente{
-        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-        gap:12px;
-      }
-
-      .logo{
-        min-width:0;
-        justify-self:center;
-      }
-
-      .logo img{
-        width:136px;
-        max-width:100%;
-      }
-
-      #horaLlegadaBox{
-        width:98%;
-        max-width:181px;
-        min-width:0;
-        min-height:108px;
-        justify-self:center;
-        margin-right:0;
-        transform:translateX(-22px);
-        padding:11px 10px 12px;
-        grid-template-columns:1fr;
-        grid-template-rows:auto auto;
-        row-gap:8px;
-      }
-
-      #horaLlegadaTitulo{
-        min-width:0;
-        font-size:9.4px;
-        line-height:1.16;
-        letter-spacing:.22px;
-        gap:5px;
-        padding:0 2px;
-        width:100%;
-      }
-
-      #horaLlegadaTitulo::before{
-        width:28px;
-        height:28px;
-        flex-basis:28px;
-        font-size:16px;
-      }
-
-      #horaLlegada{
-        min-width:0;
-        max-width:none;
-        font-size:27px;
-        line-height:1;
-        padding:2px 0 0;
-        justify-content:center;
-        text-align:center;
-        align-self:end;
-        width:100%;
-        overflow:visible;
-        white-space:nowrap;
-      }
-    }
-
-  
-    /* ==========================================================
-       cliente_diseño_nuevo
-       PRESENTACIÓN FULLSCREEN SOBRE MAPA
-       IMPORTANTE:
-       - conserva pin y animación GPS existentes
-       - conserva consultas, heartbeat y cierre
-       - sólo cambia layout + presentación de ETA/etapas
-       - azul piOca: #0833A2
-       ========================================================== */
-
-    :root{
-      --pioca-azul:#0833A2;
-      --pioca-azul-claro:#175BCE;
-      --pioca-texto:#1f2b38;
-      --pioca-panel:rgba(255,255,255,.82);
-      --pioca-panel-borde:rgba(255,255,255,.78);
-      --pioca-gris:#b7bcc5;
-    }
-
-    html,
-    body{
-      width:100%;
-      height:100%;
-      overflow:hidden;
-      background:#eef2f4;
-    }
-
-    body{
-      padding:0 !important;
-      margin:0 !important;
-      height:100dvh !important;
-      min-height:100dvh !important;
-    }
-
-    .panel{
-      position:fixed;
-      inset:0;
-      width:100%;
-      max-width:none;
-      height:100dvh;
-      margin:0;
-      padding:0;
-      background:transparent;
-      overflow:hidden;
-      display:block;
-    }
-
-    /*
-      El mapa ocupa TODO el viewport.
-    */
-    #mapaWrap{
-      position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
-      min-height:100%;
-      display:none;
-      z-index:1;
-    }
-
-    #mapaContenedor{
-      position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
-      min-height:100%;
-      display:block;
-    }
-
-    #mapa{
-      position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
-      min-height:100%;
-      border:0;
-      border-radius:0;
-      box-shadow:none;
-    }
-
-    /*
-      Logo piOca transparente superpuesto arriba izquierda.
-      El HTML mantiene su estructura original para no tocar la lógica.
-    */
-    .cabeceraCliente{
-      position:absolute;
-      z-index:1100;
-      left:max(13px, env(safe-area-inset-left));
-      top:max(13px, env(safe-area-inset-top));
-      width:auto;
-      height:auto;
-      display:block;
-      margin:0;
-      pointer-events:none;
-    }
-
-    .logo{
-      min-height:0 !important;
-      width:112px;
-      height:112px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      margin:0;
-      padding:0;
-      background:rgba(255,255,255,.72);
-      border:1px solid rgba(255,255,255,.82);
-      border-radius:50%;
-      box-shadow:0 5px 18px rgba(15,30,45,.13);
-      backdrop-filter:blur(7px);
-      -webkit-backdrop-filter:blur(7px);
-      overflow:hidden;
-    }
-
-    .logo::after{
-      display:none !important;
-    }
-
-    .logo img{
-      width:106px !important;
-      max-width:106px !important;
-      height:106px !important;
-      object-fit:contain;
-      display:block;
-    }
-
-    /*
-      El viejo cuadro grande de ETA queda oculto.
-      La ETA ahora vive en el panel inferior.
-    */
-    #horaLlegadaBox{
-      display:none !important;
-    }
-
-    /*
-      Seguimiento en vivo: mismo contenido actual, más chico,
-      superpuesto arriba a la derecha.
-    */
-    #estado{
-      position:absolute;
-      z-index:1102;
-      top:max(13px, env(safe-area-inset-top));
-      right:max(13px, env(safe-area-inset-right));
-      width:auto;
-      max-width:218px;
-      min-height:38px;
-      margin:0;
-      padding:7px 9px;
-      border-radius:11px;
-      box-shadow:0 5px 16px rgba(20,40,60,.14);
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-      font-size:11px;
-    }
-
-    .estadoEnVivo{
-      gap:6px;
-      grid-template-columns:auto 1fr auto;
-    }
-
-    .puntoEnVivo{
-      width:16px !important;
-      height:16px !important;
-      flex-basis:16px !important;
-    }
-
-    .puntoEnVivo::after{
-      width:16px !important;
-      height:16px !important;
-    }
-
-    .puntoEnVivo::before{
-      font-size:9px !important;
-    }
-
-    .estadoTexto{
-      font-size:10.5px !important;
-      white-space:nowrap;
-    }
-
-    .estadoBadge{
-      padding:3px 17px 3px 5px !important;
-      font-size:7.5px !important;
-    }
-
-    .estadoBadge::after{
-      right:5px;
-      width:6px;
-      height:6px;
-    }
-
-    /*
-      Recuadro actual de actualización GPS:
-      mismo estilo funcional, apenas más chico y debajo de EN VIVO.
-    */
-    #actualizacionBox{
-      top:62px;
-      right:max(13px, env(safe-area-inset-right));
-      min-width:134px;
-      padding:8px 10px;
-      border-radius:11px;
-      font-size:9.5px;
-      z-index:1101;
-    }
-
-    #actualizacionBox::before{
-      margin-right:4px;
-      font-size:14px;
-    }
-
-    #actualizacionSegundos{
-      font-size:9.5px;
-    }
-
-    /*
-      Botón manual de refrescar: conserva su funcionamiento y queda
-      por encima del panel inferior para no taparse.
-    */
-    #btnRefrescarPosicion{
-      right:14px;
-      bottom:270px;
-      z-index:1100;
-      padding:8px 10px;
-      font-size:9px;
-      background:rgba(255,255,255,.86);
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-    }
-
-    /*
-      El viejo bloque independiente de frase queda integrado dentro
-      del nuevo panel. Conservamos el mismo ID y el mismo texto.
-    */
-    #fraseServicio{
-      position:static;
-      width:100%;
-      margin:11px 0 0;
-      padding:10px 6px 2px;
-      border:0;
-      border-top:1px solid rgba(65,75,88,.16);
-      border-radius:0;
-      box-shadow:none;
-      background:transparent;
-      color:#515d68;
-      font-size:11.5px;
-      line-height:1.3;
-    }
-
-    #fraseServicio::before{
-      width:24px;
-      height:24px;
-      flex-basis:24px;
-      border-color:rgba(8,51,162,.38);
-      color:var(--pioca-azul);
-      font-size:14px;
-    }
-
-    /*
-      PANEL INFERIOR SEMITRANSPARENTE
-    */
-    #piocaTrayectoPanel{
-      position:absolute;
-      z-index:1090;
-      left:14px;
-      right:14px;
-      bottom:max(12px, env(safe-area-inset-bottom));
-      padding:16px 16px 12px;
-      border:1px solid var(--pioca-panel-borde);
-      border-radius:19px;
-      background:var(--pioca-panel);
-      box-shadow:0 9px 30px rgba(17,30,45,.18);
-      backdrop-filter:blur(13px);
-      -webkit-backdrop-filter:blur(13px);
-      color:var(--pioca-texto);
-    }
-
-    #piocaTrayectoCabecera{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:13px;
-    }
-
-    #piocaTrayectoTitulo{
-      margin:0;
-      color:#1f2b38;
-      font-size:18px;
-      line-height:1.05;
-      font-weight:900;
-      letter-spacing:.2px;
-      text-transform:uppercase;
-    }
-
-    #piocaTrayectoTitulo::before{
-      content:"⌁";
-      display:inline-block;
-      margin-right:7px;
-      color:var(--pioca-azul);
-      font-size:24px;
-      font-weight:800;
-      vertical-align:-2px;
-    }
-
-    #piocaEtaLinea{
-      flex:0 0 auto;
-      text-align:right;
-      color:#39434d;
-      font-size:11px;
-      line-height:1.2;
-    }
-
-    #piocaEtaHora{
-      display:block;
-      margin-top:2px;
-      color:var(--pioca-azul);
-      font-size:24px;
-      line-height:1;
-      font-weight:900;
-      letter-spacing:.2px;
-      white-space:nowrap;
-    }
-
-    #piocaTrayecto{
-      position:relative;
-      height:105px;
-      margin:0 7px;
-    }
-
-    #piocaLineaBase,
-    #piocaLineaProgreso{
-      position:absolute;
-      left:5%;
-      right:5%;
-      top:25px;
-      height:4px;
-      border-radius:999px;
-    }
-
-    #piocaLineaBase{
-      background:rgba(87,96,108,.27);
-    }
-
-    #piocaLineaProgreso{
-      right:auto;
-      width:30%;
-      background:var(--pioca-azul);
-      transition:width .55s cubic-bezier(.22,.75,.25,1);
-    }
-
-    .piocaEtapa{
-      position:absolute;
-      top:18px;
-      width:24%;
-      transform:translateX(-50%);
-      text-align:center;
-      color:#303a44;
-    }
-
-    .piocaEtapa:nth-of-type(1){ left:5%; }
-    .piocaEtapa:nth-of-type(2){ left:35%; }
-    .piocaEtapa:nth-of-type(3){ left:65%; }
-    .piocaEtapa:nth-of-type(4){ left:95%; }
-
-    .piocaEtapaPunto{
-      width:17px;
-      height:17px;
-      margin:0 auto 10px;
-      border-radius:50%;
-      background:#b9bec5;
-      border:2px solid rgba(255,255,255,.95);
-      box-shadow:0 1px 4px rgba(0,0,0,.12);
-      transition:background .35s ease, transform .35s ease;
-    }
-
-    .piocaEtapa.completa .piocaEtapaPunto,
-    .piocaEtapa.actual .piocaEtapaPunto{
-      background:var(--pioca-azul);
-    }
-
-    .piocaEtapa.actual .piocaEtapaPunto{
-      transform:scale(1.12);
-    }
-
-    .piocaEtapaNumero{
-      display:block;
-      color:var(--pioca-azul);
-      font-size:10px;
-      font-weight:900;
-      margin-bottom:4px;
-    }
-
-    .piocaEtapaTexto{
-      display:block;
-      min-height:26px;
-      font-size:9.2px;
-      line-height:1.17;
-      font-weight:700;
-    }
-
-    .piocaEtapaHora{
-      display:block;
-      min-height:13px;
-      margin-top:3px;
-      color:#5d6771;
-      font-size:9.2px;
-      font-weight:700;
-      white-space:nowrap;
-    }
-
-    .piocaEtapa.actual .piocaEtapaHora{
-      color:var(--pioca-azul);
-      font-weight:900;
-    }
-
-    /*
-      Camioneta que se desplaza entre etapas.
-      Usa el archivo solicitado por el usuario.
-    */
-    #piocaCamionetaProgreso{
-      position:absolute;
-      z-index:5;
-      top:0;
-      left:35%;
-      width:58px;
-      height:58px;
-      transform:translateX(-50%);
-      border-radius:50%;
-      background:rgba(255,255,255,.88);
-      border:1px solid rgba(255,255,255,.94);
-      box-shadow:0 4px 13px rgba(24,40,60,.16);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transition:left .58s cubic-bezier(.22,.75,.25,1);
-      overflow:hidden;
-    }
-
-    #piocaCamionetaProgreso img{
-      width:55px;
-      height:55px;
-      object-fit:contain;
-      display:block;
-    }
-
-    /*
-      Logo piOca pequeño al pie del panel.
-    */
-    #piocaMarcaPie{
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      margin-top:3px;
-      height:21px;
-    }
-
-    #piocaMarcaPie img{
-      height:19px;
-      width:auto;
-      max-width:74px;
-      object-fit:contain;
-    }
-
-    /*
-      Finalizado conserva su lógica existente.
-      Sólo recuperamos un fondo blanco legible al ocultarse el mapa.
-    */
     .cabeceraCliente.finalizado{
       position:relative;
-      inset:auto;
-      z-index:auto;
+      top:auto;
+      left:auto;
       width:100%;
-      display:grid;
       padding-top:24px;
+      display:flex;
+      justify-content:center;
     }
 
     .cabeceraCliente.finalizado .logo{
-      width:130px;
-      height:130px;
-      background:#fff;
+      width:132px;
+      height:132px;
     }
 
     .cabeceraCliente.finalizado .logo img{
-      width:124px !important;
-      height:124px !important;
+      width:128px;
+      height:128px;
+      max-width:128px;
     }
+
+    /* ==========================================================
+       RESPONSIVE
+       ========================================================== */
 
     @media(max-width:430px){
 
       .logo{
-        width:96px;
-        height:96px;
+        width:110px;
+        height:110px;
+        min-height:110px;
       }
 
       .logo img{
-        width:91px !important;
-        height:91px !important;
-        max-width:91px !important;
+        width:106px;
+        height:106px;
+        max-width:106px;
+      }
+
+      .leaflet-top.leaflet-left{
+        top:126px !important;
       }
 
       #estado{
-        max-width:191px;
-        padding:6px 7px;
+        width:210px;
+        max-width:calc(100vw - 137px);
+        min-height:40px;
+        padding:6px 8px;
       }
 
       .estadoTexto{
-        font-size:9.3px !important;
+        font-size:10px;
       }
 
       .estadoBadge{
-        font-size:6.8px !important;
+        font-size:7px;
+        padding-right:17px;
       }
 
       #actualizacionBox{
-        top:56px;
-        min-width:124px;
-        padding:7px 8px;
-        font-size:8.8px;
+        top:61px;
+        width:166px;
+        min-width:166px;
+        padding:8px 10px;
+        font-size:9.4px;
       }
 
       #actualizacionSegundos{
-        font-size:8.8px;
+        font-size:9.4px;
       }
 
       #piocaTrayectoPanel{
         left:10px;
         right:10px;
-        bottom:max(8px, env(safe-area-inset-bottom));
         padding:14px 11px 10px;
-        border-radius:17px;
+        border-radius:18px;
       }
 
       #piocaTrayectoTitulo{
@@ -1717,20 +811,20 @@
       }
 
       #piocaEtaLinea{
-        font-size:9.5px;
+        margin-top:7px;
+        font-size:11.5px;
       }
 
       #piocaEtaHora{
-        font-size:22px;
+        font-size:24px;
       }
 
       #piocaTrayecto{
-        height:101px;
-        margin:0 4px;
+        height:114px;
       }
 
       .piocaEtapaTexto{
-        font-size:8.4px;
+        font-size:8.6px;
       }
 
       .piocaEtapaHora{
@@ -1738,26 +832,23 @@
       }
 
       #piocaCamionetaProgreso{
-        width:53px;
-        height:53px;
+        width:54px;
+        height:54px;
       }
 
       #piocaCamionetaProgreso img{
-        width:50px;
-        height:50px;
+        width:52px;
+        height:52px;
       }
 
       #fraseServicio{
-        font-size:10.4px;
+        margin-top:8px;
         padding-top:9px;
-      }
-
-      #btnRefrescarPosicion{
-        bottom:251px;
+        font-size:10px;
       }
     }
 
-    @media(max-height:700px){
+    @media(max-height:690px){
 
       #piocaTrayectoPanel{
         padding-top:11px;
@@ -1765,29 +856,23 @@
       }
 
       #piocaTrayectoCabecera{
-        margin-bottom:8px;
+        margin-bottom:10px;
       }
 
       #piocaTrayecto{
-        height:91px;
+        height:103px;
+      }
+
+      .piocaEtapaTexto{
+        min-height:27px;
       }
 
       #fraseServicio{
-        margin-top:6px;
+        margin-top:5px;
         padding-top:7px;
       }
-
-      #piocaMarcaPie{
-        display:none;
-      }
-
-      #btnRefrescarPosicion{
-        bottom:225px;
-      }
     }
-
-
-</style>
+  </style>
 
 </head>
 
@@ -1861,7 +946,7 @@
         </div>
 
         <div id="piocaEtaLinea">
-          Llegada aproximada
+          Llegada aproximada:
           <span id="piocaEtaHora">--:-- hs</span>
         </div>
 
@@ -1889,7 +974,7 @@
         <div class="piocaEtapa" id="piocaEtapa3">
           <div class="piocaEtapaPunto"></div>
           <span class="piocaEtapaNumero">3</span>
-          <span class="piocaEtapaTexto">Cerca de tu<br>ubicación</span>
+          <span class="piocaEtapaTexto">Cerca de tu<br>domicilio</span>
           <span class="piocaEtapaHora" id="piocaHoraEtapa3"></span>
         </div>
 
@@ -1911,13 +996,6 @@
 
       <div id="fraseServicio">
         Respetar tu tiempo también es parte de nuestro servicio.
-      </div>
-
-      <div id="piocaMarcaPie">
-        <img
-          src="isologo-fondo-transparente.png"
-          alt="piOca"
-        >
       </div>
 
     </div>
@@ -1990,10 +1068,11 @@
     );
 
 
-  /*
-    cliente_diseño_nuevo:
-    controles exclusivamente visuales del panel inferior.
-  */
+  const piocaTrayectoPanel =
+    document.getElementById(
+      "piocaTrayectoPanel"
+    );
+
   const piocaTrayectoTitulo =
     document.getElementById(
       "piocaTrayectoTitulo"
@@ -2315,19 +1394,36 @@
   }
 
 
+  function actualizarAnclajeRefrescar(){
+
+    if(
+      !piocaTrayectoPanel
+    ){
+      return;
+    }
+
+    const alto =
+      Math.ceil(
+        piocaTrayectoPanel
+        .getBoundingClientRect()
+        .height
+      );
+
+    document.documentElement.style.setProperty(
+      "--pioca-panel-height",
+      (
+        alto +
+        8
+      ) +
+      "px"
+    );
+  }
+
+
   function pintarEtapaTrayecto(
     etapa
   ){
 
-    /*
-      Etapas visuales solicitadas:
-      2 = viaje normal
-      3 = desde 5 minutos antes de ETA
-      4 = desde 2 minutos antes de ETA
-
-      Si la ETA vuelve a alejarse, la camioneta vuelve hacia atrás.
-      No modifica estado del seguimiento ni GPS.
-    */
     etapa =
       Math.max(
         2,
@@ -2338,15 +1434,22 @@
       );
 
     const posiciones = {
-      2:35,
-      3:65,
-      4:95
+      2:36,
+      3:64,
+      4:92
     };
 
+    /*
+      La línea comienza en 8%.
+      Para terminar exactamente debajo de cada etapa:
+      etapa 2 -> 28%
+      etapa 3 -> 56%
+      etapa 4 -> 84%
+    */
     const rellenos = {
-      2:30,
-      3:60,
-      4:90
+      2:28,
+      3:56,
+      4:84
     };
 
     piocaCamionetaProgreso.style.left =
@@ -2363,14 +1466,14 @@
       i++
     ){
 
-      const numeroEtapa =
+      const numero =
         i + 1;
 
       piocaEtapas[i]
       .classList
       .toggle(
         "completa",
-        numeroEtapa <
+        numero <
           etapa
       );
 
@@ -2378,7 +1481,7 @@
       .classList
       .toggle(
         "actual",
-        numeroEtapa ===
+        numero ===
           etapa
       );
     }
@@ -2397,29 +1500,21 @@
       return;
     }
 
-    const ahora =
-      Date.now();
-
-    const faltanMs =
-      llegadaClienteMs -
-      ahora;
-
     const faltanMin =
-      faltanMs /
+      (
+        llegadaClienteMs -
+        Date.now()
+      ) /
       60000;
 
-    /*
-      Hora visible:
-      siempre la misma ETA controlada desde el panel administrativo.
-    */
     piocaEtaHora.textContent =
       formatearHoraTrayecto(
         llegadaClienteMs
       );
 
     /*
-      Etapa 3 muestra siempre ETA - 5 minutos.
-      Etapa 4 muestra ETA real.
+      Etapa 3:
+      la hora visible es exactamente ETA - 5 minutos.
     */
     piocaHoraEtapa3.textContent =
       formatearHoraTrayecto(
@@ -2427,20 +1522,15 @@
         5 * 60 * 1000
       );
 
+    /*
+      Etapa 4:
+      la hora visible es la ETA controlada desde index.
+    */
     piocaHoraEtapa4.textContent =
       formatearHoraTrayecto(
         llegadaClienteMs
       );
 
-    /*
-      Lógica pedida:
-      > 5 min  => etapa 2
-      <= 5 min => etapa 3
-      <= 2 min => etapa 4
-
-      Si el técnico aumenta la ETA, esta lógica vuelve a mover
-      visualmente la camioneta a la etapa correspondiente.
-    */
     let etapa =
       2;
 
@@ -2463,6 +1553,10 @@
       etapa >= 3
         ? "ESTAMOS PRÓXIMOS A LLEGAR"
         : "ESTAMOS EN CAMINO";
+
+    requestAnimationFrame(
+      actualizarAnclajeRefrescar
+    );
   }
 
 
@@ -2740,49 +1834,20 @@
   function aplicarClasePopup(
     clase
   ){
-
-    if(!marcador){ return; }
-
-    try{
-      const popup = marcador.getPopup();
-      if(!popup){ return; }
-
-      const elemento = popup.getElement();
-      if(!elemento){ return; }
-
-      elemento.classList.remove(
-        "popupProximo"
-      );
-
-      if(clase){
-        elemento.classList.add(clase);
-      }
-
-    }catch(e){}
+    /*
+      Diseño nuevo:
+      no existe popup asociado al pin.
+    */
   }
 
   function actualizarPopupLlegada(
     modo
   ){
-
-    if(!marcador){ return; }
-
-    try{
-
-      if(modo === "proximo"){
-        marcador.setPopupContent(
-          "<strong>¡Estamos próximos a llegar!</strong>"
-        );
-        aplicarClasePopup("popupProximo");
-        return;
-      }
-
-      marcador.setPopupContent(
-        "<strong>¡Estamos en camino!</strong>"
-      );
-      aplicarClasePopup("");
-
-    }catch(e){}
+    /*
+      Diseño nuevo:
+      el estado de proximidad se comunica en el panel inferior.
+      No se muestra ningún globo sobre el mapa.
+    */
   }
 
   function pintarEstadoNormalEnVivo(){
@@ -4615,6 +3680,10 @@ ocultarHoraLlegada();
 
     mapaWrap.style.display =
       "flex";
+
+    requestAnimationFrame(
+      actualizarAnclajeRefrescar
+    );
 if(
       mapa
     ){
@@ -4745,13 +3814,12 @@ if(
         )
         .addTo(
           mapa
-        )
-        .bindPopup(
-          "<strong>¡Estamos en camino!</strong>"
         );
 
-      marcador.openPopup();
-
+      /*
+        Diseño nuevo:
+        el pin no lleva globo/popup.
+      */
       actualizarEstadoLlegada();
 
       ultimoPuntoServidor = {
@@ -5202,6 +4270,26 @@ if(
   btnRefrescarPosicion.addEventListener(
     "click",
     refrescarConsultaManual
+  );
+
+
+  window.addEventListener(
+    "resize",
+    function(){
+      requestAnimationFrame(
+        actualizarAnclajeRefrescar
+      );
+    }
+  );
+
+  window.addEventListener(
+    "orientationchange",
+    function(){
+      setTimeout(
+        actualizarAnclajeRefrescar,
+        150
+      );
+    }
   );
 
   document.addEventListener(
