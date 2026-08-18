@@ -1323,6 +1323,9 @@
     }
 
 
+
+    /* R9: no hay segunda frase debajo de la etapa 4 */
+    #piocaHoraEtapa4{ display:none !important; }
 </style>
 
 </head>
@@ -1430,7 +1433,7 @@
         <div class="piocaEtapa" id="piocaEtapa4">
           <div class="piocaEtapaPunto"></div>
           <span class="piocaEtapaNumero">4</span>
-          <span class="piocaEtapaTexto">Llegada<br>aproximada</span>
+          <span class="piocaEtapaTexto">Ya casi estamos<br>con vos</span>
           <span class="piocaEtapaHora" id="piocaHoraEtapa4"></span>
         </div>
 
@@ -1975,7 +1978,7 @@
       En la etapa 4 usamos una frase emocional para no repetir la hora.
     */
     piocaHoraEtapa4.textContent =
-      "Ya casi estamos con vos";
+      "";
 
     let etapa =
       2;
