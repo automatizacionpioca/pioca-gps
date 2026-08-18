@@ -815,6 +815,18 @@
 
   function pintarEstadoTransmision(){
 
+    /*
+      Si el WebView está oculto por bloqueo de pantalla no generamos
+      un estado visual falso de "SIN REPORTE". Al volver visible,
+      reactivarPanelAhora() consulta Supabase inmediatamente.
+    */
+    if(
+      document.visibilityState ===
+        "hidden"
+    ){
+      return;
+    }
+
     if(
       !ultimoReporteServidorMs ||
       !Number.isFinite(
@@ -1646,6 +1658,49 @@
       return false;
     }
   }
+
+  let reactivandoPanel =
+    false;
+
+  async function reactivarPanelAhora(){
+
+    if(
+      seguimientoFinalizado ||
+      reactivandoPanel
+    ){
+      return;
+    }
+
+    reactivandoPanel =
+      true;
+
+    /*
+      Al volver de pantalla bloqueada:
+      - recalculamos ETA de inmediato;
+      - re-habilitamos controles;
+      - refrescamos transmisión;
+      - consultamos Supabase sin esperar el intervalo de 3 s.
+    */
+    modificandoHora =
+      false;
+
+    pintarHoraCliente();
+    actualizarBotonesHora();
+    pintarEstadoTransmision();
+
+    try{
+      await sincronizarServidor();
+      await consultarVistaCliente();
+    }catch(e){}
+
+    pintarHoraCliente();
+    actualizarBotonesHora();
+    pintarEstadoTransmision();
+
+    reactivandoPanel =
+      false;
+  }
+
 
   async function sincronizarServidor(){
 
@@ -2602,6 +2657,38 @@
       );
     }
   );
+
+  /*
+    V9 - REANUDACIÓN INMEDIATA DEL PANEL
+    Android/WebView puede suspender timers con la pantalla bloqueada.
+    Al volver visible, reactivamos el tablero sin esperar 3 segundos.
+  */
+  document.addEventListener(
+    "visibilitychange",
+    function(){
+      if(
+        document.visibilityState ===
+          "visible"
+      ){
+        reactivarPanelAhora();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pageshow",
+    function(){
+      reactivarPanelAhora();
+    }
+  );
+
+  window.addEventListener(
+    "focus",
+    function(){
+      reactivarPanelAhora();
+    }
+  );
+
 
   const acceso =
     await validarAcceso();
