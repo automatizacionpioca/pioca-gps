@@ -926,6 +926,67 @@
     }
 
 
+
+
+    /* ==========================================================
+       cliente_diseño_nuevo_R5
+       Rastreo compacto + icono trayecto + centro visual útil
+       ========================================================== */
+
+    #estado{
+      width:205px !important;
+      max-width:calc(100vw - 150px) !important;
+    }
+
+    .estadoTexto{
+      font-size:10.4px !important;
+      letter-spacing:.05px !important;
+      overflow:visible !important;
+      text-overflow:clip !important;
+    }
+
+    .estadoBadge{
+      font-size:7px !important;
+      padding-right:16px !important;
+    }
+
+    /*
+      Icono de trayecto: tres puntos unidos, en azul piOca.
+      Se dibuja con CSS y escala bien en cualquier teléfono.
+    */
+    #piocaTrayectoTitulo::before{
+      content:"" !important;
+      width:30px !important;
+      height:18px !important;
+      margin-right:9px !important;
+      display:inline-block !important;
+      vertical-align:-3px !important;
+      background:
+        radial-gradient(circle at 4px 10px, #0833A2 0 3px, transparent 3.5px),
+        radial-gradient(circle at 15px 4px, #0833A2 0 3px, transparent 3.5px),
+        radial-gradient(circle at 26px 11px, #0833A2 0 3px, transparent 3.5px),
+        linear-gradient(150deg, transparent 0 31%, #0833A2 32% 38%, transparent 39% 100%),
+        linear-gradient(31deg, transparent 0 50%, #0833A2 51% 57%, transparent 58% 100%) !important;
+      background-repeat:no-repeat !important;
+    }
+
+    @media(max-width:430px){
+
+      #estado{
+        width:194px !important;
+        max-width:calc(100vw - 133px) !important;
+      }
+
+      .estadoTexto{
+        font-size:9.6px !important;
+      }
+
+      .estadoBadge{
+        font-size:6.6px !important;
+      }
+    }
+
+
 </style>
 
 </head>
@@ -1781,8 +1842,9 @@
               const posicionActual =
                 marcador.getLatLng();
 
-              mapa.panTo(
-                posicionActual,
+              centrarMapaEnAreaUtil(
+                posicionActual.lat,
+                posicionActual.lng,
                 {
                   animate:true,
                   duration:0.45
@@ -1911,7 +1973,7 @@
     estado.innerHTML =
       '<span class="estadoEnVivo">' +
         '<span class="puntoEnVivo"></span>' +
-        '<span class="estadoTexto">Seguimiento en tiempo real</span>' +
+        '<span class="estadoTexto">RASTREO EN VIVO</span>' +
         '<span class="estadoBadge">EN VIVO</span>' +
       '</span>';
 
@@ -3265,11 +3327,9 @@ ocultarHoraLlegada();
         ]
       );
 
-      mapa.panTo(
-        [
-          punto.lat,
-          punto.lon
-        ],
+      centrarMapaEnAreaUtil(
+        punto.lat,
+        punto.lon,
         {
           animate:false
         }
@@ -3345,8 +3405,9 @@ ocultarHoraLlegada();
         [latDestino, lonDestino]
       );
 
-      mapa.panTo(
-        [latDestino, lonDestino],
+      centrarMapaEnAreaUtil(
+        latDestino,
+        lonDestino,
         {
           animate:true,
           duration:0.8
@@ -3437,8 +3498,9 @@ ocultarHoraLlegada();
         Acompaña la camioneta sin modificar
         la orientación elegida por el cliente.
       */
-      mapa.panTo(
-        [latActual, lonActual],
+      centrarMapaEnAreaUtil(
+        latActual,
+        lonActual,
         {
           animate:false
         }
@@ -3599,8 +3661,9 @@ ocultarHoraLlegada();
         [latActual, lonActual]
       );
 
-      mapa.panTo(
-        [latActual, lonActual],
+      centrarMapaEnAreaUtil(
+        latActual,
+        lonActual,
         {
           animate:false
         }
@@ -3668,8 +3731,9 @@ ocultarHoraLlegada();
             [latActual2, lonActual2]
           );
 
-          mapa.panTo(
-            [latActual2, lonActual2],
+          centrarMapaEnAreaUtil(
+            latActual2,
+            lonActual2,
             {
               animate:false
             }
@@ -3708,6 +3772,95 @@ ocultarHoraLlegada();
         primerTramo
       );
   }
+
+
+  function centrarMapaEnAreaUtil(
+    lat,
+    lon,
+    opciones
+  ){
+
+    if(
+      !mapa ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    opciones =
+      opciones ||
+      {};
+
+    let altoPanel = 0;
+
+    if(
+      piocaTrayectoPanel
+    ){
+      altoPanel =
+        piocaTrayectoPanel
+        .getBoundingClientRect()
+        .height;
+    }
+
+    const altoMapa =
+      mapa
+      .getSize()
+      .y;
+
+    /*
+      El panel inferior ocupa parte del mapa.
+      Desplazamos el centro del mapa hacia abajo la mitad
+      de la altura del panel para que el pin quede más arriba,
+      centrado en el área realmente visible.
+    */
+    const offsetY =
+      Math.max(
+        0,
+        Math.min(
+          altoPanel * 0.50,
+          altoMapa * 0.32
+        )
+      );
+
+    try{
+
+      const zoom =
+        mapa.getZoom();
+
+      const puntoPin =
+        mapa.project(
+          [lat,lon],
+          zoom
+        );
+
+      const centroObjetivo =
+        mapa.unproject(
+          [
+            puntoPin.x,
+            puntoPin.y +
+            offsetY
+          ],
+          zoom
+        );
+
+      mapa.panTo(
+        centroObjetivo,
+        {
+          animate:
+            opciones.animate === true,
+          duration:
+            Number.isFinite(
+              opciones.duration
+            )
+              ? opciones.duration
+              : 0.35
+        }
+      );
+
+    }catch(e){}
+  }
+
 
   function crearMapa(
     lat,
@@ -3784,6 +3937,18 @@ if(
         function(){
 
           mapa.invalidateSize();
+
+          requestAnimationFrame(
+            function(){
+              centrarMapaEnAreaUtil(
+                lat,
+                lon,
+                {
+                  animate:false
+                }
+              );
+            }
+          );
 
         },
 
@@ -4313,7 +4478,25 @@ if(
     "resize",
     function(){
       requestAnimationFrame(
-        actualizarAnclajeRefrescar
+        function(){
+          actualizarAnclajeRefrescar();
+
+          if(
+            mapa &&
+            marcador
+          ){
+            const p =
+              marcador.getLatLng();
+
+            centrarMapaEnAreaUtil(
+              p.lat,
+              p.lng,
+              {
+                animate:false
+              }
+            );
+          }
+        }
       );
     }
   );
