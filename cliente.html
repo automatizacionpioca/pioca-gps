@@ -872,7 +872,61 @@
         padding-top:7px;
       }
     }
-  </style>
+  
+
+    /* ==========================================================
+       cliente_diseño_nuevo_R4
+       Ajustes finales de proximidad / iPhone
+       ========================================================== */
+
+    /*
+      La camioneta queda más alta respecto de la línea.
+      Esto evita que Safari/iPhone la superponga sobre los textos
+      de las etapas al pasar por 2, 3 o 4.
+    */
+    #piocaCamionetaProgreso{
+      top:-16px !important;
+      width:56px !important;
+      height:56px !important;
+    }
+
+    #piocaCamionetaProgreso img{
+      width:54px !important;
+      height:54px !important;
+    }
+
+    /*
+      Etapa 3 no muestra hora.
+      La única hora dentro de las etapas queda en la etapa 4.
+    */
+    #piocaHoraEtapa3{
+      visibility:hidden !important;
+    }
+
+    /*
+      Garantizamos un pequeño aire entre línea/camioneta
+      y el bloque de textos en todos los navegadores.
+    */
+    .piocaEtapaNumero{
+      margin-top:2px !important;
+    }
+
+    @media(max-width:430px){
+
+      #piocaCamionetaProgreso{
+        top:-15px !important;
+        width:52px !important;
+        height:52px !important;
+      }
+
+      #piocaCamionetaProgreso img{
+        width:50px !important;
+        height:50px !important;
+      }
+    }
+
+
+</style>
 
 </head>
 
@@ -1513,14 +1567,12 @@
       );
 
     /*
-      Etapa 3:
-      la hora visible es exactamente ETA - 5 minutos.
+      R4:
+      Etapa 3 sólo mueve la camioneta a "Cerca de tu domicilio".
+      No mostramos una hora debajo de esa etapa.
     */
     piocaHoraEtapa3.textContent =
-      formatearHoraTrayecto(
-        llegadaClienteMs -
-        5 * 60 * 1000
-      );
+      "";
 
     /*
       Etapa 4:
@@ -1877,31 +1929,15 @@
       return;
     }
 
-    const faltanMs =
-      llegadaClienteMs - Date.now();
-
     /*
-      V9:
-      Desde 5 minutos antes de la ETA y hasta que Supabase
-      cierre realmente la sesión, mantenemos el aviso de proximidad.
+      R4:
+      El panel superior SIEMPRE conserva:
+      "Seguimiento en tiempo real · EN VIVO".
 
-      NO mostramos "HEMOS LLEGADO" por reloj.
-      Ese mensaje aparece exclusivamente cuando state=finished.
+      La proximidad de llegada se comunica únicamente
+      en el panel inferior de etapas.
     */
-    if(
-      faltanMs <= 5 * 60 * 1000 &&
-      faltanMs > -5 * 60 * 1000
-    ){
-
-      estado.classList.remove("estadoLlegado");
-      estado.classList.add("estadoProximo");
-      estado.textContent = "📍 ¡Estamos próximos a llegar!";
-      actualizarPopupLlegada("proximo");
-      return;
-    }
-
     pintarEstadoNormalEnVivo();
-    actualizarPopupLlegada("normal");
   }
 
   async function enviarHeartbeatCliente(){
