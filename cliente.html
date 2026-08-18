@@ -1076,6 +1076,253 @@
     }
 
 
+
+
+    /* ==========================================================
+       cliente_diseño_nuevo_R8
+       ESTADO FINAL "HEMOS LLEGADO" RECONSTRUIDO
+       ========================================================== */
+
+    /*
+      Cuando el seguimiento finaliza:
+      - mapa oculto
+      - logo completo arriba
+      - tarjeta centrada debajo
+      - sin superposiciones ni restos del layout fullscreen
+    */
+
+    body:has(.cabeceraCliente.finalizado){
+      background:#eef2f5 !important;
+    }
+
+    .cabeceraCliente.finalizado{
+      position:relative !important;
+      inset:auto !important;
+      z-index:auto !important;
+      width:100% !important;
+      height:auto !important;
+      margin:0 !important;
+      padding:
+        max(28px, env(safe-area-inset-top))
+        18px
+        0 !important;
+      display:flex !important;
+      justify-content:center !important;
+      align-items:center !important;
+      pointer-events:none !important;
+      box-sizing:border-box !important;
+    }
+
+    .cabeceraCliente.finalizado .logo{
+      width:150px !important;
+      height:150px !important;
+      min-height:150px !important;
+      margin:0 auto !important;
+      border-radius:50% !important;
+      background:rgba(255,255,255,.98) !important;
+      border:1px solid rgba(255,255,255,.98) !important;
+      box-shadow:0 6px 22px rgba(20,35,50,.13) !important;
+      overflow:hidden !important;
+    }
+
+    .cabeceraCliente.finalizado .logo img{
+      width:146px !important;
+      height:146px !important;
+      max-width:146px !important;
+      object-fit:contain !important;
+      display:block !important;
+    }
+
+    /*
+      El bloque #estado deja de ser el pequeño badge superior
+      y pasa a ser la tarjeta final centrada.
+    */
+    .cabeceraCliente.finalizado + #estado,
+    #estado:has(.llegadaFinal){
+      position:relative !important;
+      top:auto !important;
+      right:auto !important;
+      left:auto !important;
+      z-index:auto !important;
+
+      width:calc(100% - 32px) !important;
+      max-width:430px !important;
+      min-height:0 !important;
+
+      margin:18px auto 0 !important;
+      padding:22px 20px !important;
+
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+
+      border:1px solid #b9dfc2 !important;
+      border-radius:20px !important;
+
+      background:rgba(229,246,232,.98) !important;
+      box-shadow:0 9px 28px rgba(25,45,65,.11) !important;
+
+      color:#203246 !important;
+      backdrop-filter:none !important;
+      -webkit-backdrop-filter:none !important;
+
+      visibility:visible !important;
+      opacity:1 !important;
+      pointer-events:auto !important;
+    }
+
+    #estado:has(.llegadaFinal).estadoOculto,
+    #estado:has(.llegadaFinal).estadoNoDisponible,
+    #estado:has(.llegadaFinal).estadoVisible{
+      visibility:visible !important;
+      opacity:1 !important;
+    }
+
+    .llegadaFinal{
+      width:100% !important;
+      margin:0 !important;
+      padding:0 !important;
+      text-align:center !important;
+      box-sizing:border-box !important;
+    }
+
+    .llegadaFinalTitulo{
+      margin:0 0 14px !important;
+      color:#1f7339 !important;
+      font-size:28px !important;
+      line-height:1.05 !important;
+      font-weight:900 !important;
+      letter-spacing:.2px !important;
+    }
+
+    .llegadaFinalGracias{
+      margin:0 0 10px !important;
+      color:#203246 !important;
+      font-size:18px !important;
+      line-height:1.2 !important;
+      font-weight:800 !important;
+    }
+
+    .llegadaFinalFrase{
+      margin:0 !important;
+      color:#596672 !important;
+      font-size:14px !important;
+      line-height:1.35 !important;
+      font-weight:600 !important;
+    }
+
+    .marcaRegistrada{
+      display:inline-block !important;
+      font-size:.40em !important;
+      line-height:1 !important;
+      position:relative !important;
+      top:-.72em !important;
+      margin-left:1px !important;
+      font-weight:700 !important;
+    }
+
+    /*
+      Al finalizar no deben verse controles, badges, mapa ni paneles.
+    */
+    .cabeceraCliente.finalizado ~ #mapaWrap,
+    .cabeceraCliente.finalizado ~ #actualizacionBox,
+    .cabeceraCliente.finalizado ~ #btnRefrescarPosicion,
+    .cabeceraCliente.finalizado ~ #piocaTrayectoPanel{
+      display:none !important;
+    }
+
+    @media(max-width:430px){
+
+      .cabeceraCliente.finalizado{
+        padding-top:
+          max(24px, env(safe-area-inset-top))
+        !important;
+      }
+
+      .cabeceraCliente.finalizado .logo{
+        width:136px !important;
+        height:136px !important;
+        min-height:136px !important;
+      }
+
+      .cabeceraCliente.finalizado .logo img{
+        width:132px !important;
+        height:132px !important;
+        max-width:132px !important;
+      }
+
+      #estado:has(.llegadaFinal){
+        width:calc(100% - 28px) !important;
+        margin-top:16px !important;
+        padding:20px 16px !important;
+        border-radius:18px !important;
+      }
+
+      .llegadaFinalTitulo{
+        font-size:25px !important;
+      }
+
+      .llegadaFinalGracias{
+        font-size:17px !important;
+      }
+
+      .llegadaFinalFrase{
+        font-size:13px !important;
+      }
+    }
+
+
+
+
+    /* Fallback Safari/Android usando clase explícita en body */
+    body.seguimientoFinalizadoVisual{
+      background:#eef2f5 !important;
+      overflow:hidden !important;
+    }
+
+    body.seguimientoFinalizadoVisual .panel{
+      position:relative !important;
+      inset:auto !important;
+      width:100% !important;
+      height:100dvh !important;
+      min-height:100dvh !important;
+      display:block !important;
+      overflow:auto !important;
+      background:#eef2f5 !important;
+      padding-bottom:max(24px, env(safe-area-inset-bottom)) !important;
+    }
+
+    body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado{
+      position:relative !important;
+      display:flex !important;
+    }
+
+    body.seguimientoFinalizadoVisual #estado{
+      position:relative !important;
+      top:auto !important;
+      right:auto !important;
+      left:auto !important;
+      width:calc(100% - 32px) !important;
+      max-width:430px !important;
+      min-height:0 !important;
+      margin:18px auto 0 !important;
+      padding:22px 20px !important;
+      display:flex !important;
+      border:1px solid #b9dfc2 !important;
+      border-radius:20px !important;
+      background:#e5f6e8 !important;
+      visibility:visible !important;
+      opacity:1 !important;
+    }
+
+    body.seguimientoFinalizadoVisual #mapaWrap,
+    body.seguimientoFinalizadoVisual #actualizacionBox,
+    body.seguimientoFinalizadoVisual #btnRefrescarPosicion,
+    body.seguimientoFinalizadoVisual #piocaTrayectoPanel{
+      display:none !important;
+    }
+
+
 </style>
 
 </head>
@@ -2207,6 +2454,10 @@
 
     terminado =
       true;
+
+    document.body.classList.add(
+      "seguimientoFinalizadoVisual"
+    );
 
     detenerReloj();
 
