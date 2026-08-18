@@ -1467,6 +1467,54 @@
   const DISTANCIA_MINIMA_MOVIMIENTO_VISUAL_METROS =
     2.5;
 
+
+  /*
+    V9 - MOVIMIENTO CONTINUO EN RUTA / ALTA VELOCIDAD
+
+    A partir de 60 km/h dejamos de usar una curva que acelera
+    y frena en cada paquete GPS.
+
+    En 60–100 km/h:
+    - movimiento visual lineal;
+    - el tramo dura apenas MÁS que el intervalo entre GPS;
+    - cuando llega el siguiente punto antes de terminar,
+      continuamos desde la posición visual exacta;
+    - así evitamos la sensación de avanzar / frenar / avanzar.
+  */
+  const VELOCIDAD_CONTINUA_DESDE_KMH =
+    60;
+
+  const VELOCIDAD_CONTINUA_HASTA_KMH =
+    100;
+
+  /*
+    Factor de duración según velocidad:
+    60 km/h  -> 1.03 x intervalo
+    80 km/h  -> 1.05 x intervalo
+    100 km/h -> 1.07 x intervalo
+
+    El video real de 80 km/h sirve como punto medio de calibración.
+  */
+  const FACTOR_CONTINUO_60_KMH =
+    1.03;
+
+  const FACTOR_CONTINUO_80_KMH =
+    1.05;
+
+  const FACTOR_CONTINUO_100_KMH =
+    1.07;
+
+  /*
+    Evita que un punto perdido genere una transición excesivamente
+    larga. Si el cliente salta de una lectura de 2 s a una de 4 s,
+    debe recuperar terreno sin quedar atrasado durante 4 segundos.
+  */
+  const DURACION_CONTINUA_MIN_MS =
+    1850;
+
+  const DURACION_CONTINUA_MAX_MS =
+    2450;
+
   const iconoPioca =
     L.divIcon({
       className:"piocaPinIcon",
@@ -2617,6 +2665,52 @@ ocultarHoraLlegada();
     return velocidadCalculada;
   }
 
+  function factorContinuoSegunVelocidad(
+    velocidadKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      )
+    ){
+      return FACTOR_CONTINUO_80_KMH;
+    }
+
+    if(
+      velocidadKmh <= 60
+    ){
+      return FACTOR_CONTINUO_60_KMH;
+    }
+
+    if(
+      velocidadKmh <= 80
+    ){
+      return interpolar(
+        velocidadKmh,
+        60,
+        FACTOR_CONTINUO_60_KMH,
+        80,
+        FACTOR_CONTINUO_80_KMH
+      );
+    }
+
+    if(
+      velocidadKmh <= 100
+    ){
+      return interpolar(
+        velocidadKmh,
+        80,
+        FACTOR_CONTINUO_80_KMH,
+        100,
+        FACTOR_CONTINUO_100_KMH
+      );
+    }
+
+    return FACTOR_CONTINUO_100_KMH;
+  }
+
+
   function calcularDuracionAnimacion(
     latNuevo,
     lonNuevo,
@@ -2669,6 +2763,35 @@ ocultarHoraLlegada();
             lonNuevo,
             createdAtNuevo
           );
+
+    /*
+      A partir de 60 km/h usamos una ventana continua.
+      La animación dura apenas más que el intervalo GPS,
+      por lo que el próximo punto normalmente llega mientras
+      el pin todavía está avanzando.
+    */
+    if(
+      Number.isFinite(
+        velocidad
+      ) &&
+      velocidad >=
+        VELOCIDAD_CONTINUA_DESDE_KMH
+    ){
+
+      const factorContinuo =
+        factorContinuoSegunVelocidad(
+          velocidad
+        );
+
+      return Math.max(
+        DURACION_CONTINUA_MIN_MS,
+        Math.min(
+          DURACION_CONTINUA_MAX_MS,
+          intervalo *
+          factorContinuo
+        )
+      );
+    }
 
     const porcentaje =
       porcentajeAnimacionSegunVelocidad(
@@ -2853,7 +2976,8 @@ ocultarHoraLlegada();
   function animarMarcadorHasta(
     latDestino,
     lonDestino,
-    duracionMs
+    duracionMs,
+    velocidadKmh
   ){
 
     if(
@@ -2936,14 +3060,33 @@ ocultarHoraLlegada();
           duracionMs
         );
 
+      /*
+        Alta velocidad:
+        t lineal = velocidad visual constante.
+        No frenamos al final de cada paquete GPS.
+
+        Baja/media velocidad:
+        mantenemos smoothstep porque sigue dando una sensación
+        más natural en maniobras urbanas y aproximaciones.
+      */
       const t =
-        progreso *
-        progreso *
         (
-          3 -
-          2 *
-          progreso
-        );
+          Number.isFinite(
+            velocidadKmh
+          ) &&
+          velocidadKmh >=
+            VELOCIDAD_CONTINUA_DESDE_KMH
+        )
+          ? progreso
+          : (
+              progreso *
+              progreso *
+              (
+                3 -
+                2 *
+                progreso
+              )
+            );
 
       const latActual =
         latInicio +
@@ -3489,10 +3632,19 @@ if(
 
     }else{
 
+      /*
+        En 60–100 km/h esta llamada entra en modo continuo:
+        - duración ligeramente superior al intervalo GPS;
+        - interpolación lineal;
+        - el nuevo punto corrige el objetivo en vuelo;
+        - nunca reinicia desde el último GPS, sino desde el punto
+          visual exacto donde estaba el marcador.
+      */
       animarMarcadorHasta(
         lat,
         lon,
-        duracion
+        duracion,
+        velocidadInterna
       );
     }
 
