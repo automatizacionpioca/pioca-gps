@@ -950,26 +950,6 @@
       padding-right:16px !important;
     }
 
-    /*
-      Icono de trayecto: tres puntos unidos, en azul piOca.
-      Se dibuja con CSS y escala bien en cualquier teléfono.
-    */
-    #piocaTrayectoTitulo::before{
-      content:"" !important;
-      width:30px !important;
-      height:18px !important;
-      margin-right:9px !important;
-      display:inline-block !important;
-      vertical-align:-3px !important;
-      background:
-        radial-gradient(circle at 4px 10px, #0833A2 0 3px, transparent 3.5px),
-        radial-gradient(circle at 15px 4px, #0833A2 0 3px, transparent 3.5px),
-        radial-gradient(circle at 26px 11px, #0833A2 0 3px, transparent 3.5px),
-        linear-gradient(150deg, transparent 0 31%, #0833A2 32% 38%, transparent 39% 100%),
-        linear-gradient(31deg, transparent 0 50%, #0833A2 51% 57%, transparent 58% 100%) !important;
-      background-repeat:no-repeat !important;
-    }
-
     @media(max-width:430px){
 
       #estado{
@@ -984,6 +964,88 @@
       .estadoBadge{
         font-size:6.6px !important;
       }
+    }
+
+
+
+
+    /* ==========================================================
+       cliente_diseño_nuevo_R6
+       Icono de trayecto PNG + estado inicial sin flash
+       ========================================================== */
+
+    /*
+      El estado superior nace oculto.
+      Se muestra recién cuando el servidor confirma una condición real.
+    */
+    #estado.estadoOculto{
+      visibility:hidden !important;
+      opacity:0 !important;
+      pointer-events:none !important;
+    }
+
+    #estado.estadoVisible{
+      visibility:visible !important;
+      opacity:1 !important;
+      pointer-events:auto !important;
+    }
+
+    /*
+      Estado real "NO DISPONIBLE":
+      mismo tamaño, estructura y proporción que RASTREO EN VIVO.
+    */
+    #estado.estadoNoDisponible{
+      visibility:visible !important;
+      opacity:1 !important;
+      background:rgba(255,239,239,.96) !important;
+      border-color:#efb9b9 !important;
+      color:#a3222a !important;
+    }
+
+    #estado.estadoNoDisponible .puntoEnVivo{
+      background:#d83b42 !important;
+    }
+
+    #estado.estadoNoDisponible .puntoEnVivo::before{
+      content:"✕" !important;
+      color:#fff !important;
+      font-size:11px !important;
+    }
+
+    #estado.estadoNoDisponible .puntoEnVivo::after{
+      display:none !important;
+    }
+
+    #estado.estadoNoDisponible .estadoTexto{
+      color:#9d252c !important;
+    }
+
+    #estado.estadoNoDisponible .estadoBadge{
+      color:#9d252c !important;
+    }
+
+    #estado.estadoNoDisponible .estadoBadge::after{
+      background:#d83b42 !important;
+      box-shadow:0 0 0 3px rgba(216,59,66,.10) !important;
+      animation:none !important;
+    }
+
+    /*
+      Icono de trayecto aportado por el usuario.
+      Archivo esperado en GitHub:
+      icono-trayecto-pioca.png
+    */
+    #piocaTrayectoTitulo::before{
+      content:"" !important;
+      width:31px !important;
+      height:20px !important;
+      margin-right:9px !important;
+      display:inline-block !important;
+      vertical-align:-4px !important;
+      background-image:url("icono-trayecto-pioca.png") !important;
+      background-size:contain !important;
+      background-position:center !important;
+      background-repeat:no-repeat !important;
     }
 
 
@@ -1020,9 +1082,7 @@
 
   </div>
 
-  <div id="estado">
-    Seguimiento no disponible
-  </div>
+  <div id="estado" class="estadoOculto" aria-live="polite"></div>
 
   <div id="mapaWrap">
 
@@ -1964,10 +2024,53 @@
     */
   }
 
+
+  function mostrarEstadoSuperiorNoDisponible(){
+
+    estado.classList.remove(
+      "estadoOculto",
+      "estadoVisible"
+    );
+
+    estado.classList.add(
+      "estadoNoDisponible"
+    );
+
+    estado.innerHTML =
+      '<span class="estadoEnVivo">' +
+        '<span class="puntoEnVivo"></span>' +
+        '<span class="estadoTexto">NO DISPONIBLE</span>' +
+        '<span class="estadoBadge">OFF</span>' +
+      '</span>';
+  }
+
+
+  function ocultarEstadoSuperior(){
+
+    estado.classList.remove(
+      "estadoVisible",
+      "estadoNoDisponible"
+    );
+
+    estado.classList.add(
+      "estadoOculto"
+    );
+
+    estado.innerHTML =
+      "";
+  }
+
+
   function pintarEstadoNormalEnVivo(){
 
     estado.classList.remove(
-      "estadoProximo"
+      "estadoProximo",
+      "estadoOculto",
+      "estadoNoDisponible"
+    );
+
+    estado.classList.add(
+      "estadoVisible"
     );
 
     estado.innerHTML =
@@ -2163,11 +2266,7 @@ horaLlegadaBox.style.display =
       );
     }
 
-    estado.textContent =
-      "Seguimiento no disponible";
-
-    estado.style.background =
-      "#eeeeee";
+    mostrarEstadoSuperiorNoDisponible();
 
     mapaWrap.style.display =
       "none";
@@ -4364,11 +4463,7 @@ if(
           null
       ){
 
-        estado.textContent =
-          "Esperando ubicación del técnico...";
-
-        estado.style.background =
-          "#fff3cd";
+        pintarEstadoNormalEnVivo();
 
         mapaWrap.style.display =
           "none";
@@ -4572,6 +4667,8 @@ if(
       }
     }
   );
+
+  ocultarEstadoSuperior();
 
   if(
     !codigo
