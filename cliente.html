@@ -1388,6 +1388,21 @@
   let ultimaVelocidadValidaKmh =
     null;
 
+
+  /*
+    V9 - ESTABILIZACION DE RUMBO A VELOCIDAD MEDIA/ALTA
+
+    Guarda una pequeña memoria de rumbo para que un único punto GPS
+    desplazado lateralmente no haga triangular el pin.
+
+    Sólo modifica la trayectoria VISUAL del cliente.
+  */
+  let historialRumbosAltaVelocidad =
+    [];
+
+  let desviosAltaVelocidadConsecutivos =
+    0;
+
   /*
     V9:
     Android genera una posición aproximadamente cada 2 segundos.
@@ -1489,20 +1504,20 @@
 
   /*
     Factor de duración según velocidad:
-    60 km/h  -> 1.03 x intervalo
-    80 km/h  -> 1.05 x intervalo
-    100 km/h -> 1.07 x intervalo
+    60 km/h  -> 1.06 x intervalo
+    80 km/h  -> 1.08 x intervalo
+    100 km/h -> 1.10 x intervalo
 
     El video real de 80 km/h sirve como punto medio de calibración.
   */
   const FACTOR_CONTINUO_60_KMH =
-    1.03;
+    1.06;
 
   const FACTOR_CONTINUO_80_KMH =
-    1.05;
+    1.08;
 
   const FACTOR_CONTINUO_100_KMH =
-    1.07;
+    1.10;
 
   /*
     Evita que un punto perdido genere una transición excesivamente
@@ -1510,10 +1525,38 @@
     debe recuperar terreno sin quedar atrasado durante 4 segundos.
   */
   const DURACION_CONTINUA_MIN_MS =
-    1850;
+    1950;
 
   const DURACION_CONTINUA_MAX_MS =
-    2450;
+    2500;
+
+
+  /*
+    FILTRO LATERAL 60-100 km/h
+
+    Un punto aislado fuera de rumbo se amortigua.
+    Si el cambio persiste durante varias lecturas, se acepta como giro real.
+  */
+  const ANGULO_DESVIO_ALTA_VELOCIDAD_GRADOS =
+    18;
+
+  const ANGULO_GIRO_REAL_ALTA_VELOCIDAD_GRADOS =
+    42;
+
+  const DISTANCIA_MINIMA_FILTRO_LATERAL_METROS =
+    10;
+
+  const DISTANCIA_MAXIMA_FILTRO_LATERAL_METROS =
+    90;
+
+  const HISTORIAL_RUMBO_MAX =
+    3;
+
+  const FACTOR_LATERAL_PRIMER_DESVIO =
+    0.22;
+
+  const FACTOR_LATERAL_SEGUNDO_DESVIO =
+    0.55;
 
   const iconoPioca =
     L.divIcon({
@@ -1996,6 +2039,12 @@
     ultimaVelocidadValidaKmh =
       null;
 
+    historialRumbosAltaVelocidad =
+      [];
+
+    desviosAltaVelocidadConsecutivos =
+      0;
+
 
 
 
@@ -2077,6 +2126,12 @@ ocultarHoraLlegada();
 
     ultimaVelocidadValidaKmh =
       null;
+
+    historialRumbosAltaVelocidad =
+      [];
+
+    desviosAltaVelocidadConsecutivos =
+      0;
 
 
 
@@ -2373,6 +2428,276 @@ ocultarHoraLlegada();
     }
 
     return diferencia;
+  }
+
+
+  function promedioCircularRumbos(
+    rumbos
+  ){
+
+    if(
+      !Array.isArray(rumbos) ||
+      rumbos.length === 0
+    ){
+      return null;
+    }
+
+    let sumaX = 0;
+    let sumaY = 0;
+    let cantidad = 0;
+
+    for(
+      const rumbo of rumbos
+    ){
+
+      if(
+        !Number.isFinite(rumbo)
+      ){
+        continue;
+      }
+
+      const rad =
+        gradosARadianes(
+          rumbo
+        );
+
+      sumaX += Math.cos(rad);
+      sumaY += Math.sin(rad);
+      cantidad++;
+    }
+
+    if(
+      cantidad === 0 ||
+      (
+        Math.abs(sumaX) < 0.000001 &&
+        Math.abs(sumaY) < 0.000001
+      )
+    ){
+      return null;
+    }
+
+    let grados =
+      Math.atan2(
+        sumaY,
+        sumaX
+      ) *
+      180 /
+      Math.PI;
+
+    grados =
+      (
+        grados +
+        360
+      ) %
+      360;
+
+    return grados;
+  }
+
+
+  function registrarRumboAltaVelocidad(
+    rumbo
+  ){
+
+    if(
+      !Number.isFinite(
+        rumbo
+      )
+    ){
+      return;
+    }
+
+    historialRumbosAltaVelocidad.push(
+      rumbo
+    );
+
+    while(
+      historialRumbosAltaVelocidad.length >
+        HISTORIAL_RUMBO_MAX
+    ){
+      historialRumbosAltaVelocidad.shift();
+    }
+  }
+
+
+  function estabilizarPuntoAltaVelocidad(
+    latNuevo,
+    lonNuevo,
+    velocidadKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      ) ||
+      velocidadKmh <
+        VELOCIDAD_CONTINUA_DESDE_KMH ||
+      !penultimoPuntoServidor ||
+      !ultimoPuntoServidor
+    ){
+      desviosAltaVelocidadConsecutivos =
+        0;
+
+      return {
+        lat:latNuevo,
+        lon:lonNuevo,
+        filtrado:false
+      };
+    }
+
+    const distanciaAnterior =
+      distanciaMetros(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const distanciaNueva =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      distanciaAnterior <
+        DISTANCIA_MINIMA_FILTRO_LATERAL_METROS ||
+      distanciaNueva <
+        DISTANCIA_MINIMA_FILTRO_LATERAL_METROS ||
+      distanciaNueva >
+        DISTANCIA_MAXIMA_FILTRO_LATERAL_METROS
+    ){
+      return {
+        lat:latNuevo,
+        lon:lonNuevo,
+        filtrado:false
+      };
+    }
+
+    const rumboAnterior =
+      rumboGrados(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const rumboNuevo =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    registrarRumboAltaVelocidad(
+      rumboAnterior
+    );
+
+    const rumboEstable =
+      promedioCircularRumbos(
+        historialRumbosAltaVelocidad
+      );
+
+    if(
+      !Number.isFinite(
+        rumboEstable
+      )
+    ){
+      return {
+        lat:latNuevo,
+        lon:lonNuevo,
+        filtrado:false
+      };
+    }
+
+    const diferencia =
+      diferenciaRumboGrados(
+        rumboEstable,
+        rumboNuevo
+      );
+
+    if(
+      diferencia <=
+        ANGULO_DESVIO_ALTA_VELOCIDAD_GRADOS
+    ){
+      desviosAltaVelocidadConsecutivos =
+        0;
+
+      registrarRumboAltaVelocidad(
+        rumboNuevo
+      );
+
+      return {
+        lat:latNuevo,
+        lon:lonNuevo,
+        filtrado:false
+      };
+    }
+
+    desviosAltaVelocidadConsecutivos++;
+
+    if(
+      desviosAltaVelocidadConsecutivos >=
+        3
+    ){
+      historialRumbosAltaVelocidad = [
+        rumboNuevo
+      ];
+
+      desviosAltaVelocidadConsecutivos =
+        0;
+
+      return {
+        lat:latNuevo,
+        lon:lonNuevo,
+        filtrado:false
+      };
+    }
+
+    const proyectado =
+      proyectarPuntoPorRumbo(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        rumboEstable,
+        distanciaNueva
+      );
+
+    let factorLateral =
+      desviosAltaVelocidadConsecutivos === 1
+        ? FACTOR_LATERAL_PRIMER_DESVIO
+        : FACTOR_LATERAL_SEGUNDO_DESVIO;
+
+    if(
+      diferencia <
+        ANGULO_GIRO_REAL_ALTA_VELOCIDAD_GRADOS
+    ){
+      factorLateral =
+        Math.max(
+          factorLateral,
+          0.45
+        );
+    }
+
+    return {
+      lat:
+        proyectado.lat +
+        (
+          latNuevo -
+          proyectado.lat
+        ) *
+        factorLateral,
+      lon:
+        proyectado.lon +
+        (
+          lonNuevo -
+          proyectado.lon
+        ) *
+        factorLateral,
+      filtrado:true
+    };
   }
 
   function esGiroProtegidoBajaVelocidad(
@@ -3548,10 +3873,27 @@ if(
         createdAt
       );
 
-    const duracion =
-      calcularDuracionAnimacion(
+    /*
+      El punto bruto sigue alimentando velocidad y memoria real.
+      Sólo el destino VISUAL puede ser estabilizado a alta velocidad.
+    */
+    const puntoVisual =
+      estabilizarPuntoAltaVelocidad(
         lat,
         lon,
+        velocidadInterna
+      );
+
+    const latVisual =
+      puntoVisual.lat;
+
+    const lonVisual =
+      puntoVisual.lon;
+
+    const duracion =
+      calcularDuracionAnimacion(
+        latVisual,
+        lonVisual,
         createdAt,
         velocidadInterna
       );
@@ -3574,8 +3916,8 @@ if(
         ? distanciaMetros(
             ultimoPuntoServidor.lat,
             ultimoPuntoServidor.lon,
-            lat,
-            lon
+            latVisual,
+            lonVisual
           )
         : Infinity;
 
@@ -3641,8 +3983,8 @@ if(
           visual exacto donde estaba el marcador.
       */
       animarMarcadorHasta(
-        lat,
-        lon,
+        latVisual,
+        lonVisual,
         duracion,
         velocidadInterna
       );
