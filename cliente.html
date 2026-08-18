@@ -9,7 +9,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title></title>
+  <title>Seguimiento piOca</title>
 
   <link
     rel="stylesheet"
@@ -1179,7 +1179,615 @@
       }
     }
 
-  </style>
+  
+    /* ==========================================================
+       cliente_diseño_nuevo
+       PRESENTACIÓN FULLSCREEN SOBRE MAPA
+       IMPORTANTE:
+       - conserva pin y animación GPS existentes
+       - conserva consultas, heartbeat y cierre
+       - sólo cambia layout + presentación de ETA/etapas
+       - azul piOca: #0833A2
+       ========================================================== */
+
+    :root{
+      --pioca-azul:#0833A2;
+      --pioca-azul-claro:#175BCE;
+      --pioca-texto:#1f2b38;
+      --pioca-panel:rgba(255,255,255,.82);
+      --pioca-panel-borde:rgba(255,255,255,.78);
+      --pioca-gris:#b7bcc5;
+    }
+
+    html,
+    body{
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:#eef2f4;
+    }
+
+    body{
+      padding:0 !important;
+      margin:0 !important;
+      height:100dvh !important;
+      min-height:100dvh !important;
+    }
+
+    .panel{
+      position:fixed;
+      inset:0;
+      width:100%;
+      max-width:none;
+      height:100dvh;
+      margin:0;
+      padding:0;
+      background:transparent;
+      overflow:hidden;
+      display:block;
+    }
+
+    /*
+      El mapa ocupa TODO el viewport.
+    */
+    #mapaWrap{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      display:none;
+      z-index:1;
+    }
+
+    #mapaContenedor{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      display:block;
+    }
+
+    #mapa{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      border:0;
+      border-radius:0;
+      box-shadow:none;
+    }
+
+    /*
+      Logo piOca transparente superpuesto arriba izquierda.
+      El HTML mantiene su estructura original para no tocar la lógica.
+    */
+    .cabeceraCliente{
+      position:absolute;
+      z-index:1100;
+      left:max(13px, env(safe-area-inset-left));
+      top:max(13px, env(safe-area-inset-top));
+      width:auto;
+      height:auto;
+      display:block;
+      margin:0;
+      pointer-events:none;
+    }
+
+    .logo{
+      min-height:0 !important;
+      width:112px;
+      height:112px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin:0;
+      padding:0;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.82);
+      border-radius:50%;
+      box-shadow:0 5px 18px rgba(15,30,45,.13);
+      backdrop-filter:blur(7px);
+      -webkit-backdrop-filter:blur(7px);
+      overflow:hidden;
+    }
+
+    .logo::after{
+      display:none !important;
+    }
+
+    .logo img{
+      width:106px !important;
+      max-width:106px !important;
+      height:106px !important;
+      object-fit:contain;
+      display:block;
+    }
+
+    /*
+      El viejo cuadro grande de ETA queda oculto.
+      La ETA ahora vive en el panel inferior.
+    */
+    #horaLlegadaBox{
+      display:none !important;
+    }
+
+    /*
+      Seguimiento en vivo: mismo contenido actual, más chico,
+      superpuesto arriba a la derecha.
+    */
+    #estado{
+      position:absolute;
+      z-index:1102;
+      top:max(13px, env(safe-area-inset-top));
+      right:max(13px, env(safe-area-inset-right));
+      width:auto;
+      max-width:218px;
+      min-height:38px;
+      margin:0;
+      padding:7px 9px;
+      border-radius:11px;
+      box-shadow:0 5px 16px rgba(20,40,60,.14);
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+      font-size:11px;
+    }
+
+    .estadoEnVivo{
+      gap:6px;
+      grid-template-columns:auto 1fr auto;
+    }
+
+    .puntoEnVivo{
+      width:16px !important;
+      height:16px !important;
+      flex-basis:16px !important;
+    }
+
+    .puntoEnVivo::after{
+      width:16px !important;
+      height:16px !important;
+    }
+
+    .puntoEnVivo::before{
+      font-size:9px !important;
+    }
+
+    .estadoTexto{
+      font-size:10.5px !important;
+      white-space:nowrap;
+    }
+
+    .estadoBadge{
+      padding:3px 17px 3px 5px !important;
+      font-size:7.5px !important;
+    }
+
+    .estadoBadge::after{
+      right:5px;
+      width:6px;
+      height:6px;
+    }
+
+    /*
+      Recuadro actual de actualización GPS:
+      mismo estilo funcional, apenas más chico y debajo de EN VIVO.
+    */
+    #actualizacionBox{
+      top:62px;
+      right:max(13px, env(safe-area-inset-right));
+      min-width:134px;
+      padding:8px 10px;
+      border-radius:11px;
+      font-size:9.5px;
+      z-index:1101;
+    }
+
+    #actualizacionBox::before{
+      margin-right:4px;
+      font-size:14px;
+    }
+
+    #actualizacionSegundos{
+      font-size:9.5px;
+    }
+
+    /*
+      Botón manual de refrescar: conserva su funcionamiento y queda
+      por encima del panel inferior para no taparse.
+    */
+    #btnRefrescarPosicion{
+      right:14px;
+      bottom:270px;
+      z-index:1100;
+      padding:8px 10px;
+      font-size:9px;
+      background:rgba(255,255,255,.86);
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+    }
+
+    /*
+      El viejo bloque independiente de frase queda integrado dentro
+      del nuevo panel. Conservamos el mismo ID y el mismo texto.
+    */
+    #fraseServicio{
+      position:static;
+      width:100%;
+      margin:11px 0 0;
+      padding:10px 6px 2px;
+      border:0;
+      border-top:1px solid rgba(65,75,88,.16);
+      border-radius:0;
+      box-shadow:none;
+      background:transparent;
+      color:#515d68;
+      font-size:11.5px;
+      line-height:1.3;
+    }
+
+    #fraseServicio::before{
+      width:24px;
+      height:24px;
+      flex-basis:24px;
+      border-color:rgba(8,51,162,.38);
+      color:var(--pioca-azul);
+      font-size:14px;
+    }
+
+    /*
+      PANEL INFERIOR SEMITRANSPARENTE
+    */
+    #piocaTrayectoPanel{
+      position:absolute;
+      z-index:1090;
+      left:14px;
+      right:14px;
+      bottom:max(12px, env(safe-area-inset-bottom));
+      padding:16px 16px 12px;
+      border:1px solid var(--pioca-panel-borde);
+      border-radius:19px;
+      background:var(--pioca-panel);
+      box-shadow:0 9px 30px rgba(17,30,45,.18);
+      backdrop-filter:blur(13px);
+      -webkit-backdrop-filter:blur(13px);
+      color:var(--pioca-texto);
+    }
+
+    #piocaTrayectoCabecera{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:13px;
+    }
+
+    #piocaTrayectoTitulo{
+      margin:0;
+      color:#1f2b38;
+      font-size:18px;
+      line-height:1.05;
+      font-weight:900;
+      letter-spacing:.2px;
+      text-transform:uppercase;
+    }
+
+    #piocaTrayectoTitulo::before{
+      content:"⌁";
+      display:inline-block;
+      margin-right:7px;
+      color:var(--pioca-azul);
+      font-size:24px;
+      font-weight:800;
+      vertical-align:-2px;
+    }
+
+    #piocaEtaLinea{
+      flex:0 0 auto;
+      text-align:right;
+      color:#39434d;
+      font-size:11px;
+      line-height:1.2;
+    }
+
+    #piocaEtaHora{
+      display:block;
+      margin-top:2px;
+      color:var(--pioca-azul);
+      font-size:24px;
+      line-height:1;
+      font-weight:900;
+      letter-spacing:.2px;
+      white-space:nowrap;
+    }
+
+    #piocaTrayecto{
+      position:relative;
+      height:105px;
+      margin:0 7px;
+    }
+
+    #piocaLineaBase,
+    #piocaLineaProgreso{
+      position:absolute;
+      left:5%;
+      right:5%;
+      top:25px;
+      height:4px;
+      border-radius:999px;
+    }
+
+    #piocaLineaBase{
+      background:rgba(87,96,108,.27);
+    }
+
+    #piocaLineaProgreso{
+      right:auto;
+      width:30%;
+      background:var(--pioca-azul);
+      transition:width .55s cubic-bezier(.22,.75,.25,1);
+    }
+
+    .piocaEtapa{
+      position:absolute;
+      top:18px;
+      width:24%;
+      transform:translateX(-50%);
+      text-align:center;
+      color:#303a44;
+    }
+
+    .piocaEtapa:nth-of-type(1){ left:5%; }
+    .piocaEtapa:nth-of-type(2){ left:35%; }
+    .piocaEtapa:nth-of-type(3){ left:65%; }
+    .piocaEtapa:nth-of-type(4){ left:95%; }
+
+    .piocaEtapaPunto{
+      width:17px;
+      height:17px;
+      margin:0 auto 10px;
+      border-radius:50%;
+      background:#b9bec5;
+      border:2px solid rgba(255,255,255,.95);
+      box-shadow:0 1px 4px rgba(0,0,0,.12);
+      transition:background .35s ease, transform .35s ease;
+    }
+
+    .piocaEtapa.completa .piocaEtapaPunto,
+    .piocaEtapa.actual .piocaEtapaPunto{
+      background:var(--pioca-azul);
+    }
+
+    .piocaEtapa.actual .piocaEtapaPunto{
+      transform:scale(1.12);
+    }
+
+    .piocaEtapaNumero{
+      display:block;
+      color:var(--pioca-azul);
+      font-size:10px;
+      font-weight:900;
+      margin-bottom:4px;
+    }
+
+    .piocaEtapaTexto{
+      display:block;
+      min-height:26px;
+      font-size:9.2px;
+      line-height:1.17;
+      font-weight:700;
+    }
+
+    .piocaEtapaHora{
+      display:block;
+      min-height:13px;
+      margin-top:3px;
+      color:#5d6771;
+      font-size:9.2px;
+      font-weight:700;
+      white-space:nowrap;
+    }
+
+    .piocaEtapa.actual .piocaEtapaHora{
+      color:var(--pioca-azul);
+      font-weight:900;
+    }
+
+    /*
+      Camioneta que se desplaza entre etapas.
+      Usa el archivo solicitado por el usuario.
+    */
+    #piocaCamionetaProgreso{
+      position:absolute;
+      z-index:5;
+      top:0;
+      left:35%;
+      width:58px;
+      height:58px;
+      transform:translateX(-50%);
+      border-radius:50%;
+      background:rgba(255,255,255,.88);
+      border:1px solid rgba(255,255,255,.94);
+      box-shadow:0 4px 13px rgba(24,40,60,.16);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:left .58s cubic-bezier(.22,.75,.25,1);
+      overflow:hidden;
+    }
+
+    #piocaCamionetaProgreso img{
+      width:55px;
+      height:55px;
+      object-fit:contain;
+      display:block;
+    }
+
+    /*
+      Logo piOca pequeño al pie del panel.
+    */
+    #piocaMarcaPie{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      margin-top:3px;
+      height:21px;
+    }
+
+    #piocaMarcaPie img{
+      height:19px;
+      width:auto;
+      max-width:74px;
+      object-fit:contain;
+    }
+
+    /*
+      Finalizado conserva su lógica existente.
+      Sólo recuperamos un fondo blanco legible al ocultarse el mapa.
+    */
+    .cabeceraCliente.finalizado{
+      position:relative;
+      inset:auto;
+      z-index:auto;
+      width:100%;
+      display:grid;
+      padding-top:24px;
+    }
+
+    .cabeceraCliente.finalizado .logo{
+      width:130px;
+      height:130px;
+      background:#fff;
+    }
+
+    .cabeceraCliente.finalizado .logo img{
+      width:124px !important;
+      height:124px !important;
+    }
+
+    @media(max-width:430px){
+
+      .logo{
+        width:96px;
+        height:96px;
+      }
+
+      .logo img{
+        width:91px !important;
+        height:91px !important;
+        max-width:91px !important;
+      }
+
+      #estado{
+        max-width:191px;
+        padding:6px 7px;
+      }
+
+      .estadoTexto{
+        font-size:9.3px !important;
+      }
+
+      .estadoBadge{
+        font-size:6.8px !important;
+      }
+
+      #actualizacionBox{
+        top:56px;
+        min-width:124px;
+        padding:7px 8px;
+        font-size:8.8px;
+      }
+
+      #actualizacionSegundos{
+        font-size:8.8px;
+      }
+
+      #piocaTrayectoPanel{
+        left:10px;
+        right:10px;
+        bottom:max(8px, env(safe-area-inset-bottom));
+        padding:14px 11px 10px;
+        border-radius:17px;
+      }
+
+      #piocaTrayectoTitulo{
+        font-size:16px;
+      }
+
+      #piocaEtaLinea{
+        font-size:9.5px;
+      }
+
+      #piocaEtaHora{
+        font-size:22px;
+      }
+
+      #piocaTrayecto{
+        height:101px;
+        margin:0 4px;
+      }
+
+      .piocaEtapaTexto{
+        font-size:8.4px;
+      }
+
+      .piocaEtapaHora{
+        font-size:8.4px;
+      }
+
+      #piocaCamionetaProgreso{
+        width:53px;
+        height:53px;
+      }
+
+      #piocaCamionetaProgreso img{
+        width:50px;
+        height:50px;
+      }
+
+      #fraseServicio{
+        font-size:10.4px;
+        padding-top:9px;
+      }
+
+      #btnRefrescarPosicion{
+        bottom:251px;
+      }
+    }
+
+    @media(max-height:700px){
+
+      #piocaTrayectoPanel{
+        padding-top:11px;
+        padding-bottom:8px;
+      }
+
+      #piocaTrayectoCabecera{
+        margin-bottom:8px;
+      }
+
+      #piocaTrayecto{
+        height:91px;
+      }
+
+      #fraseServicio{
+        margin-top:6px;
+        padding-top:7px;
+      }
+
+      #piocaMarcaPie{
+        display:none;
+      }
+
+      #btnRefrescarPosicion{
+        bottom:225px;
+      }
+    }
+
+
+</style>
 
 </head>
 
@@ -1192,7 +1800,7 @@
     <div class="logo">
 
       <img
-        src="logo-pioca.png"
+        src="isologo-fondo-transparente.png"
         alt="piOca"
       >
 
@@ -1244,8 +1852,74 @@
 
     </div>
 
-    <div id="fraseServicio">
-      Respetar tu tiempo también es parte de nuestro servicio.
+    <div id="piocaTrayectoPanel">
+
+      <div id="piocaTrayectoCabecera">
+
+        <div id="piocaTrayectoTitulo">
+          ESTAMOS EN CAMINO
+        </div>
+
+        <div id="piocaEtaLinea">
+          Llegada aproximada
+          <span id="piocaEtaHora">--:-- hs</span>
+        </div>
+
+      </div>
+
+      <div id="piocaTrayecto">
+
+        <div id="piocaLineaBase"></div>
+        <div id="piocaLineaProgreso"></div>
+
+        <div class="piocaEtapa completa" id="piocaEtapa1">
+          <div class="piocaEtapaPunto"></div>
+          <span class="piocaEtapaNumero">1</span>
+          <span class="piocaEtapaTexto">Seguimiento<br>iniciado</span>
+          <span class="piocaEtapaHora" id="piocaHoraEtapa1"></span>
+        </div>
+
+        <div class="piocaEtapa actual" id="piocaEtapa2">
+          <div class="piocaEtapaPunto"></div>
+          <span class="piocaEtapaNumero">2</span>
+          <span class="piocaEtapaTexto">En camino</span>
+          <span class="piocaEtapaHora" id="piocaHoraEtapa2"></span>
+        </div>
+
+        <div class="piocaEtapa" id="piocaEtapa3">
+          <div class="piocaEtapaPunto"></div>
+          <span class="piocaEtapaNumero">3</span>
+          <span class="piocaEtapaTexto">Cerca de tu<br>ubicación</span>
+          <span class="piocaEtapaHora" id="piocaHoraEtapa3"></span>
+        </div>
+
+        <div class="piocaEtapa" id="piocaEtapa4">
+          <div class="piocaEtapaPunto"></div>
+          <span class="piocaEtapaNumero">4</span>
+          <span class="piocaEtapaTexto">Llegada<br>aproximada</span>
+          <span class="piocaEtapaHora" id="piocaHoraEtapa4"></span>
+        </div>
+
+        <div id="piocaCamionetaProgreso">
+          <img
+            src="logo-barra-inferior.png"
+            alt="piOca en camino"
+          >
+        </div>
+
+      </div>
+
+      <div id="fraseServicio">
+        Respetar tu tiempo también es parte de nuestro servicio.
+      </div>
+
+      <div id="piocaMarcaPie">
+        <img
+          src="isologo-fondo-transparente.png"
+          alt="piOca"
+        >
+      </div>
+
     </div>
 
   </div>
@@ -1313,6 +1987,48 @@
   const btnRefrescarPosicion =
     document.getElementById(
       "btnRefrescarPosicion"
+    );
+
+
+  /*
+    cliente_diseño_nuevo:
+    controles exclusivamente visuales del panel inferior.
+  */
+  const piocaTrayectoTitulo =
+    document.getElementById(
+      "piocaTrayectoTitulo"
+    );
+
+  const piocaEtaHora =
+    document.getElementById(
+      "piocaEtaHora"
+    );
+
+  const piocaLineaProgreso =
+    document.getElementById(
+      "piocaLineaProgreso"
+    );
+
+  const piocaCamionetaProgreso =
+    document.getElementById(
+      "piocaCamionetaProgreso"
+    );
+
+  const piocaEtapas = [
+    document.getElementById("piocaEtapa1"),
+    document.getElementById("piocaEtapa2"),
+    document.getElementById("piocaEtapa3"),
+    document.getElementById("piocaEtapa4")
+  ];
+
+  const piocaHoraEtapa3 =
+    document.getElementById(
+      "piocaHoraEtapa3"
+    );
+
+  const piocaHoraEtapa4 =
+    document.getElementById(
+      "piocaHoraEtapa4"
     );
 
   const parametros =
@@ -1569,6 +2285,186 @@
       iconAnchor:[15,46],
       popupAnchor:[0,-42]
     });
+
+
+  function formatearHoraTrayecto(
+    fechaMs
+  ){
+
+    if(
+      !fechaMs ||
+      !Number.isFinite(
+        fechaMs
+      )
+    ){
+      return "";
+    }
+
+    return new Date(
+      fechaMs
+    )
+    .toLocaleTimeString(
+      "es-AR",
+      {
+        hour:"2-digit",
+        minute:"2-digit",
+        hour12:false
+      }
+    ) +
+    " hs";
+  }
+
+
+  function pintarEtapaTrayecto(
+    etapa
+  ){
+
+    /*
+      Etapas visuales solicitadas:
+      2 = viaje normal
+      3 = desde 5 minutos antes de ETA
+      4 = desde 2 minutos antes de ETA
+
+      Si la ETA vuelve a alejarse, la camioneta vuelve hacia atrás.
+      No modifica estado del seguimiento ni GPS.
+    */
+    etapa =
+      Math.max(
+        2,
+        Math.min(
+          4,
+          etapa
+        )
+      );
+
+    const posiciones = {
+      2:35,
+      3:65,
+      4:95
+    };
+
+    const rellenos = {
+      2:30,
+      3:60,
+      4:90
+    };
+
+    piocaCamionetaProgreso.style.left =
+      posiciones[etapa] +
+      "%";
+
+    piocaLineaProgreso.style.width =
+      rellenos[etapa] +
+      "%";
+
+    for(
+      let i = 0;
+      i < piocaEtapas.length;
+      i++
+    ){
+
+      const numeroEtapa =
+        i + 1;
+
+      piocaEtapas[i]
+      .classList
+      .toggle(
+        "completa",
+        numeroEtapa <
+          etapa
+      );
+
+      piocaEtapas[i]
+      .classList
+      .toggle(
+        "actual",
+        numeroEtapa ===
+          etapa
+      );
+    }
+  }
+
+
+  function actualizarPanelTrayecto(){
+
+    if(
+      terminado ||
+      !llegadaClienteMs ||
+      !Number.isFinite(
+        llegadaClienteMs
+      )
+    ){
+      return;
+    }
+
+    const ahora =
+      Date.now();
+
+    const faltanMs =
+      llegadaClienteMs -
+      ahora;
+
+    const faltanMin =
+      faltanMs /
+      60000;
+
+    /*
+      Hora visible:
+      siempre la misma ETA controlada desde el panel administrativo.
+    */
+    piocaEtaHora.textContent =
+      formatearHoraTrayecto(
+        llegadaClienteMs
+      );
+
+    /*
+      Etapa 3 muestra siempre ETA - 5 minutos.
+      Etapa 4 muestra ETA real.
+    */
+    piocaHoraEtapa3.textContent =
+      formatearHoraTrayecto(
+        llegadaClienteMs -
+        5 * 60 * 1000
+      );
+
+    piocaHoraEtapa4.textContent =
+      formatearHoraTrayecto(
+        llegadaClienteMs
+      );
+
+    /*
+      Lógica pedida:
+      > 5 min  => etapa 2
+      <= 5 min => etapa 3
+      <= 2 min => etapa 4
+
+      Si el técnico aumenta la ETA, esta lógica vuelve a mover
+      visualmente la camioneta a la etapa correspondiente.
+    */
+    let etapa =
+      2;
+
+    if(
+      faltanMin <= 2
+    ){
+      etapa = 4;
+
+    }else if(
+      faltanMin <= 5
+    ){
+      etapa = 3;
+    }
+
+    pintarEtapaTrayecto(
+      etapa
+    );
+
+    piocaTrayectoTitulo.textContent =
+      etapa >= 3
+        ? "ESTAMOS PRÓXIMOS A LLEGAR"
+        : "ESTAMOS EN CAMINO";
+  }
+
 
   function detenerReloj(){
 
@@ -1837,6 +2733,8 @@
 
     llegadaClienteMs =
       fecha.getTime();
+
+    actualizarPanelTrayecto();
   }
 
   function aplicarClasePopup(
@@ -2216,6 +3114,7 @@ ocultarHoraLlegada();
         function(){
           actualizarIndicador();
           actualizarEstadoLlegada();
+          actualizarPanelTrayecto();
         },
         1000
       );
