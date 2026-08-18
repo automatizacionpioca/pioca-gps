@@ -1049,6 +1049,33 @@
     }
 
 
+
+
+    /* ==========================================================
+       cliente_diseño_nuevo_R7
+       Frase emocional en etapa 4
+       ========================================================== */
+
+    #piocaHoraEtapa4{
+      white-space:normal !important;
+      line-height:1.12 !important;
+      font-size:8.8px !important;
+      min-height:22px !important;
+      max-width:84px !important;
+      margin-left:auto !important;
+      margin-right:auto !important;
+      color:#0833A2 !important;
+      font-weight:800 !important;
+    }
+
+    @media(max-width:430px){
+      #piocaHoraEtapa4{
+        font-size:8.1px !important;
+        max-width:76px !important;
+      }
+    }
+
+
 </style>
 
 </head>
@@ -1696,13 +1723,12 @@
       "";
 
     /*
-      Etapa 4:
-      la hora visible es la ETA controlada desde index.
+      R7:
+      La ETA ya se muestra en grande arriba.
+      En la etapa 4 usamos una frase emocional para no repetir la hora.
     */
     piocaHoraEtapa4.textContent =
-      formatearHoraTrayecto(
-        llegadaClienteMs
-      );
+      "Ya casi estamos con vos";
 
     let etapa =
       2;
