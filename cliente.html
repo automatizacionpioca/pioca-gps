@@ -1326,6 +1326,21 @@
 
     /* R9: no hay segunda frase debajo de la etapa 4 */
     #piocaHoraEtapa4{ display:none !important; }
+
+/* R10 - estado superior compacto */
+#estado{width:154px!important;max-width:calc(100vw - 150px)!important;min-height:34px!important;padding:6px 10px!important;border-radius:12px!important}
+.estadoEnVivo{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:7px!important}
+.puntoEnVivo{width:8px!important;height:8px!important;flex:0 0 8px!important;box-shadow:0 0 0 3px rgba(40,191,89,.10)!important;animation:piocaLiveDot 1.7s ease-in-out infinite!important}
+.puntoEnVivo::before{content:""!important;display:none!important}
+.puntoEnVivo::after{width:8px!important;height:8px!important;background:rgba(40,191,89,.30)!important;animation:piocaLivePulse 1.7s ease-out infinite!important}
+.estadoTexto{font-size:10px!important;line-height:1!important;font-weight:800!important;white-space:nowrap!important}
+.estadoBadge{display:none!important}
+#actualizacionBox{top:55px!important}
+#estado.estadoNoDisponible .puntoEnVivo{width:16px!important;height:16px!important;flex:0 0 16px!important;animation:none!important;box-shadow:none!important}
+#estado.estadoNoDisponible .puntoEnVivo::before{content:"✕"!important;display:flex!important;position:absolute!important;inset:0!important;align-items:center!important;justify-content:center!important;color:#fff!important;font-size:10px!important;font-weight:800!important}
+#estado.estadoNoDisponible .puntoEnVivo::after{display:none!important}
+@media(max-width:430px){#estado{width:148px!important;max-width:calc(100vw - 133px)!important;min-height:33px!important;padding:6px 9px!important}.estadoTexto{font-size:9.5px!important}#actualizacionBox{top:53px!important}}
+
 </style>
 
 </head>
@@ -2316,7 +2331,6 @@
       '<span class="estadoEnVivo">' +
         '<span class="puntoEnVivo"></span>' +
         '<span class="estadoTexto">NO DISPONIBLE</span>' +
-        '<span class="estadoBadge">OFF</span>' +
       '</span>';
   }
 
@@ -2353,7 +2367,6 @@
       '<span class="estadoEnVivo">' +
         '<span class="puntoEnVivo"></span>' +
         '<span class="estadoTexto">RASTREO EN VIVO</span>' +
-        '<span class="estadoBadge">EN VIVO</span>' +
       '</span>';
 
     estado.style.background =
