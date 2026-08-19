@@ -92,7 +92,15 @@ t = re_once_literal(
     re.S
 )
 
-# V9: No molestar se activa sin preguntas durante el seguimiento.
+# El permiso especial se solicita sólo si todavía no fue concedido.
+# Una vez concedido, la activación a los 3 minutos es automática y sin preguntas.
+t = re_once(
+    t,
+    r'(public void startTracking\([\s\S]*?runOnUiThread\(\(\) -> \{\s*)',
+    r'\1\n      ensureDndAccess();\n',
+    'ensureDndAccess startTracking'
+)
+
 
 # Al finalizar manualmente desde el panel, preguntar inmediatamente
 # si se desea quitar el No molestar que piOca activó.
@@ -131,6 +139,9 @@ t = re_once(
 
 private static final long DND_BEFORE_ARRIVAL_MS =
         3L * 60L * 1000L;
+
+private static final long TRACKING_AFTER_ARRIVAL_MS =
+        5L * 60L * 1000L;
 
 private volatile long clientArrivalMillis = 0L;
 private volatile boolean dndHandled = false;''',
@@ -175,6 +186,21 @@ t = re_once(
     'save clientArrival'
 )
 
+# Al recibir expires_at desde MainActivity, reconstruir ETA inmediatamente.
+# Arquitectura piOca: expires_at = client_arrival + 5 minutos.
+t = re_once(
+    t,
+    r'(expiresAtMillis\s*=\s*parseTime\(\s*i\.getStringExtra\(\s*"expires_at"\s*\)\s*\);)',
+    r'''\1
+
+clientArrivalMillis =
+        expiresAtMillis > TRACKING_AFTER_ARRIVAL_MS
+                ? expiresAtMillis - TRACKING_AFTER_ARRIVAL_MS
+                : 0L;''',
+    'derive clientArrival from incoming expires',
+    re.S
+)
+
 # Restaurar ETA.
 t = re_once(
     t,
@@ -185,7 +211,15 @@ t = re_once(
 clientArrivalMillis = prefs.getLong(
         "client_arrival",
         0L
-);''',
+);
+
+if (clientArrivalMillis <= 0
+        && expiresAtMillis > TRACKING_AFTER_ARRIVAL_MS) {
+
+    clientArrivalMillis =
+            expiresAtMillis -
+            TRACKING_AFTER_ARRIVAL_MS;
+}''',
     'restore clientArrival'
 )
 
@@ -206,7 +240,10 @@ t = re_once(
     r'''\1
 
 
-    long arrival = loadClientArrival();
+    long arrival =
+            r.expiresAt > TRACKING_AFTER_ARRIVAL_MS
+                    ? r.expiresAt - TRACKING_AFTER_ARRIVAL_MS
+                    : 0L;
 
     if (arrival > 0) {
         clientArrivalMillis = arrival;
@@ -370,20 +407,30 @@ private void maybeEnableDnd(long now) {
                 NotificationManager.INTERRUPTION_FILTER_PRIORITY
         );
 
-        prefs.edit()
-                .putBoolean(
-                        "dnd_activated_by_pioca",
-                        true
-                )
-                .putBoolean(
-                        "dnd_restore_pending",
-                        true
-                )
-                .apply();
+        if (nm.getCurrentInterruptionFilter()
+                != NotificationManager.INTERRUPTION_FILTER_ALL) {
 
-        dndHandled = true;
+            prefs.edit()
+                    .putBoolean(
+                            "dnd_activated_by_pioca",
+                            true
+                    )
+                    .putBoolean(
+                            "dnd_restore_pending",
+                            true
+                    )
+                    .apply();
+
+            dndHandled = true;
+
+        } else {
+
+            dndHandled = false;
+        }
 
     } catch (Exception ignored) {
+
+        dndHandled = false;
     }
 }
 
