@@ -1921,6 +1921,260 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
   }
 }
 
+
+
+/* ==========================================================
+   PANTALLA FINAL - EXPERIENCIA DE SERVICIO + RESEÑA
+   Sólo afecta el estado final.
+   ========================================================== */
+
+body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado{
+  padding-top:max(20px, env(safe-area-inset-top)) !important;
+}
+
+body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo{
+  width:118px !important;
+  height:118px !important;
+  min-height:118px !important;
+}
+
+body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo img{
+  width:114px !important;
+  height:114px !important;
+  max-width:114px !important;
+}
+
+body.seguimientoFinalizadoVisual #estado{
+  width:calc(100% - 24px) !important;
+  max-width:430px !important;
+  margin:14px auto 0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:22px !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  display:block !important;
+  overflow:visible !important;
+}
+
+.llegadaFinal{
+  width:100% !important;
+  padding:0 !important;
+  margin:0 !important;
+}
+
+.llegadaFinalTarjeta{
+  width:100%;
+  padding:18px 18px 16px;
+  border:1px solid rgba(255,255,255,.96);
+  border-radius:20px;
+  background:rgba(255,255,255,.90);
+  box-shadow:0 9px 28px rgba(17,30,45,.13);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+
+.llegadaFinalCamioneta{
+  width:106px;
+  height:58px;
+  margin:0 auto 4px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.llegadaFinalCamioneta img{
+  width:104px;
+  height:56px;
+  object-fit:contain;
+  display:block;
+  filter:drop-shadow(0 3px 3px rgba(20,35,50,.15));
+}
+
+.llegadaFinalTitulo{
+  margin:0 0 7px !important;
+  color:#249447 !important;
+  font-size:26px !important;
+  line-height:1.05 !important;
+  font-weight:900 !important;
+  letter-spacing:.15px !important;
+}
+
+.llegadaFinalGracias{
+  margin:0 0 8px !important;
+  color:#203246 !important;
+  font-size:16px !important;
+  line-height:1.2 !important;
+  font-weight:800 !important;
+}
+
+.llegadaFinalFrase{
+  margin:0 !important;
+  color:#596672 !important;
+  font-size:12px !important;
+  line-height:1.35 !important;
+  font-weight:500 !important;
+}
+
+.llegadaFinalSeparador{
+  width:100%;
+  height:1px;
+  margin:15px 0 14px;
+  background:rgba(65,75,88,.14);
+}
+
+.llegadaFinalPregunta{
+  margin:0 0 5px;
+  color:#203246;
+  font-size:14px;
+  line-height:1.25;
+  font-weight:800;
+}
+
+.llegadaFinalContexto{
+  margin:0 auto 12px;
+  max-width:340px;
+  color:#65717c;
+  font-size:10.5px;
+  line-height:1.35;
+}
+
+.llegadaFinalOpciones{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+
+.llegadaFinalBoton{
+  width:100%;
+  min-height:42px;
+  margin:0;
+  padding:10px 11px;
+  border:1px solid #d4dde5;
+  border-radius:12px;
+  background:#f7f9fb;
+  color:#344555;
+  font-family:Arial,sans-serif;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.llegadaFinalBoton:active{ transform:scale(.98); }
+
+.llegadaFinalBoton.positivo{
+  border-color:#b8dfc0;
+  background:#eef9f1;
+  color:#247238;
+}
+
+#llegadaFinalPasoOpinion,
+#llegadaFinalPasoMejora{
+  display:none;
+}
+
+#llegadaFinalPasoOpinion.visible,
+#llegadaFinalPasoMejora.visible{
+  display:block;
+}
+
+.llegadaFinalOpinionTitulo{
+  margin:0 0 6px;
+  color:#203246;
+  font-size:15px;
+  line-height:1.2;
+  font-weight:900;
+}
+
+.llegadaFinalOpinionTexto{
+  margin:0 auto 12px;
+  max-width:340px;
+  color:#5c6873;
+  font-size:10.5px;
+  line-height:1.4;
+}
+
+#btnDejarOpinionGoogle{
+  display:block;
+  width:100%;
+  min-height:44px;
+  margin:0;
+  padding:12px 14px;
+  border:0;
+  border-radius:12px;
+  background:#1955A3;
+  color:#fff;
+  text-decoration:none;
+  font-family:Arial,sans-serif;
+  font-size:11px;
+  line-height:1.1;
+  font-weight:800;
+  box-shadow:0 5px 14px rgba(25,85,163,.18);
+}
+
+.llegadaFinalMicro{
+  margin-top:9px;
+  color:#7a858f;
+  font-size:9px;
+  line-height:1.3;
+}
+
+.llegadaFinalMejora{
+  padding:12px 13px;
+  border:1px solid #d9e1e7;
+  border-radius:12px;
+  background:#f7f9fb;
+  color:#53606c;
+  font-size:10.5px;
+  line-height:1.4;
+}
+
+@media(max-width:430px){
+  body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo{
+    width:108px !important;
+    height:108px !important;
+    min-height:108px !important;
+  }
+
+  body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo img{
+    width:104px !important;
+    height:104px !important;
+    max-width:104px !important;
+  }
+
+  body.seguimientoFinalizadoVisual #estado{
+    width:calc(100% - 20px) !important;
+    margin-top:12px !important;
+  }
+
+  .llegadaFinalTarjeta{
+    padding:16px 14px 14px;
+    border-radius:18px;
+  }
+
+  .llegadaFinalCamioneta{
+    width:96px;
+    height:52px;
+  }
+
+  .llegadaFinalCamioneta img{
+    width:94px;
+    height:50px;
+  }
+
+  .llegadaFinalTitulo{ font-size:23px !important; }
+  .llegadaFinalGracias{ font-size:15px !important; }
+  .llegadaFinalFrase{ font-size:11px !important; }
+  .llegadaFinalPregunta{ font-size:13px; }
+
+  .llegadaFinalContexto,
+  .llegadaFinalOpinionTexto,
+  .llegadaFinalMejora{
+    font-size:10px;
+  }
+}
+
 </style>
 
 </head>
@@ -3836,10 +4090,69 @@ horaLlegadaBox.style.display =
 
     estado.innerHTML =
       '<div class="llegadaFinal">' +
-        '<div class="llegadaFinalTitulo">✅ HEMOS LLEGADO</div>' +
-        '<div class="llegadaFinalGracias">Gracias por elegir piOca<span class="marcaRegistrada">®</span></div>' +
-        '<div class="llegadaFinalFrase">Respetar tu tiempo también es parte de nuestro servicio.</div>' +
+        '<div class="llegadaFinalTarjeta">' +
+          '<div class="llegadaFinalCamioneta">' +
+            '<img src="logo-barra-inferior.png" alt="piOca">' +
+          '</div>' +
+          '<div class="llegadaFinalTitulo">✅ HEMOS LLEGADO</div>' +
+          '<div class="llegadaFinalGracias">Gracias por elegir piOca<span class="marcaRegistrada">®</span></div>' +
+          '<div class="llegadaFinalFrase">Respetar tu tiempo también es parte de nuestro servicio.</div>' +
+          '<div class="llegadaFinalSeparador"></div>' +
+          '<div id="llegadaFinalPasoInicial">' +
+            '<div class="llegadaFinalPregunta">¿Cómo fue tu experiencia con nuestro servicio?</div>' +
+            '<div class="llegadaFinalContexto">Buscamos que cada visita sea más simple y previsible, para que puedas organizar tu tiempo desde antes de nuestra llegada.</div>' +
+            '<div class="llegadaFinalOpciones">' +
+              '<button type="button" class="llegadaFinalBoton positivo" id="btnExperienciaPositiva">✓ Muy buena</button>' +
+              '<button type="button" class="llegadaFinalBoton" id="btnExperienciaMejora">Podría mejorar</button>' +
+            '</div>' +
+          '</div>' +
+          '<div id="llegadaFinalPasoOpinion">' +
+            '<div class="llegadaFinalOpinionTitulo">Nos alegra saberlo</div>' +
+            '<div class="llegadaFinalOpinionTexto">Si te resultó útil la experiencia, ¿querés compartir tu opinión? Tu reseña ayuda a otros clientes a conocer cómo trabajamos.</div>' +
+            '<a id="btnDejarOpinionGoogle" href="https://g.page/r/CQLZyhvP9781EBM/review" target="_blank" rel="noopener">⭐ DEJAR MI OPINIÓN EN GOOGLE</a>' +
+            '<div class="llegadaFinalMicro">Gracias por ayudarnos a seguir mejorando.</div>' +
+          '</div>' +
+          '<div id="llegadaFinalPasoMejora">' +
+            '<div class="llegadaFinalOpinionTitulo">Gracias por decírnoslo</div>' +
+            '<div class="llegadaFinalMejora">Nos interesa mejorar cada parte de la experiencia. Podés comentárselo al técnico durante la visita.</div>' +
+          '</div>' +
+        '</div>' +
       '</div>';
+
+    const btnExperienciaPositiva =
+      document.getElementById("btnExperienciaPositiva");
+
+    const btnExperienciaMejora =
+      document.getElementById("btnExperienciaMejora");
+
+    const llegadaFinalPasoInicial =
+      document.getElementById("llegadaFinalPasoInicial");
+
+    const llegadaFinalPasoOpinion =
+      document.getElementById("llegadaFinalPasoOpinion");
+
+    const llegadaFinalPasoMejora =
+      document.getElementById("llegadaFinalPasoMejora");
+
+    if(btnExperienciaPositiva){
+      btnExperienciaPositiva.addEventListener(
+        "click",
+        function(){
+          llegadaFinalPasoInicial.style.display = "none";
+          llegadaFinalPasoOpinion.classList.add("visible");
+        }
+      );
+    }
+
+    if(btnExperienciaMejora){
+      btnExperienciaMejora.addEventListener(
+        "click",
+        function(){
+          llegadaFinalPasoInicial.style.display = "none";
+          llegadaFinalPasoMejora.classList.add("visible");
+        }
+      );
+    }
 
     estado.style.background =
       "#e5f6e8";
