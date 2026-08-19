@@ -1521,6 +1521,40 @@
 }
 
 
+/* ==========================================================
+   R15 - PROGRESO CONTINUO ENTRE ETAPAS
+   La camioneta y la línea avanzan según el tiempo restante.
+   El tramo activo respira suavemente mientras está en curso.
+   ========================================================== */
+
+#piocaLineaProgreso.piocaProgresoEnCurso{
+  background:
+    linear-gradient(
+      90deg,
+      #1955A3 0%,
+      #1955A3 72%,
+      #2d73b8 86%,
+      #1955A3 100%
+    ) !important;
+  background-size:180% 100% !important;
+  animation:piocaTrayectoActivo 1.35s linear infinite !important;
+}
+
+#piocaCamionetaProgreso.piocaCamionetaEnCurso{
+  animation:piocaCamionetaActiva 1.45s ease-in-out infinite !important;
+}
+
+@keyframes piocaTrayectoActivo{
+  0%{ background-position:100% 0; }
+  100%{ background-position:0 0; }
+}
+
+@keyframes piocaCamionetaActiva{
+  0%,100%{ filter:brightness(1); }
+  50%{ filter:brightness(1.06); }
+}
+
+
 </style>
 
 </head>
@@ -1807,6 +1841,16 @@
     null;
 
   /*
+    R15:
+    ETA de referencia con la que nació esta vista del cliente.
+    Sirve sólo para repartir visualmente el avance entre etapas.
+    Si desde administración se corrige la ETA, la camioneta se
+    recoloca proporcionalmente sin tocar GPS ni Supabase.
+  */
+  let llegadaReferenciaTrayectoMs =
+    null;
+
+  /*
     Animación visual del marcador.
     No genera posiciones nuevas ni aumenta consultas.
   */
@@ -2069,7 +2113,9 @@
 
 
   function pintarEtapaTrayecto(
-    etapa
+    etapa,
+    posicionPorcentaje,
+    progresoEnCurso
   ){
 
     etapa =
@@ -2087,26 +2133,48 @@
       4:92
     };
 
-    /*
-      La línea comienza en 8%.
-      Para terminar exactamente debajo de cada etapa:
-      etapa 2 -> 28%
-      etapa 3 -> 56%
-      etapa 4 -> 84%
-    */
-    const rellenos = {
-      2:28,
-      3:56,
-      4:84
-    };
+    if(
+      !Number.isFinite(
+        posicionPorcentaje
+      )
+    ){
+      posicionPorcentaje =
+        posiciones[etapa];
+    }
+
+    posicionPorcentaje =
+      Math.max(
+        36,
+        Math.min(
+          92,
+          posicionPorcentaje
+        )
+      );
 
     piocaCamionetaProgreso.style.left =
-      posiciones[etapa] +
+      posicionPorcentaje +
       "%";
 
+    /*
+      La línea nace en 8%, por eso el ancho visual es
+      posición absoluta menos 8.
+    */
     piocaLineaProgreso.style.width =
-      rellenos[etapa] +
+      Math.max(
+        28,
+        posicionPorcentaje - 8
+      ) +
       "%";
+
+    piocaLineaProgreso.classList.toggle(
+      "piocaProgresoEnCurso",
+      progresoEnCurso === true
+    );
+
+    piocaCamionetaProgreso.classList.toggle(
+      "piocaCamionetaEnCurso",
+      progresoEnCurso === true
+    );
 
     for(
       let i = 0;
@@ -2148,10 +2216,13 @@
       return;
     }
 
+    const ahoraMs =
+      Date.now();
+
     const faltanMin =
       (
         llegadaClienteMs -
-        Date.now()
+        ahoraMs
       ) /
       60000;
 
@@ -2160,38 +2231,131 @@
         llegadaClienteMs
       );
 
-    /*
-      R4:
-      Etapa 3 sólo mueve la camioneta a "Cerca de tu domicilio".
-      No mostramos una hora debajo de esa etapa.
-    */
     piocaHoraEtapa3.textContent =
       "";
 
-    /*
-      R7:
-      La ETA ya se muestra en grande arriba.
-      En la etapa 4 usamos una frase emocional para no repetir la hora.
-    */
     piocaHoraEtapa4.textContent =
       "";
 
+    /*
+      R15 - AVANCE CONTINUO
+
+      36% = etapa 2
+      64% = etapa 3
+      92% = etapa 4
+
+      De etapa 2 a 3:
+      se reparte el recorrido desde la ETA de referencia hasta
+      que quedan 5 minutos.
+
+      De etapa 3 a 4:
+      los 3 minutos comprendidos entre 5 y 2 minutos restantes
+      llenan progresivamente el último tramo.
+    */
     let etapa =
       2;
+
+    let posicion =
+      36;
+
+    let progresoEnCurso =
+      false;
 
     if(
       faltanMin <= 2
     ){
-      etapa = 4;
+
+      etapa =
+        4;
+
+      posicion =
+        92;
 
     }else if(
       faltanMin <= 5
     ){
-      etapa = 3;
+
+      etapa =
+        3;
+
+      const progreso34 =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            (
+              5 -
+              faltanMin
+            ) /
+            3
+          )
+        );
+
+      posicion =
+        64 +
+        (
+          28 *
+          progreso34
+        );
+
+      progresoEnCurso =
+        progreso34 <
+          1;
+
+    }else{
+
+      etapa =
+        2;
+
+      /*
+        Si la sesión empezó con más de 5 minutos, usamos ese
+        tiempo inicial como referencia. Si empezó ya dentro de
+        los últimos 5 minutos, este tramo queda directamente
+        completado por la lógica superior.
+      */
+      const referenciaMin =
+        (
+          llegadaReferenciaTrayectoMs -
+          ahoraMs
+        ) /
+        60000;
+
+      const duracionTramo23 =
+        Math.max(
+          0.25,
+          referenciaMin -
+          5
+        );
+
+      const progreso23 =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            (
+              referenciaMin -
+              faltanMin
+            ) /
+            duracionTramo23
+          )
+        );
+
+      posicion =
+        36 +
+        (
+          28 *
+          progreso23
+        );
+
+      progresoEnCurso =
+        progreso23 <
+          1;
     }
 
     pintarEtapaTrayecto(
-      etapa
+      etapa,
+      posicion,
+      progresoEnCurso
     );
 
     piocaTrayectoTitulo.textContent =
@@ -2473,6 +2637,15 @@
 
     llegadaClienteMs =
       fecha.getTime();
+
+    if(
+      !Number.isFinite(
+        llegadaReferenciaTrayectoMs
+      )
+    ){
+      llegadaReferenciaTrayectoMs =
+        llegadaClienteMs;
+    }
 
     actualizarPanelTrayecto();
   }
