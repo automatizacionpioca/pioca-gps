@@ -83,6 +83,50 @@ t = re_once_literal(
     re.S
 )
 
+# V12:
+# Si el vencimiento REAL ya ocurrió y el cartel final fue consumido
+# por otra ruta, todavía ofrecer quitar No molestar.
+t = re_once(
+    t,
+    r'(boolean pending\s*=\s*prefs\.getBoolean\(\s*"pending_finished_dialog",\s*false\s*\);\s*\n\s*if \(!pending\) \{\s*\n)(\s*return;)',
+    '''\\1
+      boolean dndAfterRealExpiry =
+              prefs.getBoolean(
+                      "dnd_restore_after_real_expiry",
+                      false
+              );
+
+      if (dndAfterRealExpiry) {
+
+          prefs.edit()
+                  .putBoolean(
+                          "dnd_restore_after_real_expiry",
+                          false
+                  )
+                  .apply();
+
+          showPendingDndRestoreDialog();
+      }
+
+\\2''',
+    'DND fallback solo tras vencimiento real',
+    re.S
+)
+
+# V12:
+# Si showPendingEndDialog consume el cartel final real,
+# consume también la bandera auxiliar para evitar doble pregunta.
+t = re_once(
+    t,
+    r'(\.putBoolean\(\s*"pending_finished_dialog",\s*false\s*\))',
+    '''\\1
+                          .putBoolean(
+                                  "dnd_restore_after_real_expiry",
+                                  false
+                          )''',
+    'consumir bandera expiry al mostrar cartel final'
+)
+
 # El permiso especial se solicita sólo si todavía no fue concedido.
 # Una vez concedido, la activación a los 3 minutos es automática y sin preguntas.
 t = re_once(
@@ -241,6 +285,21 @@ t = re_once(
         saveActiveConfig();
     }''',
     'refresh clientArrival'
+)
+
+# V12:
+# SOLO finishExpired() marca que ocurrió el vencimiento real de expires_at.
+# ETA 0 no crea esta bandera.
+t = re_once(
+    t,
+    r'(\.putBoolean\(\s*"pending_finished_dialog",\s*true\s*\))',
+    '''\\1
+
+                          .putBoolean(
+                                  "dnd_restore_after_real_expiry",
+                                  true
+                          )''',
+    'flag DND tras vencimiento real'
 )
 
 # Función para leer client_arrival de get_tracking_snapshot, RPC que ya existe en V7.
