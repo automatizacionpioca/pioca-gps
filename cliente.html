@@ -1165,15 +1165,15 @@
       align-items:center !important;
       justify-content:center !important;
 
-      border:1px solid #b9dfc2 !important;
+      border:1px solid rgba(255,255,255,.92) !important;
       border-radius:20px !important;
 
-      background:rgba(229,246,232,.98) !important;
-      box-shadow:0 9px 28px rgba(25,45,65,.11) !important;
+      background:rgba(255,255,255,.83) !important;
+      box-shadow:0 9px 28px rgba(17,30,45,.18) !important;
 
       color:#203246 !important;
-      backdrop-filter:none !important;
-      -webkit-backdrop-filter:none !important;
+      backdrop-filter:blur(13px) !important;
+      -webkit-backdrop-filter:blur(13px) !important;
 
       visibility:visible !important;
       opacity:1 !important;
@@ -1317,9 +1317,12 @@
       margin:18px auto 0 !important;
       padding:22px 20px !important;
       display:flex !important;
-      border:1px solid #b9dfc2 !important;
+      border:1px solid rgba(255,255,255,.92) !important;
       border-radius:20px !important;
-      background:#e5f6e8 !important;
+      background:rgba(255,255,255,.83) !important;
+      box-shadow:0 9px 28px rgba(17,30,45,.18) !important;
+      backdrop-filter:blur(13px) !important;
+      -webkit-backdrop-filter:blur(13px) !important;
       visibility:visible !important;
       opacity:1 !important;
     }
@@ -4173,7 +4176,7 @@ horaLlegadaBox.style.display =
     }
 
     estado.style.background =
-      "#e5f6e8";
+      "rgba(255,255,255,.83)";
 
     if(heartbeatClienteId !== null){
       clearInterval(heartbeatClienteId);
