@@ -74,15 +74,6 @@ t = re_once(
     'campo dndDialogVisible'
 )
 
-# Si no hay cartel de seguimiento finalizado pendiente, igual revisa si debe ofrecer quitar silencio.
-t = re_once(
-    t,
-    r'(boolean pending\s*=\s*prefs\.getBoolean\(\s*"pending_finished_dialog",\s*false\s*\);\s*\n\s*if \(!pending\) \{\s*\n)(\s*return;)',
-    r'\1\n      showPendingDndRestoreDialog();\n\n\2',
-    'showPendingEndDialog no pending',
-    re.S
-)
-
 # Cuando acepta el cartel de finalización, ofrecer quitar silencio.
 t = re_once_literal(
     t,
