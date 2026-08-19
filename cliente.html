@@ -1852,72 +1852,53 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
 
 
 /* ==========================================================
-   MENSAJES R3 - INTEGRADO AL PANEL DE ETAPAS
-   Sólo cambios visuales/posicionales.
+   AJUSTE VISUAL SEGURO - BOTÓN MENSAJES EN PANEL
+   Basado sobre R2 estable. No se mueve el cuadro de mensaje.
    ========================================================== */
 
-/* Llegada alineada con el texto de ESTAMOS EN CAMINO */
 #piocaEtaLinea{
   text-align:left !important;
   padding-left:40px !important;
-  padding-right:54px !important;
+  padding-right:58px !important;
 }
 
-/* Botón integrado en el vértice superior derecho del panel */
 #piocaTrayectoPanel #btnMensajeTecnico{
   position:absolute !important;
   top:12px !important;
   right:14px !important;
   z-index:25 !important;
-
   width:39px !important;
   height:39px !important;
   margin:0 !important;
   padding:0 !important;
-
   border:2px solid rgba(255,255,255,.96) !important;
   border-radius:50% !important;
-
   background:#b8bdc4 !important;
-  color:#ffffff !important;
-
+  color:#fff !important;
   box-shadow:
     0 2px 6px rgba(30,45,60,.16),
-    0 0 0 0 rgba(184,189,196,.34) !important;
-
+    0 0 0 0 rgba(184,189,196,.30) !important;
   font-size:18px !important;
   line-height:35px !important;
   text-align:center !important;
-
-  animation:piocaMensajePulsoGris 1.55s ease-in-out infinite !important;
+  animation:piocaMensajePulsoGrisSeguro 1.55s ease-in-out infinite !important;
 }
 
 #piocaTrayectoPanel #btnMensajeTecnico.abierto{
   animation:none !important;
 }
 
-/* El cuadro se abre desde ese mismo vértice */
-#piocaTrayectoPanel #mensajeTecnicoPanel{
-  position:absolute !important;
-  top:58px !important;
-  right:12px !important;
-  left:auto !important;
-  z-index:30 !important;
-
-  width:min(310px,calc(100vw - 44px)) !important;
-}
-
-@keyframes piocaMensajePulsoGris{
+@keyframes piocaMensajePulsoGrisSeguro{
   0%,100%{
     opacity:.82;
     transform:scale(1);
     box-shadow:
       0 2px 6px rgba(30,45,60,.16),
-      0 0 0 0 rgba(184,189,196,.32);
+      0 0 0 0 rgba(184,189,196,.30);
   }
   50%{
     opacity:1;
-    transform:scale(1.07);
+    transform:scale(1.06);
     box-shadow:
       0 2px 6px rgba(30,45,60,.16),
       0 0 0 7px rgba(184,189,196,0);
@@ -1927,7 +1908,7 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
 @media(max-width:430px){
   #piocaEtaLinea{
     padding-left:40px !important;
-    padding-right:48px !important;
+    padding-right:52px !important;
   }
 
   #piocaTrayectoPanel #btnMensajeTecnico{
@@ -1937,12 +1918,6 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
     height:37px !important;
     font-size:17px !important;
     line-height:33px !important;
-  }
-
-  #piocaTrayectoPanel #mensajeTecnicoPanel{
-    top:54px !important;
-    right:9px !important;
-    width:min(300px,calc(100vw - 38px)) !important;
   }
 }
 
@@ -2006,6 +1981,11 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
         type="button">
         ↻ REFRESCAR POSICIÓN
       </button>
+
+      <div id="mensajeTecnicoPanel">
+        <div id="mensajeTecnicoTitulo">
+          Dejá un mensaje al técnico en camino
+        </div>
         <div id="mensajeTecnicoEjemplo">
           Ej.: el timbre no funciona, estoy en el portón lateral o información útil para llegar.
         </div>
@@ -2023,17 +2003,12 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
     </div>
 
     <div id="piocaTrayectoPanel">
-<button
-        id="btnMensajeTecnico"
-        type="button"
-        aria-label="Enviar mensaje al técnico"
-        title="Enviar mensaje al técnico">💬</button>
 
-      <div id="mensajeTecnicoPanel">
-        <div id="mensajeTecnicoTitulo">
-          Dejá un mensaje al técnico en camino
-        </div>
-
+      <button
+              id="btnMensajeTecnico"
+              type="button"
+              aria-label="Enviar mensaje al técnico"
+              title="Enviar mensaje al técnico">💬</button>
 
       <div id="piocaTrayectoCabecera">
 
