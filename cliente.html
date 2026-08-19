@@ -1999,6 +1999,151 @@
     null;
 
   /*
+    R19 - REFERENCIA PERSISTENTE DEL PROGRESO
+    Mantiene el origen visual aunque el cliente cierre y vuelva a abrir el link.
+  */
+  function claveProgresoTrayecto(){
+    return codigo
+      ? "pioca_trayecto_" + codigo
+      : null;
+  }
+
+  function cargarReferenciaTrayectoPersistida(){
+
+    const clave =
+      claveProgresoTrayecto();
+
+    if(
+      !clave
+    ){
+      return false;
+    }
+
+    try{
+
+      const bruto =
+        localStorage.getItem(
+          clave
+        );
+
+      if(
+        !bruto
+      ){
+        return false;
+      }
+
+      const datos =
+        JSON.parse(
+          bruto
+        );
+
+      const inicioMs =
+        Number(
+          datos.inicioMs
+        );
+
+      const minutosRef =
+        Number(
+          datos.minutosRef
+        );
+
+      const llegadaRefMs =
+        Number(
+          datos.llegadaRefMs
+        );
+
+      if(
+        !Number.isFinite(inicioMs) ||
+        !Number.isFinite(minutosRef) ||
+        !Number.isFinite(llegadaRefMs)
+      ){
+        return false;
+      }
+
+      if(
+        Date.now() - inicioMs >
+          24 * 60 * 60 * 1000
+      ){
+        localStorage.removeItem(
+          clave
+        );
+
+        return false;
+      }
+
+      inicioTrayectoVisualMs =
+        inicioMs;
+
+      minutosReferenciaTrayecto =
+        minutosRef;
+
+      llegadaReferenciaTrayectoMs =
+        llegadaRefMs;
+
+      return true;
+
+    }catch(e){
+
+      return false;
+    }
+  }
+
+  function guardarReferenciaTrayectoPersistida(){
+
+    const clave =
+      claveProgresoTrayecto();
+
+    if(
+      !clave ||
+      !Number.isFinite(
+        inicioTrayectoVisualMs
+      ) ||
+      !Number.isFinite(
+        minutosReferenciaTrayecto
+      ) ||
+      !Number.isFinite(
+        llegadaReferenciaTrayectoMs
+      )
+    ){
+      return;
+    }
+
+    try{
+
+      localStorage.setItem(
+        clave,
+        JSON.stringify({
+          inicioMs:
+            inicioTrayectoVisualMs,
+          minutosRef:
+            minutosReferenciaTrayecto,
+          llegadaRefMs:
+            llegadaReferenciaTrayectoMs
+        })
+      );
+
+    }catch(e){}
+  }
+
+  function borrarReferenciaTrayectoPersistida(){
+
+    const clave =
+      claveProgresoTrayecto();
+
+    if(
+      !clave
+    ){
+      return;
+    }
+
+    try{
+      localStorage.removeItem(
+        clave
+      );
+    }catch(e){}
+  }
+
+  /*
     Animación visual del marcador.
     No genera posiciones nuevas ni aumenta consultas.
   */
@@ -2789,35 +2934,48 @@
     llegadaClienteMs =
       fecha.getTime();
 
-    if(
-      !Number.isFinite(
-        llegadaReferenciaTrayectoMs
-      )
-    ){
-      llegadaReferenciaTrayectoMs =
-        llegadaClienteMs;
-    }
-
+    /*
+      R19:
+      Recuperamos primero la referencia original del seguimiento.
+      Si no existe, la creamos y persistimos una sola vez.
+    */
     if(
       !Number.isFinite(
         inicioTrayectoVisualMs
       ) ||
       !Number.isFinite(
         minutosReferenciaTrayecto
+      ) ||
+      !Number.isFinite(
+        llegadaReferenciaTrayectoMs
       )
     ){
-      inicioTrayectoVisualMs =
-        Date.now();
 
-      minutosReferenciaTrayecto =
-        Math.max(
-          0,
-          (
-            llegadaClienteMs -
-            inicioTrayectoVisualMs
-          ) /
-          60000
-        );
+      const recuperada =
+        cargarReferenciaTrayectoPersistida();
+
+      if(
+        !recuperada
+      ){
+
+        llegadaReferenciaTrayectoMs =
+          llegadaClienteMs;
+
+        inicioTrayectoVisualMs =
+          Date.now();
+
+        minutosReferenciaTrayecto =
+          Math.max(
+            0,
+            (
+              llegadaClienteMs -
+              inicioTrayectoVisualMs
+            ) /
+            60000
+          );
+
+        guardarReferenciaTrayectoPersistida();
+      }
     }
 
     actualizarPanelTrayecto();
@@ -2997,6 +3155,8 @@
 
     terminado =
       true;
+
+    borrarReferenciaTrayectoPersistida();
 
     document.body.classList.add(
       "seguimientoFinalizadoVisual"
