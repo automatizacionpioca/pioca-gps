@@ -423,7 +423,51 @@
         font-size:30px;
       }
     }
-  </style>
+  
+/* ==========================================================
+   MENSAJES DEL CLIENTE - MÓDULO ADITIVO
+   ========================================================== */
+#mensajeClienteBox{
+  display:none;
+  margin:12px 0 2px;
+  padding:13px;
+  border:1px solid #b8dfc0;
+  border-radius:13px;
+  background:#eef9f1;
+  box-shadow:0 4px 14px rgba(31,145,65,.08);
+}
+#mensajeClienteBox.visible{display:block;}
+#mensajeClienteTitulo{
+  color:#247238;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.25px;
+}
+#mensajeClienteTexto{
+  margin-top:7px;
+  color:#263746;
+  font-size:13px;
+  line-height:1.35;
+  font-weight:700;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+#mensajeClienteHora{
+  margin-top:5px;
+  color:#6a7680;
+  font-size:9.5px;
+}
+#btnMensajeLeido{
+  margin-top:9px;
+  padding:10px;
+  min-height:0;
+  background:linear-gradient(135deg,#14823a,#24a24c);
+  color:#fff;
+  font-size:11px;
+}
+
+</style>
 
 </head>
 
@@ -546,6 +590,13 @@
 
     <div id="clienteVistaBox" class="never">
       AÚN NO VISUALIZADO
+    </div>
+
+    <div id="mensajeClienteBox">
+      <div id="mensajeClienteTitulo">💬 MENSAJE DEL CLIENTE</div>
+      <div id="mensajeClienteTexto"></div>
+      <div id="mensajeClienteHora"></div>
+      <button id="btnMensajeLeido" type="button">✓ MARCAR COMO LEÍDO</button>
     </div>
 
     <button
@@ -682,6 +733,22 @@
 
   const clienteVistaFinal =
     document.getElementById("clienteVistaFinal");
+
+  const mensajeClienteBox =
+    document.getElementById("mensajeClienteBox");
+
+  const mensajeClienteTexto =
+    document.getElementById("mensajeClienteTexto");
+
+  const mensajeClienteHora =
+    document.getElementById("mensajeClienteHora");
+
+  const btnMensajeLeido =
+    document.getElementById("btnMensajeLeido");
+
+  let mensajeClienteActualId = null;
+  let mensajeClienteUltimoAvisadoId = null;
+  let audioMensajesDesbloqueado = false;
 
   let trackingCode = null;
   let serviceId = null;
@@ -1004,6 +1071,79 @@
 
     clienteVistaBox.className = "never";
     clienteVistaBox.textContent = "AÚN NO VISUALIZADO";
+  }
+
+
+  function sonidoMensajeCliente(){
+    try{
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if(!AudioCtx){ return; }
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880,ctx.currentTime);
+      gain.gain.setValueAtTime(.0001,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.18,ctx.currentTime+.02);
+      gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime+.34);
+    }catch(e){}
+    try{
+      if(navigator.vibrate){ navigator.vibrate([120,70,120]); }
+    }catch(e){}
+  }
+
+  async function consultarMensajeCliente(){
+    if(seguimientoFinalizado || !trackingCode){ return; }
+    try{
+      const {data,error} = await supabaseClient.rpc(
+        "get_unread_tracking_message",
+        {p_code:trackingCode}
+      );
+      if(error){ throw error; }
+      const r = Array.isArray(data) && data.length ? data[0] : null;
+      if(!r || !r.message_id){
+        mensajeClienteActualId = null;
+        mensajeClienteBox.classList.remove("visible");
+        return;
+      }
+      mensajeClienteActualId = r.message_id;
+      mensajeClienteTexto.textContent = r.message_text || "";
+      mensajeClienteHora.textContent =
+        r.created_at
+          ? "Recibido " + new Date(r.created_at).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})
+          : "";
+      mensajeClienteBox.classList.add("visible");
+
+      if(mensajeClienteUltimoAvisadoId !== r.message_id){
+        mensajeClienteUltimoAvisadoId = r.message_id;
+        sonidoMensajeCliente();
+      }
+    }catch(e){}
+  }
+
+  async function marcarMensajeClienteLeido(){
+    if(!trackingCode || !mensajeClienteActualId){ return; }
+    btnMensajeLeido.disabled = true;
+    try{
+      const {data,error} = await supabaseClient.rpc(
+        "mark_tracking_message_read",
+        {
+          p_code:trackingCode,
+          p_message_id:mensajeClienteActualId
+        }
+      );
+      if(error){ throw error; }
+      mensajeClienteBox.classList.remove("visible");
+      mensajeClienteActualId = null;
+    }catch(e){
+      mostrarError("No se pudo confirmar la lectura del mensaje.");
+    }finally{
+      btnMensajeLeido.disabled = false;
+    }
   }
 
   async function consultarVistaCliente(){
@@ -1826,6 +1966,7 @@
       );
 
       await consultarVistaCliente();
+      await consultarMensajeCliente();
 
       ocultarError();
 
@@ -2662,6 +2803,23 @@
     abrirWhatsApp
   );
 
+  btnMensajeLeido.addEventListener(
+    "click",
+    marcarMensajeClienteLeido
+  );
+
+  /*
+    Un gesto del técnico ayuda a habilitar audio en navegadores/WebView
+    que bloquean sonido hasta la primera interacción.
+  */
+  document.addEventListener(
+    "click",
+    function(){
+      audioMensajesDesbloqueado = true;
+    },
+    {once:true}
+  );
+
   btnFinalizar.addEventListener(
     "click",
     finalizarSeguimiento
@@ -2776,6 +2934,7 @@
     iniciarGPS();
 
     await consultarVistaCliente();
+    await consultarMensajeCliente();
 
     actualizarBotonesHora();
 
