@@ -2196,6 +2196,271 @@ body.seguimientoFinalizadoVisual #estado{
   -webkit-backdrop-filter:blur(13px) !important;
 }
 
+
+
+/* ==========================================================
+   PANEL FINAL CON ANIMACIÓN
+   Sólo modifica la presentación final del seguimiento.
+   ========================================================== */
+
+/* Logo final 30% más grande */
+body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo{
+  width:153px !important;
+  height:153px !important;
+  min-height:153px !important;
+}
+
+body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo img{
+  width:148px !important;
+  height:148px !important;
+  max-width:148px !important;
+}
+
+body.seguimientoFinalizadoVisual #estado{
+  margin-top:18px !important;
+}
+
+/* El bloque final reutiliza el lenguaje visual de las 4 etapas */
+.llegadaFinalTrayectoWrap{
+  width:100%;
+  margin:0 0 10px;
+}
+
+.llegadaFinalTrayectoTitulo{
+  margin:0 0 12px;
+  color:#203246;
+  font-size:17px;
+  line-height:1.08;
+  font-weight:900;
+  text-align:left;
+  text-transform:uppercase;
+}
+
+.llegadaFinalTrayectoTitulo::before{
+  content:"";
+  width:31px;
+  height:20px;
+  margin-right:9px;
+  display:inline-block;
+  vertical-align:-4px;
+  background-image:url("icono-trayecto-pioca.png");
+  background-size:contain;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
+.llegadaFinalTrayecto{
+  position:relative;
+  width:100%;
+  height:138px;
+  margin:0;
+  overflow:visible;
+}
+
+.llegadaFinalLineaBase{
+  position:absolute;
+  left:8%;
+  right:8%;
+  top:48px;
+  height:4px;
+  border-radius:999px;
+  background:rgba(82,92,104,.26);
+}
+
+.llegadaFinalLineaProgreso{
+  position:absolute;
+  left:8%;
+  top:48px;
+  width:0%;
+  height:4px;
+  border-radius:999px;
+  background:#249447;
+  overflow:hidden;
+  box-shadow:0 0 5px rgba(36,148,71,.30);
+  transition:width 4s linear;
+}
+
+.llegadaFinalLineaProgreso::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:0;
+  width:38%;
+  border-radius:999px;
+  background:linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,.18) 25%,
+    rgba(255,255,255,.90) 52%,
+    rgba(255,255,255,.18) 78%,
+    rgba(255,255,255,0) 100%
+  );
+  transform:translateX(-140%);
+  animation:llegadaFinalBarrido 1.05s linear infinite;
+}
+
+@keyframes llegadaFinalBarrido{
+  0%{ transform:translateX(-140%); }
+  100%{ transform:translateX(365%); }
+}
+
+.llegadaFinalEtapa{
+  position:absolute;
+  top:40px;
+  width:23%;
+  transform:translateX(-50%);
+  text-align:center;
+  color:#2d3741;
+}
+
+.llegadaFinalEtapa.e1{ left:8%; }
+.llegadaFinalEtapa.e2{ left:36%; }
+.llegadaFinalEtapa.e3{ left:64%; }
+.llegadaFinalEtapa.e4{ left:92%; }
+
+.llegadaFinalPunto{
+  position:relative;
+  width:18px;
+  height:18px;
+  margin:0 auto 10px;
+  border:2px solid rgba(255,255,255,.96);
+  border-radius:50%;
+  background:#b8bdc4;
+  box-shadow:0 1px 4px rgba(0,0,0,.14);
+  transition:
+    background .30s ease,
+    transform .30s ease;
+}
+
+.llegadaFinalEtapa.completa .llegadaFinalPunto{
+  background:#249447;
+}
+
+.llegadaFinalEtapa.completa .llegadaFinalNumero{
+  color:#249447;
+}
+
+.llegadaFinalEtapa.e4.completa .llegadaFinalPunto{
+  transform:scale(1.15);
+}
+
+.llegadaFinalEtapa.e4.completa .llegadaFinalPunto::after{
+  content:"✓";
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  font-size:10px;
+  line-height:1;
+  font-weight:900;
+}
+
+.llegadaFinalNumero{
+  display:block;
+  margin:0 0 4px;
+  color:#27323c;
+  font-size:10.5px;
+  font-weight:800;
+  transition:color .30s ease;
+}
+
+.llegadaFinalTextoEtapa{
+  display:block;
+  min-height:31px;
+  padding:0 2px;
+  color:#27323c;
+  font-size:9.3px;
+  line-height:1.16;
+  font-weight:600;
+}
+
+/* Misma camioneta grande que ya tenía la pantalla final */
+.llegadaFinalCamionetaAnimada{
+  position:absolute;
+  z-index:12;
+  top:-28px;
+  left:8%;
+  width:188px;
+  height:100px;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  transition:left 4s linear;
+}
+
+.llegadaFinalCamionetaAnimada img{
+  width:188px;
+  height:100px;
+  object-fit:contain;
+  display:block;
+  filter:drop-shadow(0 2px 2px rgba(20,35,50,.18));
+}
+
+.llegadaFinalLlegamosTexto{
+  margin:2px 0 6px;
+  color:#249447;
+  font-size:24px;
+  line-height:1.05;
+  font-weight:900;
+  text-align:center;
+  opacity:0;
+  transform:translateY(4px);
+  transition:
+    opacity .45s ease,
+    transform .45s ease;
+}
+
+.llegadaFinalLlegamosTexto.visible{
+  opacity:1;
+  transform:translateY(0);
+}
+
+@media(max-width:430px){
+
+  body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo{
+    width:140px !important;
+    height:140px !important;
+    min-height:140px !important;
+  }
+
+  body.seguimientoFinalizadoVisual .cabeceraCliente.finalizado .logo img{
+    width:136px !important;
+    height:136px !important;
+    max-width:136px !important;
+  }
+
+  .llegadaFinalTrayectoTitulo{
+    font-size:15px;
+  }
+
+  .llegadaFinalTrayecto{
+    height:132px;
+  }
+
+  .llegadaFinalTextoEtapa{
+    font-size:8.4px;
+  }
+
+  .llegadaFinalCamionetaAnimada{
+    width:188px;
+    height:100px;
+  }
+
+  .llegadaFinalCamionetaAnimada img{
+    width:188px;
+    height:100px;
+  }
+
+  .llegadaFinalLlegamosTexto{
+    font-size:22px;
+  }
+}
+
 </style>
 
 </head>
@@ -4112,13 +4377,50 @@ horaLlegadaBox.style.display =
     estado.innerHTML =
       '<div class="llegadaFinal">' +
         '<div class="llegadaFinalTarjeta">' +
-          '<div class="llegadaFinalCamioneta">' +
-            '<img src="logo-barra-inferior.png" alt="piOca">' +
+
+          '<div class="llegadaFinalTrayectoWrap">' +
+            '<div class="llegadaFinalTrayectoTitulo">VISITA COMPLETADA</div>' +
+
+            '<div class="llegadaFinalTrayecto">' +
+              '<div class="llegadaFinalLineaBase"></div>' +
+              '<div class="llegadaFinalLineaProgreso" id="llegadaFinalLineaProgreso"></div>' +
+
+              '<div class="llegadaFinalEtapa e1" id="llegadaFinalEtapa1">' +
+                '<div class="llegadaFinalPunto"></div>' +
+                '<span class="llegadaFinalNumero">1</span>' +
+                '<span class="llegadaFinalTextoEtapa">Seguimiento<br>iniciado</span>' +
+              '</div>' +
+
+              '<div class="llegadaFinalEtapa e2" id="llegadaFinalEtapa2">' +
+                '<div class="llegadaFinalPunto"></div>' +
+                '<span class="llegadaFinalNumero">2</span>' +
+                '<span class="llegadaFinalTextoEtapa">En camino</span>' +
+              '</div>' +
+
+              '<div class="llegadaFinalEtapa e3" id="llegadaFinalEtapa3">' +
+                '<div class="llegadaFinalPunto"></div>' +
+                '<span class="llegadaFinalNumero">3</span>' +
+                '<span class="llegadaFinalTextoEtapa">Cerca de tu<br>domicilio</span>' +
+              '</div>' +
+
+              '<div class="llegadaFinalEtapa e4" id="llegadaFinalEtapa4">' +
+                '<div class="llegadaFinalPunto"></div>' +
+                '<span class="llegadaFinalNumero">4</span>' +
+                '<span class="llegadaFinalTextoEtapa">Ya estamos<br>con vos</span>' +
+              '</div>' +
+
+              '<div class="llegadaFinalCamionetaAnimada" id="llegadaFinalCamionetaAnimada">' +
+                '<img src="logo-barra-inferior.png" alt="piOca">' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="llegadaFinalLlegamosTexto" id="llegadaFinalLlegamosTexto">✅ HEMOS LLEGADO</div>' +
           '</div>' +
-          '<div class="llegadaFinalTitulo">✅ HEMOS LLEGADO</div>' +
+
           '<div class="llegadaFinalGracias">Gracias por elegir piOca<span class="marcaRegistrada">®</span></div>' +
           '<div class="llegadaFinalFrase">Respetar tu tiempo también es parte de nuestro servicio.</div>' +
           '<div class="llegadaFinalSeparador"></div>' +
+
           '<div id="llegadaFinalPasoInicial">' +
             '<div class="llegadaFinalPregunta">¿Cómo fue tu experiencia con nuestro servicio?</div>' +
             '<div class="llegadaFinalContexto">Buscamos que cada visita sea más simple y previsible, para que puedas organizar tu tiempo desde antes de nuestra llegada.</div>' +
@@ -4127,16 +4429,19 @@ horaLlegadaBox.style.display =
               '<button type="button" class="llegadaFinalBoton" id="btnExperienciaMejora">Podría mejorar</button>' +
             '</div>' +
           '</div>' +
+
           '<div id="llegadaFinalPasoOpinion">' +
             '<div class="llegadaFinalOpinionTitulo">Nos alegra saberlo</div>' +
             '<div class="llegadaFinalOpinionTexto">Si te resultó útil la experiencia, ¿querés compartir tu opinión? Tu reseña ayuda a otros clientes a conocer cómo trabajamos.</div>' +
             '<a id="btnDejarOpinionGoogle" href="https://g.page/r/CQLZyhvP9781EBM/review" target="_blank" rel="noopener">⭐ DEJAR MI OPINIÓN EN GOOGLE</a>' +
             '<div class="llegadaFinalMicro">Gracias por ayudarnos a seguir mejorando.</div>' +
           '</div>' +
+
           '<div id="llegadaFinalPasoMejora">' +
             '<div class="llegadaFinalOpinionTitulo">Gracias por decírnoslo</div>' +
             '<div class="llegadaFinalMejora">Nos interesa mejorar cada parte de la experiencia. Podés comentárselo al técnico durante la visita.</div>' +
           '</div>' +
+
         '</div>' +
       '</div>';
 
@@ -4174,6 +4479,76 @@ horaLlegadaBox.style.display =
         }
       );
     }
+
+    /*
+      Animación de cierre de la visita.
+      Duración total aproximada: 4 segundos.
+    */
+    const llegadaFinalLineaProgreso =
+      document.getElementById("llegadaFinalLineaProgreso");
+
+    const llegadaFinalCamionetaAnimada =
+      document.getElementById("llegadaFinalCamionetaAnimada");
+
+    const llegadaFinalLlegamosTexto =
+      document.getElementById("llegadaFinalLlegamosTexto");
+
+    const llegadaFinalEtapas = [
+      document.getElementById("llegadaFinalEtapa1"),
+      document.getElementById("llegadaFinalEtapa2"),
+      document.getElementById("llegadaFinalEtapa3"),
+      document.getElementById("llegadaFinalEtapa4")
+    ];
+
+    setTimeout(
+      function(){
+
+        if(llegadaFinalEtapas[0]){
+          llegadaFinalEtapas[0].classList.add("completa");
+        }
+
+        if(llegadaFinalLineaProgreso){
+          llegadaFinalLineaProgreso.style.width = "84%";
+        }
+
+        if(llegadaFinalCamionetaAnimada){
+          llegadaFinalCamionetaAnimada.style.left = "92%";
+        }
+      },
+      120
+    );
+
+    setTimeout(
+      function(){
+        if(llegadaFinalEtapas[1]){
+          llegadaFinalEtapas[1].classList.add("completa");
+        }
+      },
+      1450
+    );
+
+    setTimeout(
+      function(){
+        if(llegadaFinalEtapas[2]){
+          llegadaFinalEtapas[2].classList.add("completa");
+        }
+      },
+      2750
+    );
+
+    setTimeout(
+      function(){
+
+        if(llegadaFinalEtapas[3]){
+          llegadaFinalEtapas[3].classList.add("completa");
+        }
+
+        if(llegadaFinalLlegamosTexto){
+          llegadaFinalLlegamosTexto.classList.add("visible");
+        }
+      },
+      4100
+    );
 
     estado.style.background =
       "rgba(255,255,255,.83)";
