@@ -1738,6 +1738,117 @@
   }
 }
 
+
+/* ==========================================================
+   MENSAJE AL TÉCNICO - MÓDULO ADITIVO
+   No modifica mapa, GPS, ETA ni animaciones existentes.
+   ========================================================== */
+#btnMensajeTecnico{
+  position:absolute;
+  z-index:1212;
+  right:14px;
+  top:122px;
+  width:44px;
+  height:44px;
+  margin:0;
+  padding:0;
+  border:1px solid rgba(255,255,255,.92);
+  border-radius:50%;
+  background:#249447;
+  color:#fff;
+  box-shadow:0 5px 16px rgba(20,90,45,.28);
+  font-size:21px;
+  line-height:44px;
+  text-align:center;
+  cursor:pointer;
+  animation:piocaMensajePulso 1.65s ease-in-out infinite;
+  -webkit-tap-highlight-color:transparent;
+}
+#btnMensajeTecnico.abierto{animation:none;}
+@keyframes piocaMensajePulso{
+  0%,100%{transform:scale(1);box-shadow:0 5px 16px rgba(20,90,45,.25),0 0 0 0 rgba(56,224,111,.28);}
+  50%{transform:scale(1.07);box-shadow:0 5px 16px rgba(20,90,45,.25),0 0 0 8px rgba(56,224,111,0);}
+}
+#mensajeTecnicoPanel{
+  display:none;
+  position:absolute;
+  z-index:1300;
+  top:174px;
+  right:14px;
+  width:min(310px,calc(100vw - 28px));
+  padding:13px;
+  border:1px solid rgba(255,255,255,.94);
+  border-radius:16px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 10px 28px rgba(17,30,45,.22);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+#mensajeTecnicoPanel.visible{display:block;}
+#mensajeTecnicoTitulo{
+  margin:0 0 5px;
+  color:#203246;
+  font-size:13px;
+  font-weight:800;
+}
+#mensajeTecnicoEjemplo{
+  margin:0 0 9px;
+  color:#69747f;
+  font-size:9.5px;
+  line-height:1.3;
+}
+#mensajeTecnicoTexto{
+  width:100%;
+  min-height:70px;
+  max-height:100px;
+  resize:none;
+  padding:10px;
+  border:1px solid #d7e0e8;
+  border-radius:11px;
+  outline:none;
+  font:12px Arial,sans-serif;
+  color:#263746;
+  background:#fff;
+}
+#mensajeTecnicoPie{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:7px;
+}
+#mensajeTecnicoContador{
+  color:#7a858f;
+  font-size:9px;
+}
+#btnEnviarMensajeTecnico{
+  width:auto;
+  margin:0;
+  padding:9px 14px;
+  border:0;
+  border-radius:10px;
+  background:#1955A3;
+  color:#fff;
+  font-size:10px;
+  font-weight:800;
+}
+#mensajeTecnicoEstado{
+  min-height:14px;
+  margin-top:8px;
+  color:#53606c;
+  font-size:9.5px;
+  line-height:1.25;
+  text-align:center;
+}
+#mensajeTecnicoEstado.leido{color:#249447;font-weight:700;}
+#mensajeTecnicoEstado.error{color:#b3262e;}
+.cabeceraCliente.finalizado ~ #mapaWrap #btnMensajeTecnico,
+.cabeceraCliente.finalizado ~ #mapaWrap #mensajeTecnicoPanel,
+body.seguimientoFinalizadoVisual #btnMensajeTecnico,
+body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
+  display:none !important;
+}
+
 </style>
 
 </head>
@@ -1798,6 +1909,30 @@
         type="button">
         ↻ REFRESCAR POSICIÓN
       </button>
+
+      <button
+        id="btnMensajeTecnico"
+        type="button"
+        aria-label="Enviar mensaje al técnico"
+        title="Enviar mensaje al técnico">💬</button>
+
+      <div id="mensajeTecnicoPanel">
+        <div id="mensajeTecnicoTitulo">
+          Dejá un mensaje al técnico en camino
+        </div>
+        <div id="mensajeTecnicoEjemplo">
+          Ej.: el timbre no funciona, estoy en el portón lateral o información útil para llegar.
+        </div>
+        <textarea
+          id="mensajeTecnicoTexto"
+          maxlength="150"
+          placeholder="Escribí tu mensaje..."></textarea>
+        <div id="mensajeTecnicoPie">
+          <span id="mensajeTecnicoContador">0/150</span>
+          <button id="btnEnviarMensajeTecnico" type="button">ENVIAR</button>
+        </div>
+        <div id="mensajeTecnicoEstado"></div>
+      </div>
 
     </div>
 
@@ -1935,6 +2070,27 @@
       "btnRefrescarPosicion"
     );
 
+  const btnMensajeTecnico =
+    document.getElementById("btnMensajeTecnico");
+
+  const mensajeTecnicoPanel =
+    document.getElementById("mensajeTecnicoPanel");
+
+  const mensajeTecnicoTexto =
+    document.getElementById("mensajeTecnicoTexto");
+
+  const mensajeTecnicoContador =
+    document.getElementById("mensajeTecnicoContador");
+
+  const btnEnviarMensajeTecnico =
+    document.getElementById("btnEnviarMensajeTecnico");
+
+  const mensajeTecnicoEstado =
+    document.getElementById("mensajeTecnicoEstado");
+
+  let mensajeTecnicoIdUltimo = null;
+  let mensajeTecnicoConsultaId = null;
+
 
   const piocaTrayectoPanel =
     document.getElementById(
@@ -1982,6 +2138,90 @@
     document.getElementById(
       "piocaHoraEtapa4"
     );
+
+
+  async function rpcMensajeCliente(nombre,args){
+    const respuesta = await fetch(
+      SUPABASE_URL + "/rest/v1/rpc/" + nombre,
+      {
+        method:"POST",
+        headers:{
+          "apikey":SUPABASE_KEY,
+          "Authorization":"Bearer " + SUPABASE_KEY,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify(args || {})
+      }
+    );
+    if(!respuesta.ok){
+      throw new Error("RPC " + nombre + " " + respuesta.status);
+    }
+    return await respuesta.json();
+  }
+
+  function pintarEstadoMensajeCliente(r){
+    if(!r){ return; }
+    if(r.message_id){ mensajeTecnicoIdUltimo = r.message_id; }
+    if(r.read_at){
+      mensajeTecnicoEstado.textContent = "✓ Mensaje leído por el técnico";
+      mensajeTecnicoEstado.className = "leido";
+    }else if(r.message_id){
+      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado";
+      mensajeTecnicoEstado.className = "";
+    }
+  }
+
+  async function consultarEstadoMensajeCliente(){
+    if(terminado || !codigo){ return; }
+    try{
+      const data = await rpcMensajeCliente(
+        "get_client_message_status",
+        {p_code:String(codigo).trim().toUpperCase()}
+      );
+      const r = Array.isArray(data) && data.length ? data[0] : null;
+      pintarEstadoMensajeCliente(r);
+    }catch(e){}
+  }
+
+  async function enviarMensajeCliente(){
+    if(terminado || !codigo){ return; }
+    const texto = String(mensajeTecnicoTexto.value || "").trim();
+    if(!texto){
+      mensajeTecnicoEstado.textContent = "Escribí un mensaje antes de enviar.";
+      mensajeTecnicoEstado.className = "error";
+      return;
+    }
+    btnEnviarMensajeTecnico.disabled = true;
+    mensajeTecnicoEstado.textContent = "Enviando...";
+    mensajeTecnicoEstado.className = "";
+    try{
+      const data = await rpcMensajeCliente(
+        "send_tracking_message",
+        {
+          p_code:String(codigo).trim().toUpperCase(),
+          p_message:texto.slice(0,150)
+        }
+      );
+      const r = Array.isArray(data) && data.length ? data[0] : null;
+      if(!r || r.success !== true){
+        throw new Error(r && r.error_message ? r.error_message : "No enviado");
+      }
+      mensajeTecnicoIdUltimo = r.message_id || null;
+      mensajeTecnicoTexto.value = "";
+      mensajeTecnicoContador.textContent = "0/150";
+      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado";
+      mensajeTecnicoEstado.className = "";
+      setTimeout(consultarEstadoMensajeCliente,1200);
+    }catch(e){
+      mensajeTecnicoEstado.textContent =
+        String(e.message || "").includes("WAIT")
+          ? "Esperá unos segundos antes de enviar otro mensaje."
+          : "No se pudo enviar. Reintentá.";
+      mensajeTecnicoEstado.className = "error";
+    }finally{
+      btnEnviarMensajeTecnico.disabled = false;
+    }
+  }
 
   const parametros =
     new URLSearchParams(
@@ -5851,6 +6091,34 @@ if(
         Date.now();
     }
   }
+
+  btnMensajeTecnico.addEventListener("click",function(){
+    const abrir = !mensajeTecnicoPanel.classList.contains("visible");
+    mensajeTecnicoPanel.classList.toggle("visible",abrir);
+    btnMensajeTecnico.classList.toggle("abierto",abrir);
+    if(abrir){
+      consultarEstadoMensajeCliente();
+      setTimeout(function(){ mensajeTecnicoTexto.focus(); },80);
+    }
+  });
+
+  mensajeTecnicoTexto.addEventListener("input",function(){
+    mensajeTecnicoContador.textContent =
+      String(mensajeTecnicoTexto.value.length) + "/150";
+  });
+
+  btnEnviarMensajeTecnico.addEventListener(
+    "click",
+    enviarMensajeCliente
+  );
+
+  mensajeTecnicoConsultaId =
+    setInterval(
+      consultarEstadoMensajeCliente,
+      3000
+    );
+
+  consultarEstadoMensajeCliente();
 
   btnRefrescarPosicion.addEventListener(
     "click",
