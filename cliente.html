@@ -1463,6 +1463,55 @@
 }
 
 
+
+
+/* ==========================================================
+   R14 - UBICACIÓN ACTUALIZADA EN DOS LÍNEAS
+   Conserva el rombo/indicador.
+   Línea 1: símbolo + UBICACIÓN ACTUALIZADA
+   Línea 2: hace X s
+   ========================================================== */
+
+#actualizacionBox{
+  width:max-content !important;
+  min-width:0 !important;
+  padding:7px 10px !important;
+  line-height:1.12 !important;
+}
+
+#actualizacionBox::before{
+  display:inline-block !important;
+  margin-right:5px !important;
+  vertical-align:-1px !important;
+}
+
+#actualizacionTexto{
+  display:inline !important;
+  white-space:nowrap !important;
+}
+
+#actualizacionSegundos{
+  display:block !important;
+  margin-top:3px !important;
+  padding-left:20px !important;
+  font-size:9.5px !important;
+  line-height:1 !important;
+}
+
+@media(max-width:430px){
+  #actualizacionBox{
+    width:max-content !important;
+    min-width:0 !important;
+    padding:7px 9px !important;
+  }
+
+  #actualizacionSegundos{
+    padding-left:19px !important;
+    font-size:9px !important;
+  }
+}
+
+
 </style>
 
 </head>
