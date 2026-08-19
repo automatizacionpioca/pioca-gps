@@ -407,26 +407,23 @@ private void maybeEnableDnd(long now) {
                 NotificationManager.INTERRUPTION_FILTER_PRIORITY
         );
 
-        if (nm.getCurrentInterruptionFilter()
-                != NotificationManager.INTERRUPTION_FILTER_ALL) {
+        /*
+         * Samsung puede tardar unos instantes en reflejar el nuevo filtro.
+         * Si setInterruptionFilter() no lanzó excepción, piOca registra
+         * inmediatamente que fue quien activó No molestar.
+         */
+        prefs.edit()
+                .putBoolean(
+                        "dnd_activated_by_pioca",
+                        true
+                )
+                .putBoolean(
+                        "dnd_restore_pending",
+                        true
+                )
+                .apply();
 
-            prefs.edit()
-                    .putBoolean(
-                            "dnd_activated_by_pioca",
-                            true
-                    )
-                    .putBoolean(
-                            "dnd_restore_pending",
-                            true
-                    )
-                    .apply();
-
-            dndHandled = true;
-
-        } else {
-
-            dndHandled = false;
-        }
+        dndHandled = true;
 
     } catch (Exception ignored) {
 
