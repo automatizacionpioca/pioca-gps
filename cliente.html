@@ -1555,6 +1555,42 @@
 }
 
 
+
+
+/* ==========================================================
+   R16 - BARRA ACTIVA MÁS VISIBLE
+   Sólo refuerza visualmente el tramo que está avanzando.
+   No modifica ETA, etapas, camioneta, GPS ni lógica.
+   ========================================================== */
+
+#piocaLineaProgreso.piocaProgresoEnCurso{
+  background:linear-gradient(
+    90deg,
+    #1955A3 0%,
+    #1955A3 48%,
+    #5f9bd3 62%,
+    #b9d8f2 70%,
+    #5f9bd3 78%,
+    #1955A3 92%,
+    #1955A3 100%
+  ) !important;
+  background-size:220% 100% !important;
+  animation:
+    piocaTrayectoActivoR16 1.15s linear infinite,
+    piocaTrayectoRespiraR16 1.15s ease-in-out infinite !important;
+  box-shadow:0 0 5px rgba(25,85,163,.32) !important;
+}
+
+@keyframes piocaTrayectoActivoR16{
+  0%{ background-position:110% 0; }
+  100%{ background-position:-110% 0; }
+}
+
+@keyframes piocaTrayectoRespiraR16{
+  0%,100%{ opacity:.78; }
+  50%{ opacity:1; }
+}
+
 </style>
 
 </head>
