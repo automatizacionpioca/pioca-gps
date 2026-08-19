@@ -1126,26 +1126,102 @@
 
 
   function sonidoMensajeCliente(){
+
     try{
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if(!AudioCtx){ return; }
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880,ctx.currentTime);
-      gain.gain.setValueAtTime(.0001,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(.18,ctx.currentTime+.02);
-      gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.32);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime+.34);
+
+      const AudioCtx =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+      if(
+        AudioCtx
+      ){
+
+        const ctx =
+          new AudioCtx();
+
+        /*
+          Aviso fuerte: 5 pips, uno por segundo.
+          La intensidad se lleva alta dentro de WebAudio,
+          pero el volumen físico final depende del teléfono.
+        */
+        for(
+          let i = 0;
+          i < 5;
+          i++
+        ){
+
+          const inicio =
+            ctx.currentTime +
+            i;
+
+          const osc =
+            ctx.createOscillator();
+
+          const gain =
+            ctx.createGain();
+
+          osc.type =
+            "sine";
+
+          osc.frequency.setValueAtTime(
+            1050,
+            inicio
+          );
+
+          gain.gain.setValueAtTime(
+            0.0001,
+            inicio
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.9,
+            inicio + 0.025
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            inicio + 0.38
+          );
+
+          osc.connect(
+            gain
+          );
+
+          gain.connect(
+            ctx.destination
+          );
+
+          osc.start(
+            inicio
+          );
+
+          osc.stop(
+            inicio + 0.40
+          );
+        }
+      }
+
     }catch(e){}
+
     try{
-      if(navigator.vibrate){ navigator.vibrate([120,70,120]); }
+
+      if(
+        navigator.vibrate
+      ){
+
+        navigator.vibrate([
+          180,820,
+          180,820,
+          180,820,
+          180,820,
+          180
+        ]);
+      }
+
     }catch(e){}
   }
+
 
   async function consultarMensajeCliente(){
     if(seguimientoFinalizado || !trackingCode){ return; }
@@ -2054,6 +2130,16 @@
     try{
       await sincronizarServidor();
       await consultarVistaCliente();
+
+      /*
+        MENSAJES R3:
+        al volver de pantalla bloqueada o segundo plano,
+        consultamos inmediatamente por mensajes pendientes.
+        Si hay uno nuevo, consultarMensajeCliente() dispara
+        los 5 pips, vibración y abre la tarjeta.
+      */
+      await consultarMensajeCliente();
+
     }catch(e){}
 
     pintarHoraCliente();
@@ -3076,6 +3162,11 @@
           "visible"
       ){
         reactivarPanelAhora();
+
+        setTimeout(
+          consultarMensajeCliente,
+          700
+        );
       }
     }
   );
@@ -3084,6 +3175,11 @@
     "pageshow",
     function(){
       reactivarPanelAhora();
+
+      setTimeout(
+        consultarMensajeCliente,
+        700
+      );
     }
   );
 
@@ -3091,6 +3187,11 @@
     "focus",
     function(){
       reactivarPanelAhora();
+
+      setTimeout(
+        consultarMensajeCliente,
+        700
+      );
     }
   );
 
