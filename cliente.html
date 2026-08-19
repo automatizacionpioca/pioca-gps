@@ -359,22 +359,31 @@
     .pin1{
       width:30px;
       height:30px;
-      background:#e94235;
-      border:2px solid #fff;
-      border-radius:50% 50% 50% 0;
+      background:transparent;
+      border:0;
+      border-radius:0;
       transform:rotate(-45deg);
       overflow:visible;
     }
 
     .pin1::after{
-      content:"";
+      display:none;
+    }
+
+    .pinMapaPiocaImagen{
       position:absolute;
-      width:10px;
-      height:10px;
-      left:8px;
-      top:8px;
-      background:#fff;
-      border-radius:50%;
+      left:-15px;
+      top:-15px;
+      width:60px;
+      height:60px;
+      max-width:none;
+      object-fit:contain;
+      display:block;
+      transform:rotate(45deg);
+      transform-origin:center center;
+      pointer-events:none;
+      user-select:none;
+      -webkit-user-drag:none;
     }
 
     .pinPosicionPunto{
@@ -384,7 +393,7 @@
       width:13px;
       height:13px;
       border-radius:50%;
-      background:#e94235;
+      background:#155EA7;
       border:2px solid #fff;
       transform:rotate(45deg);
       box-sizing:border-box;
@@ -400,7 +409,7 @@
       width:8px;
       height:8px;
       border-radius:50%;
-      background:rgba(233,66,53,.34);
+      background:rgba(21,94,167,.34);
       transform:translate(-50%,-50%) scale(1);
       animation:piocaPinPulse 1.55s ease-out infinite;
     }
@@ -1996,6 +2005,7 @@
       className:"piocaPinIcon",
       html:
         '<div class="pinBase pin1">' +
+        '<img class="pinMapaPiocaImagen" src="pin-mapa-pioca.png" alt="piOca">' +
         '<span class="pinPosicionPunto"></span>' +
         '</div>',
       iconSize:[30,46],
