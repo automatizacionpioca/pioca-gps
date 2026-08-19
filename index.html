@@ -1181,6 +1181,24 @@
       ) +
 
       "El cliente ya no puede ver la ubicación de la camioneta.";
+
+    /*
+      V10 - SALIDA AUTOMÁTICA DEL CONTROLADOR ETA
+
+      Cuando Supabase ya confirmó "finished", este controlador
+      deja de ser válido. Android puede mostrar su aviso de
+      finalización; el WebView vuelve automáticamente al panel.
+    */
+    setTimeout(
+      function(){
+
+        window.location.replace(
+          "admin.html"
+        );
+
+      },
+      350
+    );
   }
 
   function formatearHora(
