@@ -1693,13 +1693,13 @@
 
 
 /* ==========================================================
-   R20 SIMPLE - PUNTO 4 AZUL -> VERDE EN LOS ÚLTIMOS 2 MINUTOS
+   R20 SIMPLE - PUNTO 4 GRIS -> VERDE EN LOS ÚLTIMOS 2 MINUTOS
    Conserva exactamente el punto circular original.
    El color se controla desde JavaScript según ETA.
    ========================================================== */
 
 #piocaEtapa4 .piocaEtapaPunto{
-  background:var(--pioca-etapa4-color, #1955A3) !important;
+  background:var(--pioca-etapa4-color, #b8bdc4) !important;
   transition:
     background-color .8s linear,
     background .8s linear,
@@ -1722,8 +1722,8 @@
   text-align:center;
   color:#5f6872;
   font-family:inherit;
-  font-size:8.2px;
-  line-height:1.15;
+  font-size:11px;
+  line-height:1.28;
   font-weight:400;
   letter-spacing:0;
   opacity:.46;
@@ -1732,7 +1732,8 @@
 @media(max-width:430px){
   #firmaTecnologiaPioca{
     margin-top:2px;
-    font-size:7.8px;
+    font-size:10px;
+    line-height:1.28;
     opacity:.44;
   }
 }
@@ -1858,7 +1859,7 @@
       </div>
 
       <div id="firmaTecnologiaPioca">
-        Tecnología de seguimiento desarrollada por piOca®
+        Tecnología de seguimiento desarrollada por piOca
       </div>
 
       <div id="fraseServicio">
@@ -2380,8 +2381,8 @@
       return;
     }
 
-    const AZUL =
-      "#1955A3";
+    const GRIS =
+      "#b8bdc4";
 
     /*
       Mismo verde visual que "UBICACIÓN ACTUALIZADA".
@@ -2390,7 +2391,7 @@
       "#38e06f";
 
     let color =
-      AZUL;
+      GRIS;
 
     const yaLlego =
       llegadaCumplidaGuardada();
@@ -2423,7 +2424,7 @@
 
       color =
         mezclarColor(
-          AZUL,
+          GRIS,
           VERDE,
           progreso
         );
@@ -2813,7 +2814,7 @@
 
     /*
       R20 SIMPLE:
-      Azul normal hasta 2 min.
+      Gris normal hasta 2 min.
       De 2 min a 0 min cambia progresivamente a verde.
       Desde ETA 0 queda verde y se persiste por ID.
     */
