@@ -1344,7 +1344,7 @@
 
 
 /* ==========================================================
-   R11 - RASTREO EN VIVO AJUSTADO AL CONTENIDO
+   R11 - MONITOREO SATELITAL AJUSTADO AL CONTENIDO
    Sólo corrección de ancho del recuadro superior.
    ========================================================== */
 
@@ -1431,6 +1431,35 @@
   .estadoTexto{
     font-size:8.8px !important;
   }
+}
+
+
+
+
+/* ==========================================================
+   R13 - MONITOREO SATELITAL + NUEVO AZUL DE ETAPAS
+   Azul solicitado: #155EA7
+   ========================================================== */
+
+/* Línea de progreso */
+#piocaLineaProgreso{
+  background:#155EA7 !important;
+}
+
+/* Puntos completados y etapa actual */
+.piocaEtapa.completa .piocaEtapaPunto,
+.piocaEtapa.actual .piocaEtapaPunto{
+  background:#155EA7 !important;
+}
+
+/* Número de etapa actual */
+.piocaEtapa.actual .piocaEtapaNumero{
+  color:#155EA7 !important;
+}
+
+/* Cualquier hora/texto activo asociado a etapa */
+.piocaEtapa.actual .piocaEtapaHora{
+  color:#155EA7 !important;
 }
 
 
@@ -2459,7 +2488,7 @@
     estado.innerHTML =
       '<span class="estadoEnVivo">' +
         '<span class="puntoEnVivo"></span>' +
-        '<span class="estadoTexto">RASTREO EN VIVO</span>' +
+        '<span class="estadoTexto">MONITOREO SATELITAL</span>' +
       '</span>';
 
     estado.style.background =
