@@ -1693,107 +1693,19 @@
 
 
 /* ==========================================================
-   R20 - ETAPA 4 CON ENGRANAJE GIRATORIO
-   - Gira siempre
-   - Gris mientras todavía no se alcanzó la etapa 4
-   - Verde cuando la etapa 4 está activa/completada
-   - No modifica lógica, ETA, progreso ni posiciones
+   R20 SIMPLE - PUNTO 4 AZUL -> VERDE EN LOS ÚLTIMOS 2 MINUTOS
+   Conserva exactamente el punto circular original.
+   El color se controla desde JavaScript según ETA.
    ========================================================== */
 
 #piocaEtapa4 .piocaEtapaPunto{
-  position:relative !important;
-  width:22px !important;
-  height:22px !important;
-  margin:-2px auto 8px !important;
-  border:0 !important;
-  border-radius:0 !important;
-  background:transparent !important;
-  box-shadow:none !important;
-  transform:none !important;
-  overflow:visible !important;
+  background:var(--pioca-etapa4-color, #1955A3) !important;
+  transition:
+    background-color .8s linear,
+    background .8s linear,
+    transform .35s ease !important;
 }
 
-#piocaEtapa4 .piocaEtapaPunto::before{
-  content:"⚙";
-  position:absolute;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:#b8bdc4;
-  font-size:22px;
-  line-height:1;
-  font-weight:400;
-  transform-origin:50% 50%;
-  animation:piocaEngranajeEtapa4 2.2s linear infinite;
-  will-change:transform;
-}
-
-/* Si la etapa 4 ya fue alcanzada, el engranaje sigue girando en verde */
-#piocaEtapa4.actual .piocaEtapaPunto::before,
-#piocaEtapa4.completa .piocaEtapaPunto::before{
-  color:#249447 !important;
-}
-
-@keyframes piocaEngranajeEtapa4{
-  from{ transform:rotate(0deg); }
-  to{ transform:rotate(360deg); }
-}
-
-
-
-/* ==========================================================
-   R21 - ENGRANAJE FINAL MULTIPLATAFORMA + VERDE PROGRESIVO
-   - Sin emoji: mismo aspecto en iPhone y Android
-   - Gira siempre
-   - De ETA -2:00 a ETA 0:00 se llena progresivamente de verde
-   - Desde ETA 0:00 queda 100% verde y sigue girando
-   ========================================================== */
-
-#piocaEtapa4 .piocaEtapaPunto{
-  --pioca-engranaje-verde:0%;
-  position:relative !important;
-  width:22px !important;
-  height:22px !important;
-  margin:-2px auto 8px !important;
-  border:0 !important;
-  border-radius:0 !important;
-  background:
-    linear-gradient(
-      to top,
-      #249447 0%,
-      #249447 var(--pioca-engranaje-verde),
-      #b8bdc4 var(--pioca-engranaje-verde),
-      #b8bdc4 100%
-    ) !important;
-  box-shadow:none !important;
-  transform:none !important;
-  overflow:visible !important;
-
-  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23000' d='M43 4h14l3 12a37 37 0 0 1 8 3l11-6 10 10-6 11a37 37 0 0 1 3 8l12 3v14l-12 3a37 37 0 0 1-3 8l6 11-10 10-11-6a37 37 0 0 1-8 3l-3 12H43l-3-12a37 37 0 0 1-8-3l-11 6-10-10 6-11a37 37 0 0 1-3-8L2 59V45l12-3a37 37 0 0 1 3-8l-6-11 10-10 11 6a37 37 0 0 1 8-3L43 4zm7 27a19 19 0 1 0 0 38 19 19 0 0 0 0-38z'/%3E%3C/svg%3E") !important;
-  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23000' d='M43 4h14l3 12a37 37 0 0 1 8 3l11-6 10 10-6 11a37 37 0 0 1 3 8l12 3v14l-12 3a37 37 0 0 1-3 8l6 11-10 10-11-6a37 37 0 0 1-8 3l-3 12H43l-3-12a37 37 0 0 1-8-3l-11 6-10-10 6-11a37 37 0 0 1-3-8L2 59V45l12-3a37 37 0 0 1 3-8l-6-11 10-10 11 6a37 37 0 0 1 8-3L43 4zm7 27a19 19 0 1 0 0 38 19 19 0 0 0 0-38z'/%3E%3C/svg%3E") !important;
-  -webkit-mask-size:contain !important;
-  mask-size:contain !important;
-  -webkit-mask-repeat:no-repeat !important;
-  mask-repeat:no-repeat !important;
-  -webkit-mask-position:center !important;
-  mask-position:center !important;
-
-  animation:piocaEngranajeEtapa4R21 2.2s linear infinite !important;
-  will-change:transform;
-}
-
-/* Anulamos el engranaje-emoji de R20 */
-#piocaEtapa4 .piocaEtapaPunto::before,
-#piocaEtapa4 .piocaEtapaPunto::after{
-  content:none !important;
-  display:none !important;
-}
-
-@keyframes piocaEngranajeEtapa4R21{
-  from{ transform:rotate(0deg); }
-  to{ transform:rotate(360deg); }
-}
 
 </style>
 
@@ -2021,7 +1933,7 @@
     document.getElementById("piocaEtapa4")
   ];
 
-  const piocaEngranajeEtapa4 =
+  const piocaPuntoEtapa4 =
     document.querySelector(
       "#piocaEtapa4 .piocaEtapaPunto"
     );
@@ -2251,6 +2163,242 @@
         clave
       );
     }catch(e){}
+  }
+
+
+  /*
+    R20 SIMPLE:
+    Cuando ETA llega a 0 guardamos que la llegada ya ocurrió.
+    Esto hace que, si se cierra y vuelve a abrir el mismo link
+    durante los minutos posteriores, el punto 4 continúe verde.
+  */
+  function claveLlegadaCumplida(){
+
+    return codigo
+      ? "pioca_llegada_cumplida_" + codigo
+      : null;
+  }
+
+
+  function guardarLlegadaCumplida(){
+
+    const clave =
+      claveLlegadaCumplida();
+
+    if(
+      !clave
+    ){
+      return;
+    }
+
+    try{
+      localStorage.setItem(
+        clave,
+        "1"
+      );
+    }catch(e){}
+  }
+
+
+  function llegadaCumplidaGuardada(){
+
+    const clave =
+      claveLlegadaCumplida();
+
+    if(
+      !clave
+    ){
+      return false;
+    }
+
+    try{
+      return localStorage.getItem(
+        clave
+      ) === "1";
+    }catch(e){
+      return false;
+    }
+  }
+
+
+  function borrarLlegadaCumplida(){
+
+    const clave =
+      claveLlegadaCumplida();
+
+    if(
+      !clave
+    ){
+      return;
+    }
+
+    try{
+      localStorage.removeItem(
+        clave
+      );
+    }catch(e){}
+  }
+
+
+  function mezclarColor(
+    colorA,
+    colorB,
+    progreso
+  ){
+
+    progreso =
+      Math.max(
+        0,
+        Math.min(
+          1,
+          progreso
+        )
+      );
+
+    function hexRgb(
+      hex
+    ){
+
+      const limpio =
+        hex.replace(
+          "#",
+          ""
+        );
+
+      return {
+        r:
+          parseInt(
+            limpio.slice(0,2),
+            16
+          ),
+        g:
+          parseInt(
+            limpio.slice(2,4),
+            16
+          ),
+        b:
+          parseInt(
+            limpio.slice(4,6),
+            16
+          )
+      };
+    }
+
+    const a =
+      hexRgb(
+        colorA
+      );
+
+    const b =
+      hexRgb(
+        colorB
+      );
+
+    const r =
+      Math.round(
+        a.r +
+        (
+          b.r -
+          a.r
+        ) *
+        progreso
+      );
+
+    const g =
+      Math.round(
+        a.g +
+        (
+          b.g -
+          a.g
+        ) *
+        progreso
+      );
+
+    const bl =
+      Math.round(
+        a.b +
+        (
+          b.b -
+          a.b
+        ) *
+        progreso
+      );
+
+    return (
+      "rgb(" +
+      r +
+      "," +
+      g +
+      "," +
+      bl +
+      ")"
+    );
+  }
+
+
+  function actualizarColorPuntoEtapa4(
+    faltanMin
+  ){
+
+    if(
+      !piocaPuntoEtapa4
+    ){
+      return;
+    }
+
+    const AZUL =
+      "#1955A3";
+
+    /*
+      Mismo verde visual que "UBICACIÓN ACTUALIZADA".
+    */
+    const VERDE =
+      "#38e06f";
+
+    let color =
+      AZUL;
+
+    const yaLlego =
+      llegadaCumplidaGuardada();
+
+    if(
+      yaLlego ||
+      faltanMin <= 0
+    ){
+
+      color =
+        VERDE;
+
+      if(
+        faltanMin <= 0 &&
+        !yaLlego
+      ){
+        guardarLlegadaCumplida();
+      }
+
+    }else if(
+      faltanMin < 2
+    ){
+
+      const progreso =
+        (
+          2 -
+          faltanMin
+        ) /
+        2;
+
+      color =
+        mezclarColor(
+          AZUL,
+          VERDE,
+          progreso
+        );
+    }
+
+    piocaPuntoEtapa4.style.setProperty(
+      "--pioca-etapa4-color",
+      color
+    );
   }
 
   /*
@@ -2630,42 +2778,14 @@
       60000;
 
     /*
-      R21:
-      Durante los últimos 2 minutos previos al ETA,
-      el engranaje se llena de verde de 0% a 100%.
-      Desde ETA 0 en adelante permanece 100% verde mientras
-      el seguimiento continúe activo.
+      R20 SIMPLE:
+      Azul normal hasta 2 min.
+      De 2 min a 0 min cambia progresivamente a verde.
+      Desde ETA 0 queda verde y se persiste por ID.
     */
-    if(
-      piocaEngranajeEtapa4
-    ){
-
-      const progresoVerdeFinal =
-        faltanMin >= 2
-          ? 0
-          : faltanMin <= 0
-            ? 1
-            : (
-                2 -
-                faltanMin
-              ) /
-              2;
-
-      piocaEngranajeEtapa4.style.setProperty(
-        "--pioca-engranaje-verde",
-        (
-          Math.max(
-            0,
-            Math.min(
-              1,
-              progresoVerdeFinal
-            )
-          ) *
-          100
-        ) +
-        "%"
-      );
-    }
+    actualizarColorPuntoEtapa4(
+      faltanMin
+    );
 
     piocaEtaHora.textContent =
       formatearHoraTrayecto(
@@ -3305,6 +3425,12 @@
       true;
 
     borrarReferenciaTrayectoPersistida();
+
+    /*
+      El seguimiento ya terminó definitivamente:
+      la persistencia verde deja de ser necesaria.
+    */
+    borrarLlegadaCumplida();
 
     document.body.classList.add(
       "seguimientoFinalizadoVisual"
