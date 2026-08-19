@@ -504,11 +504,6 @@
       </div>
 
       <div>
-        <strong>Último envío:</strong>
-        <span id="gpsEnvio">-</span>
-      </div>
-
-      <div>
         <strong>Transmisión:</strong>
         <span id="gpsEnvios">⏳ ESPERANDO GPS</span>
       </div>
@@ -651,9 +646,6 @@
 
   const hora =
     document.getElementById("gpsHora");
-
-  const envioHora =
-    document.getElementById("gpsEnvio");
 
   const enviosTxt =
     document.getElementById("gpsEnvios");
@@ -2230,12 +2222,6 @@
 
       enviando =
         false;
-
-      envioHora.textContent =
-        new Date()
-        .toLocaleTimeString(
-          "es-AR"
-        );
 
       ocultarError();
 
