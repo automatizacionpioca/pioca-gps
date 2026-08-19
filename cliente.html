@@ -1740,6 +1740,61 @@
   to{ transform:rotate(360deg); }
 }
 
+
+
+/* ==========================================================
+   R21 - ENGRANAJE FINAL MULTIPLATAFORMA + VERDE PROGRESIVO
+   - Sin emoji: mismo aspecto en iPhone y Android
+   - Gira siempre
+   - De ETA -2:00 a ETA 0:00 se llena progresivamente de verde
+   - Desde ETA 0:00 queda 100% verde y sigue girando
+   ========================================================== */
+
+#piocaEtapa4 .piocaEtapaPunto{
+  --pioca-engranaje-verde:0%;
+  position:relative !important;
+  width:22px !important;
+  height:22px !important;
+  margin:-2px auto 8px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:
+    linear-gradient(
+      to top,
+      #249447 0%,
+      #249447 var(--pioca-engranaje-verde),
+      #b8bdc4 var(--pioca-engranaje-verde),
+      #b8bdc4 100%
+    ) !important;
+  box-shadow:none !important;
+  transform:none !important;
+  overflow:visible !important;
+
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23000' d='M43 4h14l3 12a37 37 0 0 1 8 3l11-6 10 10-6 11a37 37 0 0 1 3 8l12 3v14l-12 3a37 37 0 0 1-3 8l6 11-10 10-11-6a37 37 0 0 1-8 3l-3 12H43l-3-12a37 37 0 0 1-8-3l-11 6-10-10 6-11a37 37 0 0 1-3-8L2 59V45l12-3a37 37 0 0 1 3-8l-6-11 10-10 11 6a37 37 0 0 1 8-3L43 4zm7 27a19 19 0 1 0 0 38 19 19 0 0 0 0-38z'/%3E%3C/svg%3E") !important;
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23000' d='M43 4h14l3 12a37 37 0 0 1 8 3l11-6 10 10-6 11a37 37 0 0 1 3 8l12 3v14l-12 3a37 37 0 0 1-3 8l6 11-10 10-11-6a37 37 0 0 1-8 3l-3 12H43l-3-12a37 37 0 0 1-8-3l-11 6-10-10 6-11a37 37 0 0 1-3-8L2 59V45l12-3a37 37 0 0 1 3-8l-6-11 10-10 11 6a37 37 0 0 1 8-3L43 4zm7 27a19 19 0 1 0 0 38 19 19 0 0 0 0-38z'/%3E%3C/svg%3E") !important;
+  -webkit-mask-size:contain !important;
+  mask-size:contain !important;
+  -webkit-mask-repeat:no-repeat !important;
+  mask-repeat:no-repeat !important;
+  -webkit-mask-position:center !important;
+  mask-position:center !important;
+
+  animation:piocaEngranajeEtapa4R21 2.2s linear infinite !important;
+  will-change:transform;
+}
+
+/* Anulamos el engranaje-emoji de R20 */
+#piocaEtapa4 .piocaEtapaPunto::before,
+#piocaEtapa4 .piocaEtapaPunto::after{
+  content:none !important;
+  display:none !important;
+}
+
+@keyframes piocaEngranajeEtapa4R21{
+  from{ transform:rotate(0deg); }
+  to{ transform:rotate(360deg); }
+}
+
 </style>
 
 </head>
@@ -1965,6 +2020,11 @@
     document.getElementById("piocaEtapa3"),
     document.getElementById("piocaEtapa4")
   ];
+
+  const piocaEngranajeEtapa4 =
+    document.querySelector(
+      "#piocaEtapa4 .piocaEtapaPunto"
+    );
 
   const piocaHoraEtapa3 =
     document.getElementById(
@@ -2568,6 +2628,44 @@
         ahoraMs
       ) /
       60000;
+
+    /*
+      R21:
+      Durante los últimos 2 minutos previos al ETA,
+      el engranaje se llena de verde de 0% a 100%.
+      Desde ETA 0 en adelante permanece 100% verde mientras
+      el seguimiento continúe activo.
+    */
+    if(
+      piocaEngranajeEtapa4
+    ){
+
+      const progresoVerdeFinal =
+        faltanMin >= 2
+          ? 0
+          : faltanMin <= 0
+            ? 1
+            : (
+                2 -
+                faltanMin
+              ) /
+              2;
+
+      piocaEngranajeEtapa4.style.setProperty(
+        "--pioca-engranaje-verde",
+        (
+          Math.max(
+            0,
+            Math.min(
+              1,
+              progresoVerdeFinal
+            )
+          ) *
+          100
+        ) +
+        "%"
+      );
+    }
 
     piocaEtaHora.textContent =
       formatearHoraTrayecto(
