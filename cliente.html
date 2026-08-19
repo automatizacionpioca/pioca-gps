@@ -2227,41 +2227,23 @@ body.seguimientoFinalizadoVisual #estado{
 }
 
 .llegadaFinalTrayectoTitulo{
-  margin:0 0 12px;
-  color:#203246;
-  font-size:17px;
-  line-height:1.08;
-  font-weight:900;
-  text-align:left;
-  text-transform:uppercase;
+  display:none !important;
 }
 
-.llegadaFinalTrayectoTitulo::before{
-  content:"";
-  width:31px;
-  height:20px;
-  margin-right:9px;
-  display:inline-block;
-  vertical-align:-4px;
-  background-image:url("icono-trayecto-pioca.png");
-  background-size:contain;
-  background-position:center;
-  background-repeat:no-repeat;
-}
 
 .llegadaFinalTrayecto{
   position:relative;
   width:100%;
-  height:138px;
+  height:126px;
   margin:0;
   overflow:visible;
 }
 
 .llegadaFinalLineaBase{
   position:absolute;
-  left:8%;
-  right:8%;
-  top:48px;
+  left:5%;
+  right:5%;
+  top:43px;
   height:4px;
   border-radius:999px;
   background:rgba(82,92,104,.26);
@@ -2269,8 +2251,8 @@ body.seguimientoFinalizadoVisual #estado{
 
 .llegadaFinalLineaProgreso{
   position:absolute;
-  left:8%;
-  top:48px;
+  left:5%;
+  top:43px;
   width:0%;
   height:4px;
   border-radius:999px;
@@ -2307,17 +2289,17 @@ body.seguimientoFinalizadoVisual #estado{
 
 .llegadaFinalEtapa{
   position:absolute;
-  top:40px;
+  top:35px;
   width:23%;
   transform:translateX(-50%);
   text-align:center;
   color:#2d3741;
 }
 
-.llegadaFinalEtapa.e1{ left:8%; }
-.llegadaFinalEtapa.e2{ left:36%; }
-.llegadaFinalEtapa.e3{ left:64%; }
-.llegadaFinalEtapa.e4{ left:92%; }
+.llegadaFinalEtapa.e1{ left:5%; }
+.llegadaFinalEtapa.e2{ left:35%; }
+.llegadaFinalEtapa.e3{ left:65%; }
+.llegadaFinalEtapa.e4{ left:95%; }
 
 .llegadaFinalPunto{
   position:relative;
@@ -2381,10 +2363,10 @@ body.seguimientoFinalizadoVisual #estado{
 .llegadaFinalCamionetaAnimada{
   position:absolute;
   z-index:12;
-  top:-28px;
-  left:8%;
-  width:188px;
-  height:100px;
+  top:-39px;
+  left:5%;
+  width:150px;
+  height:80px;
   transform:translateX(-50%);
   display:flex;
   align-items:center;
@@ -2394,8 +2376,8 @@ body.seguimientoFinalizadoVisual #estado{
 }
 
 .llegadaFinalCamionetaAnimada img{
-  width:188px;
-  height:100px;
+  width:150px;
+  height:80px;
   object-fit:contain;
   display:block;
   filter:drop-shadow(0 2px 2px rgba(20,35,50,.18));
@@ -2439,7 +2421,7 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
   .llegadaFinalTrayecto{
-    height:132px;
+    height:122px;
   }
 
   .llegadaFinalTextoEtapa{
@@ -2447,13 +2429,14 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
   .llegadaFinalCamionetaAnimada{
-    width:188px;
-    height:100px;
+    top:-39px;
+    width:150px;
+    height:80px;
   }
 
   .llegadaFinalCamionetaAnimada img{
-    width:188px;
-    height:100px;
+    width:150px;
+    height:80px;
   }
 
   .llegadaFinalLlegamosTexto{
@@ -4379,8 +4362,6 @@ horaLlegadaBox.style.display =
         '<div class="llegadaFinalTarjeta">' +
 
           '<div class="llegadaFinalTrayectoWrap">' +
-            '<div class="llegadaFinalTrayectoTitulo">VISITA COMPLETADA</div>' +
-
             '<div class="llegadaFinalTrayecto">' +
               '<div class="llegadaFinalLineaBase"></div>' +
               '<div class="llegadaFinalLineaProgreso" id="llegadaFinalLineaProgreso"></div>' +
@@ -4508,11 +4489,11 @@ horaLlegadaBox.style.display =
         }
 
         if(llegadaFinalLineaProgreso){
-          llegadaFinalLineaProgreso.style.width = "84%";
+          llegadaFinalLineaProgreso.style.width = "90%";
         }
 
         if(llegadaFinalCamionetaAnimada){
-          llegadaFinalCamionetaAnimada.style.left = "92%";
+          llegadaFinalCamionetaAnimada.style.left = "88%";
         }
       },
       120
