@@ -1690,6 +1690,56 @@
   }
 }
 
+
+
+/* ==========================================================
+   R20 - ETAPA 4 CON ENGRANAJE GIRATORIO
+   - Gira siempre
+   - Gris mientras todavía no se alcanzó la etapa 4
+   - Verde cuando la etapa 4 está activa/completada
+   - No modifica lógica, ETA, progreso ni posiciones
+   ========================================================== */
+
+#piocaEtapa4 .piocaEtapaPunto{
+  position:relative !important;
+  width:22px !important;
+  height:22px !important;
+  margin:-2px auto 8px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  transform:none !important;
+  overflow:visible !important;
+}
+
+#piocaEtapa4 .piocaEtapaPunto::before{
+  content:"⚙";
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#b8bdc4;
+  font-size:22px;
+  line-height:1;
+  font-weight:400;
+  transform-origin:50% 50%;
+  animation:piocaEngranajeEtapa4 2.2s linear infinite;
+  will-change:transform;
+}
+
+/* Si la etapa 4 ya fue alcanzada, el engranaje sigue girando en verde */
+#piocaEtapa4.actual .piocaEtapaPunto::before,
+#piocaEtapa4.completa .piocaEtapaPunto::before{
+  color:#249447 !important;
+}
+
+@keyframes piocaEngranajeEtapa4{
+  from{ transform:rotate(0deg); }
+  to{ transform:rotate(360deg); }
+}
+
 </style>
 
 </head>
