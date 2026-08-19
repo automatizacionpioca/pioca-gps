@@ -467,6 +467,46 @@
   font-size:11px;
 }
 
+
+/* ==========================================================
+   MENSAJES R2 - BOTÓN SIEMPRE VISIBLE
+   ========================================================== */
+#btnAbrirMensajes{
+  width:100%;
+  min-height:46px;
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #c8d8e5;
+  border-radius:13px;
+  background:#f7fbff;
+  color:#1955A3;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:none;
+}
+#btnAbrirMensajes.nuevo{
+  border-color:#b8dfc0;
+  background:#eef9f1;
+  color:#247238;
+  animation:piocaMensajeTecnicoPulso 1.35s ease-in-out infinite;
+}
+@keyframes piocaMensajeTecnicoPulso{
+  0%,100%{box-shadow:0 0 0 0 rgba(56,224,111,0);}
+  50%{box-shadow:0 0 0 6px rgba(56,224,111,.16);}
+}
+#mensajeClienteBox{
+  display:none;
+}
+#mensajeClienteBox.visible{
+  display:block;
+}
+#mensajeClienteSinNuevos{
+  color:#66727d;
+  font-size:11px;
+  line-height:1.35;
+  text-align:center;
+}
+
 </style>
 
 </head>
@@ -592,8 +632,13 @@
       AÚN NO VISUALIZADO
     </div>
 
+    <button id="btnAbrirMensajes" type="button">
+      💬 MENSAJES DEL CLIENTE
+    </button>
+
     <div id="mensajeClienteBox">
       <div id="mensajeClienteTitulo">💬 MENSAJE DEL CLIENTE</div>
+      <div id="mensajeClienteSinNuevos">Sin mensajes nuevos.</div>
       <div id="mensajeClienteTexto"></div>
       <div id="mensajeClienteHora"></div>
       <button id="btnMensajeLeido" type="button">✓ MARCAR COMO LEÍDO</button>
@@ -734,8 +779,14 @@
   const clienteVistaFinal =
     document.getElementById("clienteVistaFinal");
 
+  const btnAbrirMensajes =
+    document.getElementById("btnAbrirMensajes");
+
   const mensajeClienteBox =
     document.getElementById("mensajeClienteBox");
+
+  const mensajeClienteSinNuevos =
+    document.getElementById("mensajeClienteSinNuevos");
 
   const mensajeClienteTexto =
     document.getElementById("mensajeClienteTexto");
@@ -1098,31 +1149,115 @@
 
   async function consultarMensajeCliente(){
     if(seguimientoFinalizado || !trackingCode){ return; }
+
     try{
       const {data,error} = await supabaseClient.rpc(
         "get_unread_tracking_message",
         {p_code:trackingCode}
       );
-      if(error){ throw error; }
-      const r = Array.isArray(data) && data.length ? data[0] : null;
+
+      if(error){
+        throw error;
+      }
+
+      const r =
+        Array.isArray(data) && data.length
+          ? data[0]
+          : null;
+
       if(!r || !r.message_id){
+
         mensajeClienteActualId = null;
-        mensajeClienteBox.classList.remove("visible");
+
+        btnAbrirMensajes.classList.remove(
+          "nuevo"
+        );
+
+        mensajeClienteSinNuevos.style.display =
+          "block";
+
+        mensajeClienteSinNuevos.textContent =
+          "Sin mensajes nuevos.";
+
+        mensajeClienteTexto.textContent =
+          "";
+
+        mensajeClienteHora.textContent =
+          "";
+
+        btnMensajeLeido.style.display =
+          "none";
+
         return;
       }
-      mensajeClienteActualId = r.message_id;
-      mensajeClienteTexto.textContent = r.message_text || "";
+
+      mensajeClienteActualId =
+        r.message_id;
+
+      mensajeClienteSinNuevos.style.display =
+        "none";
+
+      mensajeClienteTexto.textContent =
+        r.message_text || "";
+
       mensajeClienteHora.textContent =
         r.created_at
-          ? "Recibido " + new Date(r.created_at).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})
+          ? "Recibido " +
+            new Date(r.created_at)
+            .toLocaleTimeString(
+              "es-AR",
+              {
+                hour:"2-digit",
+                minute:"2-digit"
+              }
+            )
           : "";
-      mensajeClienteBox.classList.add("visible");
 
-      if(mensajeClienteUltimoAvisadoId !== r.message_id){
-        mensajeClienteUltimoAvisadoId = r.message_id;
+      btnMensajeLeido.style.display =
+        "block";
+
+      btnAbrirMensajes.classList.add(
+        "nuevo"
+      );
+
+      if(
+        mensajeClienteUltimoAvisadoId !==
+          r.message_id
+      ){
+        mensajeClienteUltimoAvisadoId =
+          r.message_id;
+
         sonidoMensajeCliente();
+
+        /*
+          Si llega uno nuevo, abrimos la tarjeta automáticamente.
+        */
+        mensajeClienteBox.classList.add(
+          "visible"
+        );
       }
-    }catch(e){}
+
+    }catch(e){
+
+      /*
+        La función deja un diagnóstico visible sólo si el usuario
+        abre MENSAJES. No afecta el resto del panel.
+      */
+      mensajeClienteSinNuevos.style.display =
+        "block";
+
+      mensajeClienteSinNuevos.textContent =
+        "No se pudo consultar mensajes.";
+
+      mensajeClienteTexto.textContent =
+        "";
+
+      mensajeClienteHora.textContent =
+        "";
+
+      btnMensajeLeido.style.display =
+        "none";
+    }
   }
 
   async function marcarMensajeClienteLeido(){
@@ -1137,8 +1272,26 @@
         }
       );
       if(error){ throw error; }
-      mensajeClienteBox.classList.remove("visible");
       mensajeClienteActualId = null;
+
+      btnAbrirMensajes.classList.remove(
+        "nuevo"
+      );
+
+      mensajeClienteSinNuevos.style.display =
+        "block";
+
+      mensajeClienteSinNuevos.textContent =
+        "Sin mensajes nuevos.";
+
+      mensajeClienteTexto.textContent =
+        "";
+
+      mensajeClienteHora.textContent =
+        "";
+
+      btnMensajeLeido.style.display =
+        "none";
     }catch(e){
       mostrarError("No se pudo confirmar la lectura del mensaje.");
     }finally{
@@ -2801,6 +2954,24 @@
   btnWhatsapp.addEventListener(
     "click",
     abrirWhatsApp
+  );
+
+  btnAbrirMensajes.addEventListener(
+    "click",
+    function(){
+
+      mensajeClienteBox.classList.toggle(
+        "visible"
+      );
+
+      if(
+        mensajeClienteBox.classList.contains(
+          "visible"
+        )
+      ){
+        consultarMensajeCliente();
+      }
+    }
   );
 
   btnMensajeLeido.addEventListener(
