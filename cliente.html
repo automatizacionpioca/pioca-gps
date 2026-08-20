@@ -2848,6 +2848,14 @@ body.seguimientoFinalizadoVisual #estado{
       window.location.search
     );
 
+  /*
+    PREVIEW TÉCNICO:
+    cuando preview=1, la vista se comporta igual que la del cliente
+    pero NO registra heartbeat de visualización.
+  */
+  const esPreviewTecnico =
+    parametros.get("preview") === "1";
+
   let codigo =
     parametros.get(
       "id"
@@ -4394,6 +4402,7 @@ body.seguimientoFinalizadoVisual #estado{
   async function enviarHeartbeatCliente(){
 
     if(
+      esPreviewTecnico ||
       terminado ||
       !codigo ||
       document.visibilityState !== "visible"
@@ -4430,7 +4439,10 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
   function iniciarHeartbeatCliente(){
-    if(heartbeatClienteId !== null){
+    if(
+      esPreviewTecnico ||
+      heartbeatClienteId !== null
+    ){
       return;
     }
 
