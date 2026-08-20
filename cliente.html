@@ -3604,7 +3604,17 @@ body.seguimientoFinalizadoVisual #estado{
     1950;
 
   const DURACION_CONTINUA_MAX_MS =
-    2500;
+    2800;
+
+  /*
+    R30 - COLCHÓN VISUAL ALTA VELOCIDAD
+    Sumamos 300 ms únicamente a la animación continua >= 60 km/h.
+    No se proyectan posiciones nuevas: el pin simplemente tarda
+    un poco más en alcanzar el último punto aceptado para que el
+    siguiente GPS tenga más chances de llegar antes de que termine.
+  */
+  const MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS =
+    300;
 
 
   /*
@@ -6015,8 +6025,11 @@ ocultarHoraLlegada();
         DURACION_CONTINUA_MIN_MS,
         Math.min(
           DURACION_CONTINUA_MAX_MS,
-          intervalo *
-          factorContinuo
+          (
+            intervalo *
+            factorContinuo
+          ) +
+          MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS
         )
       );
     }
