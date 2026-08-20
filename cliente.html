@@ -2904,6 +2904,14 @@ body.seguimientoFinalizadoVisual #estado{
     null;
 
   /*
+    R23 - ZOOM DE PROXIMIDAD
+    En los últimos 2 minutos aplica una sola vez zoom 17.
+    Después respeta cualquier zoom manual del cliente.
+  */
+  let zoomProximidadAplicado =
+    false;
+
+  /*
     R15:
     ETA de referencia con la que nació esta vista del cliente.
     Sirve sólo para repartir visualmente el avance entre etapas.
@@ -3661,6 +3669,53 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
 
+  function actualizarZoomProximidad(
+    faltanMin
+  ){
+
+    if(
+      !Number.isFinite(
+        faltanMin
+      )
+    ){
+      return;
+    }
+
+    /*
+      Si la ETA vuelve a quedar por encima de 2 minutos
+      por una corrección administrativa, permitimos que el
+      zoom se aplique nuevamente cuando vuelva a cruzar el umbral.
+    */
+    if(
+      faltanMin > 2
+    ){
+      zoomProximidadAplicado =
+        false;
+
+      return;
+    }
+
+    if(
+      zoomProximidadAplicado ||
+      !mapa
+    ){
+      return;
+    }
+
+    try{
+      mapa.setZoom(
+        17,
+        {
+          animate:true
+        }
+      );
+
+      zoomProximidadAplicado =
+        true;
+    }catch(e){}
+  }
+
+
   function actualizarPanelTrayecto(){
 
     if(
@@ -3682,6 +3737,10 @@ body.seguimientoFinalizadoVisual #estado{
         ahoraMs
       ) /
       60000;
+
+    actualizarZoomProximidad(
+      faltanMin
+    );
 
     /*
       R20 SIMPLE:
@@ -4675,6 +4734,9 @@ horaLlegadaBox.style.display =
     }
 
     mostrarEstadoSuperiorNoDisponible();
+
+    zoomProximidadAplicado =
+      false;
 
     mapaWrap.style.display =
       "none";
@@ -6396,6 +6458,32 @@ if(
       !mapa
     ){
 
+      const faltanMinAlCrearMapa =
+        (
+          llegadaClienteMs &&
+          Number.isFinite(
+            llegadaClienteMs
+          )
+        )
+          ? (
+              llegadaClienteMs -
+              Date.now()
+            ) /
+            60000
+          : Infinity;
+
+      const zoomInicialMapa =
+        faltanMinAlCrearMapa <= 2
+          ? 17
+          : 16;
+
+      if(
+        zoomInicialMapa === 17
+      ){
+        zoomProximidadAplicado =
+          true;
+      }
+
       mapa =
         L.map(
           "mapa",
@@ -6413,7 +6501,7 @@ if(
             lat,
             lon
           ],
-          16
+          zoomInicialMapa
         );
 
       L.control.attribution({
