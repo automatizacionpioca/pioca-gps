@@ -2521,6 +2521,33 @@ body.seguimientoFinalizadoVisual #estado{
   }
 }
 
+
+/* ==========================================================
+   R28 - PROGRESO DE ETAPAS POR TRANSFORM
+   Sólo cambia cómo se DIBUJA el avance 2 -> 3 -> 4.
+   El cálculo de ETA, Date.now(), etapas y porcentajes sigue igual.
+   ========================================================== */
+
+#piocaCamionetaProgreso{
+  left:36% !important;
+  will-change:transform !important;
+  -webkit-transition:-webkit-transform .28s linear !important;
+  transition:transform .28s linear !important;
+  -webkit-transform:translateX(-50%) translate3d(0,0,0) !important;
+  transform:translateX(-50%) translate3d(0,0,0) !important;
+}
+
+#piocaLineaProgreso{
+  width:84% !important;
+  transform-origin:left center !important;
+  -webkit-transform-origin:left center !important;
+  will-change:transform !important;
+  -webkit-transition:-webkit-transform .28s linear !important;
+  transition:transform .28s linear !important;
+  -webkit-transform:scaleX(.333333) translateZ(0) !important;
+  transform:scaleX(.333333) translateZ(0) !important;
+}
+
 </style>
 
 </head>
@@ -3697,20 +3724,85 @@ body.seguimientoFinalizadoVisual #estado{
         )
       );
 
-    piocaCamionetaProgreso.style.left =
-      posicionPorcentaje +
-      "%";
-
     /*
-      La línea nace en 8%, por eso el ancho visual es
-      posición absoluta menos 8.
+      R28:
+      La matemática del progreso NO cambia.
+      Sólo convertimos el porcentaje ya calculado a composición gráfica.
+
+      Camioneta:
+      queda anclada en 36% y se desplaza en píxeles mediante transform.
+      Así evitamos depender del repaint de "left" en Safari/iPhone.
+
+      Barra:
+      ocupa físicamente el tramo máximo (84%) y se revela con scaleX.
+      Así evitamos depender del repaint de "width".
     */
-    piocaLineaProgreso.style.width =
+    const anchoTrayecto =
+      piocaTrayectoPanel &&
+      piocaCamionetaProgreso.parentElement
+        ? piocaCamionetaProgreso.parentElement
+            .getBoundingClientRect()
+            .width
+        : 0;
+
+    const desplazamientoCamionetaPx =
+      Number.isFinite(anchoTrayecto)
+        ? anchoTrayecto *
+          (
+            posicionPorcentaje -
+            36
+          ) /
+          100
+        : 0;
+
+    const transformCamioneta =
+      "translateX(-50%) translate3d(" +
+      desplazamientoCamionetaPx +
+      "px,0,0)";
+
+    piocaCamionetaProgreso.style.setProperty(
+      "-webkit-transform",
+      transformCamioneta,
+      "important"
+    );
+
+    piocaCamionetaProgreso.style.setProperty(
+      "transform",
+      transformCamioneta,
+      "important"
+    );
+
+    const anchoVisualProgreso =
       Math.max(
         28,
         posicionPorcentaje - 8
-      ) +
-      "%";
+      );
+
+    const escalaProgreso =
+      Math.max(
+        28 / 84,
+        Math.min(
+          1,
+          anchoVisualProgreso / 84
+        )
+      );
+
+    const transformLinea =
+      "scaleX(" +
+      escalaProgreso +
+      ") translateZ(0)";
+
+    piocaLineaProgreso.style.setProperty(
+      "-webkit-transform",
+      transformLinea,
+      "important"
+    );
+
+    piocaLineaProgreso.style.setProperty(
+      "transform",
+      transformLinea,
+      "important"
+    );
 
     piocaLineaProgreso.classList.toggle(
       "piocaProgresoEnCurso",
@@ -3789,6 +3881,54 @@ body.seguimientoFinalizadoVisual #estado{
         {
           animate:true
         }
+      );
+
+      /*
+        R27:
+        Al entrar automáticamente en zoom 17, recentramos el pin
+        usando exactamente el mismo centrado del botón
+        REFRESCAR POSICIÓN. Esperamos al final del cambio de zoom
+        para calcular el centro con la escala 17 ya aplicada.
+      */
+      const recentrarPinTrasZoom =
+        function(){
+
+          if(
+            !mapa ||
+            !marcador
+          ){
+            return;
+          }
+
+          try{
+
+            const posicionActual =
+              marcador.getLatLng();
+
+            centrarMapaEnAreaUtil(
+              posicionActual.lat,
+              posicionActual.lng,
+              {
+                animate:true,
+                duration:0.45
+              }
+            );
+
+          }catch(e){}
+        };
+
+      mapa.once(
+        "zoomend",
+        recentrarPinTrasZoom
+      );
+
+      /*
+        Respaldo para Safari/iPhone si zoomend no se entrega
+        como esperamos durante una animación.
+      */
+      setTimeout(
+        recentrarPinTrasZoom,
+        450
       );
 
       zoomProximidadAplicado =
