@@ -3012,12 +3012,17 @@ body.seguimientoFinalizadoVisual #estado{
     null;
 
   /*
-    R23 - ZOOM DE PROXIMIDAD
-    En los últimos 2 minutos aplica una sola vez zoom 17.
-    Después respeta cualquier zoom manual del cliente.
+    R29 - ZOOM SEGÚN ETA
+    > 15 min     = zoom 15
+    entre 15 y 2 = zoom 16
+    <= 2 min     = zoom 17
+
+    El cambio automático se hace una sola vez al entrar en cada tramo.
+    Si el cliente modifica manualmente el zoom, se respeta hasta que
+    el ETA cruce a otro tramo.
   */
-  let zoomProximidadAplicado =
-    false;
+  let tramoZoomEtaActual =
+    null;
 
   /*
     R15:
@@ -3842,7 +3847,7 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
 
-  function actualizarZoomProximidad(
+  function obtenerTramoZoomEta(
     faltanMin
   ){
 
@@ -3851,88 +3856,118 @@ body.seguimientoFinalizadoVisual #estado{
         faltanMin
       )
     ){
-      return;
+      return null;
     }
 
-    /*
-      Si la ETA vuelve a quedar por encima de 2 minutos
-      por una corrección administrativa, permitimos que el
-      zoom se aplique nuevamente cuando vuelva a cruzar el umbral.
-    */
     if(
-      faltanMin > 2
+      faltanMin <= 2
     ){
-      zoomProximidadAplicado =
-        false;
-
-      return;
+      return {
+        clave:"proximidad",
+        zoom:17
+      };
     }
 
     if(
-      zoomProximidadAplicado ||
-      !mapa
+      faltanMin <= 15
+    ){
+      return {
+        clave:"normal",
+        zoom:16
+      };
+    }
+
+    return {
+      clave:"lejano",
+      zoom:15
+    };
+  }
+
+
+  function recentrarPinTrasCambioZoom(){
+
+    if(
+      !mapa ||
+      !marcador
     ){
       return;
     }
 
     try{
+
+      const posicionActual =
+        marcador.getLatLng();
+
+      centrarMapaEnAreaUtil(
+        posicionActual.lat,
+        posicionActual.lng,
+        {
+          animate:true,
+          duration:0.45
+        }
+      );
+
+    }catch(e){}
+  }
+
+
+  function actualizarZoomSegunEta(
+    faltanMin
+  ){
+
+    const tramo =
+      obtenerTramoZoomEta(
+        faltanMin
+      );
+
+    if(
+      !tramo ||
+      !mapa
+    ){
+      return;
+    }
+
+    /*
+      Si seguimos dentro del mismo tramo ETA no hacemos nada.
+      Así el cliente puede cambiar manualmente el zoom y se respeta
+      hasta que el ETA cruce a otro tramo.
+    */
+    if(
+      tramoZoomEtaActual ===
+        tramo.clave
+    ){
+      return;
+    }
+
+    tramoZoomEtaActual =
+      tramo.clave;
+
+    try{
+
       mapa.setZoom(
-        17,
+        tramo.zoom,
         {
           animate:true
         }
       );
 
       /*
-        R27:
-        Al entrar automáticamente en zoom 17, recentramos el pin
-        usando exactamente el mismo centrado del botón
-        REFRESCAR POSICIÓN. Esperamos al final del cambio de zoom
-        para calcular el centro con la escala 17 ya aplicada.
+        Cada cambio automático de tramo recentra el pin con
+        exactamente el mismo criterio visual de REFRESCAR POSICIÓN.
       */
-      const recentrarPinTrasZoom =
-        function(){
-
-          if(
-            !mapa ||
-            !marcador
-          ){
-            return;
-          }
-
-          try{
-
-            const posicionActual =
-              marcador.getLatLng();
-
-            centrarMapaEnAreaUtil(
-              posicionActual.lat,
-              posicionActual.lng,
-              {
-                animate:true,
-                duration:0.45
-              }
-            );
-
-          }catch(e){}
-        };
-
       mapa.once(
         "zoomend",
-        recentrarPinTrasZoom
+        recentrarPinTrasCambioZoom
       );
 
       /*
-        Respaldo para Safari/iPhone si zoomend no se entrega
-        como esperamos durante una animación.
+        Respaldo para Safari/iPhone.
       */
       setTimeout(
-        recentrarPinTrasZoom,
+        recentrarPinTrasCambioZoom,
         450
       );
 
-      zoomProximidadAplicado =
-        true;
     }catch(e){}
   }
 
@@ -3959,7 +3994,7 @@ body.seguimientoFinalizadoVisual #estado{
       ) /
       60000;
 
-    actualizarZoomProximidad(
+    actualizarZoomSegunEta(
       faltanMin
     );
 
@@ -4960,8 +4995,8 @@ horaLlegadaBox.style.display =
 
     mostrarEstadoSuperiorNoDisponible();
 
-    zoomProximidadAplicado =
-      false;
+    tramoZoomEtaActual =
+      null;
 
     mapaWrap.style.display =
       "none";
@@ -6697,17 +6732,24 @@ if(
             60000
           : Infinity;
 
-      const zoomInicialMapa =
-        faltanMinAlCrearMapa <= 2
-          ? 17
-          : 16;
+      const tramoZoomInicial =
+        obtenerTramoZoomEta(
+          faltanMinAlCrearMapa
+        ) || {
+          clave:"normal",
+          zoom:16
+        };
 
-      if(
-        zoomInicialMapa === 17
-      ){
-        zoomProximidadAplicado =
-          true;
-      }
+      const zoomInicialMapa =
+        tramoZoomInicial.zoom;
+
+      /*
+        El mapa nace directamente en el zoom correcto para su ETA.
+        Marcamos ese tramo como ya aplicado para que cualquier cambio
+        manual del cliente quede libre hasta el próximo umbral.
+      */
+      tramoZoomEtaActual =
+        tramoZoomInicial.clave;
 
       mapa =
         L.map(
