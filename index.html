@@ -507,6 +507,27 @@
   text-align:center;
 }
 
+/* ==========================================================
+   PREVIEW TÉCNICO - VER SEGUIMIENTO
+   Sólo agrega acceso visual al mismo link del cliente.
+   ========================================================== */
+#btnVerSeguimiento{
+  width:auto;
+  min-height:0;
+  margin:10px 0 0;
+  padding:8px 11px;
+  border:1px solid #c8d8e5;
+  border-radius:999px;
+  background:#f7fbff;
+  color:#1955A3;
+  font-size:10px;
+  font-weight:800;
+  box-shadow:none;
+}
+#btnVerSeguimiento:disabled{
+  opacity:.5;
+}
+
 </style>
 
 </head>
@@ -623,6 +644,13 @@
         </button>
 
       </div>
+
+
+      <button
+        id="btnVerSeguimiento"
+        type="button">
+        👁 VER SEGUIMIENTO
+      </button>
 
       <div id="horaEstado"></div>
 
@@ -769,6 +797,9 @@
 
   const btnSumar5 =
     document.getElementById("btnSumar5");
+
+  const btnVerSeguimiento =
+    document.getElementById("btnVerSeguimiento");
 
   const horaEstado =
     document.getElementById("horaEstado");
@@ -1719,9 +1750,13 @@
     ){
       btnWhatsapp.style.display =
         "block";
+      btnVerSeguimiento.disabled =
+        false;
     }else{
       btnWhatsapp.style.display =
         "none";
+      btnVerSeguimiento.disabled =
+        true;
     }
 
     localStorage.setItem(
@@ -2407,6 +2442,34 @@
     return "549" + n;
   }
 
+  function abrirSeguimientoPreview(){
+
+    if(
+      !trackingCode ||
+      !linkCliente
+    ){
+      mostrarError(
+        "No hay un seguimiento activo disponible para visualizar."
+      );
+      return;
+    }
+
+    const separador =
+      linkCliente.includes("?")
+        ? "&"
+        : "?";
+
+    const urlPreview =
+      linkCliente +
+      separador +
+      "preview=1";
+
+    window.open(
+      urlPreview,
+      "_blank"
+    );
+  }
+
   function abrirWhatsApp(){
 
     if(
@@ -3036,6 +3099,11 @@
       );
     }
   }
+
+  btnVerSeguimiento.addEventListener(
+    "click",
+    abrirSeguimientoPreview
+  );
 
   btnWhatsapp.addEventListener(
     "click",
