@@ -2445,6 +2445,30 @@ body.seguimientoFinalizadoVisual #estado{
   }
 }
 
+
+
+/* ==========================================================
+   R22 - AVANCE DE ETAPAS BLINDADO PARA SAFARI / iPHONE
+   ÚNICAMENTE refuerza el repintado continuo de camioneta y barra.
+   No modifica ETA, GPS, mapa, mensajes ni estados.
+   ========================================================== */
+
+#piocaCamionetaProgreso{
+  will-change:left !important;
+  -webkit-transform:translateX(-50%) translateZ(0) !important;
+  transform:translateX(-50%) translateZ(0) !important;
+  -webkit-transition:left .28s linear !important;
+  transition:left .28s linear !important;
+}
+
+#piocaLineaProgreso{
+  will-change:width !important;
+  -webkit-transform:translateZ(0) !important;
+  transform:translateZ(0) !important;
+  -webkit-transition:width .28s linear !important;
+  transition:width .28s linear !important;
+}
+
 </style>
 
 </head>
@@ -2840,6 +2864,17 @@ body.seguimientoFinalizadoVisual #estado{
 
   let relojEstado =
     null;
+
+  /*
+    R22 - reloj visual independiente para el avance de las 4 etapas.
+    Safari/iPhone puede demorar setInterval; este ciclo usa
+    requestAnimationFrame y siempre recalcula desde Date.now().
+  */
+  let animacionTrayectoRafId =
+    null;
+
+  let ultimoRepintadoTrayectoMs =
+    0;
 
   let consultaId =
     null;
@@ -3804,6 +3839,83 @@ body.seguimientoFinalizadoVisual #estado{
   }
 
 
+  function detenerAnimacionTrayectoContinua(){
+
+    if(
+      animacionTrayectoRafId !== null
+    ){
+      cancelAnimationFrame(
+        animacionTrayectoRafId
+      );
+
+      animacionTrayectoRafId =
+        null;
+    }
+
+    ultimoRepintadoTrayectoMs =
+      0;
+  }
+
+
+  function iniciarAnimacionTrayectoContinua(){
+
+    if(
+      animacionTrayectoRafId !== null ||
+      terminado
+    ){
+      return;
+    }
+
+    function pasoTrayecto(
+      ahoraFrame
+    ){
+
+      if(
+        terminado
+      ){
+        detenerAnimacionTrayectoContinua();
+        return;
+      }
+
+      if(
+        document.visibilityState === "visible" &&
+        llegadaClienteMs &&
+        Number.isFinite(
+          llegadaClienteMs
+        )
+      ){
+
+        /*
+          Recalculamos por tiempo absoluto.
+          Si iOS omitió frames o congeló la pestaña, al volver
+          salta directamente al porcentaje correcto.
+        */
+        if(
+          !ultimoRepintadoTrayectoMs ||
+          ahoraFrame -
+            ultimoRepintadoTrayectoMs >=
+              250
+        ){
+          ultimoRepintadoTrayectoMs =
+            ahoraFrame;
+
+          actualizarPanelTrayecto();
+        }
+      }
+
+      animacionTrayectoRafId =
+        requestAnimationFrame(
+          pasoTrayecto
+        );
+    }
+
+    animacionTrayectoRafId =
+      requestAnimationFrame(
+        pasoTrayecto
+      );
+  }
+
+
   function detenerReloj(){
 
     if(
@@ -4118,6 +4230,8 @@ body.seguimientoFinalizadoVisual #estado{
     }
 
     actualizarPanelTrayecto();
+
+    iniciarAnimacionTrayectoContinua();
   }
 
   function aplicarClasePopup(
@@ -4308,6 +4422,8 @@ body.seguimientoFinalizadoVisual #estado{
     );
 
     detenerReloj();
+
+    detenerAnimacionTrayectoContinua();
 
     detenerConsultas();
 
@@ -6943,6 +7059,10 @@ if(
 
         enviarHeartbeatCliente();
 
+        actualizarPanelTrayecto();
+
+        iniciarAnimacionTrayectoContinua();
+
         consultar(true);
       }
     }
@@ -6963,7 +7083,26 @@ if(
 
         enviarHeartbeatCliente();
 
+        actualizarPanelTrayecto();
+
+        iniciarAnimacionTrayectoContinua();
+
         consultar(true);
+      }
+    }
+  );
+
+  window.addEventListener(
+    "focus",
+    function(){
+
+      if(
+        !terminado &&
+        codigo
+      ){
+        actualizarPanelTrayecto();
+
+        iniciarAnimacionTrayectoContinua();
       }
     }
   );
