@@ -2550,14 +2550,29 @@ body.seguimientoFinalizadoVisual #estado{
 
 
 /* ==========================================================
-   CSS MAPA - tratamiento visual únicamente
-   Mantiene proveedor, GPS, zoom y toda la lógica sin cambios.
+   CSS MAPA - PRUEBA ESTILO TIPO MAPS.ME
+   Sólo tratamiento visual del mapa actual.
+   Mantiene OpenStreetMap, GPS, zoom, centrado y lógica intactos.
    ========================================================== */
 .leaflet-tile-pane{
   filter:
-    saturate(.65)
-    contrast(.96)
-    brightness(1.07);
+    saturate(.48)
+    contrast(.92)
+    brightness(1.10)
+    sepia(.03);
+}
+
+/*
+  Velo blanco extremadamente suave para limpiar el fondo
+  sin ocultar calles, nombres ni puntos de referencia.
+*/
+#mapa::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:400;
+  background:rgba(255,255,255,.035);
+  pointer-events:none;
 }
 
 </style>
