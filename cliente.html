@@ -6018,10 +6018,23 @@ ocultarHoraLlegada();
           );
 
     /*
-      A partir de 60 km/h usamos una ventana continua.
-      La animación dura apenas más que el intervalo GPS,
-      por lo que el próximo punto normalmente llega mientras
-      el pin todavía está avanzando.
+      R32 - TRES ZONAS DE CONTINUIDAD
+
+      0-30 km/h:
+      - conserva smoothstep;
+      - usa prácticamente todo el intervalo real;
+      - factor progresivo 1.00 -> 1.02.
+
+      30-60 km/h:
+      - nueva continuidad intermedia;
+      - factor progresivo 1.03 -> 1.05;
+      - el próximo GPS puede llegar antes de que termine el tramo.
+
+      >= 60 km/h:
+      - queda EXACTAMENTE la lógica R30/R31 vigente;
+      - factor continuo 60/80/100;
+      - límites 1950/2800 ms;
+      - colchón adicional de +300 ms.
     */
     if(
       Number.isFinite(
@@ -6049,9 +6062,52 @@ ocultarHoraLlegada();
       );
     }
 
-    const porcentaje =
-      porcentajeAnimacionSegunVelocidad(
+    if(
+      Number.isFinite(
         velocidad
+      ) &&
+      velocidad >= 30
+    ){
+
+      const factorMedia =
+        interpolar(
+          velocidad,
+          30,
+          1.03,
+          60,
+          1.05
+        );
+
+      return Math.max(
+        650,
+        Math.min(
+          2200,
+          intervalo *
+          factorMedia
+        )
+      );
+    }
+
+    const velocidadBaja =
+      Number.isFinite(
+        velocidad
+      )
+        ? Math.max(
+            0,
+            Math.min(
+              30,
+              velocidad
+            )
+          )
+        : 0;
+
+    const factorBaja =
+      interpolar(
+        velocidadBaja,
+        0,
+        1.00,
+        30,
+        1.02
       );
 
     return Math.max(
@@ -6059,7 +6115,7 @@ ocultarHoraLlegada();
       Math.min(
         2200,
         intervalo *
-        porcentaje
+        factorBaja
       )
     );
   }
@@ -6330,7 +6386,7 @@ ocultarHoraLlegada();
             velocidadKmh
           ) &&
           velocidadKmh >=
-            VELOCIDAD_CONTINUA_DESDE_KMH
+            30
         )
           ? progreso
           : (
