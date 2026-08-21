@@ -2549,17 +2549,6 @@ body.seguimientoFinalizadoVisual #estado{
 }
 
 
-/* ==========================================================
-   CSS MAPA - tratamiento visual únicamente
-   Mantiene proveedor, GPS, zoom y toda la lógica sin cambios.
-   ========================================================== */
-.leaflet-tile-pane{
-  filter:
-    saturate(.65)
-    contrast(.96)
-    brightness(1.07);
-}
-
 </style>
 
 </head>
@@ -6804,14 +6793,21 @@ if(
         mapa
       );
 
+      /*
+        PRUEBA CARTO POSITRON
+        Sólo cambia la capa visual del mapa.
+        Leaflet, GPS, zoom ETA, centrado, pin y animaciones
+        permanecen exactamente iguales.
+      */
       L.tileLayer(
 
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
 
         {
-          maxZoom:19,
+          subdomains:"abcd",
+          maxZoom:20,
           attribution:
-            '&copy; OpenStreetMap contributors'
+            '&copy; OpenStreetMap contributors &copy; CARTO'
         }
 
       )
