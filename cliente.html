@@ -3602,13 +3602,13 @@ body.seguimientoFinalizadoVisual #estado{
     El video real de 80 km/h sirve como punto medio de calibración.
   */
   const FACTOR_CONTINUO_60_KMH =
-    1.06;
+    1.07;
 
   const FACTOR_CONTINUO_80_KMH =
-    1.08;
+    1.09;
 
   const FACTOR_CONTINUO_100_KMH =
-    1.10;
+    1.11;
 
   /*
     Evita que un punto perdido genere una transición excesivamente
@@ -6073,9 +6073,9 @@ ocultarHoraLlegada();
         interpolar(
           velocidad,
           30,
-          1.03,
+          1.05,
           60,
-          1.05
+          1.07
         );
 
       return Math.max(
