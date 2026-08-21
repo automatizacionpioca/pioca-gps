@@ -1375,23 +1375,55 @@ jobs:
               public void onBackPressed() {
 
 
-                  if (
+                  /*
+                   * REFUERZO PREVIEW TÉCNICO
+                   *
+                   * Si estamos viendo cliente.html con preview=1,
+                   * bloqueamos únicamente el botón/gesto ATRÁS de Android.
+                   *
+                   * Así el preview técnico no vuelve accidentalmente
+                   * al panel ETA por una acción de sistema.
+                   *
+                   * El botón naranja "Volver al panel" sigue funcionando
+                   * desde JavaScript exactamente como hasta ahora.
+                   */
+                  if (web != null) {
 
-                          web != null
 
-                          && web.canGoBack()
-
-                  ) {
+                      String currentUrl =
+                              web.getUrl();
 
 
-                      web.goBack();
+                      if (
+
+                              currentUrl != null
+
+                              && currentUrl.contains(
+                                      "/pioca-gps/cliente.html"
+                              )
+
+                              && currentUrl.contains(
+                                      "preview=1"
+                              )
+
+                      ) {
 
 
-                  } else {
+                          return;
+                      }
 
 
-                      super.onBackPressed();
+                      if (web.canGoBack()) {
+
+
+                          web.goBack();
+
+                          return;
+                      }
                   }
+
+
+                  super.onBackPressed();
               }
           }
 
