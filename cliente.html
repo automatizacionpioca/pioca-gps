@@ -3594,21 +3594,21 @@ body.seguimientoFinalizadoVisual #estado{
     100;
 
   /*
-    Factor de duración según velocidad:
-    60 km/h  -> 1.06 x intervalo
-    80 km/h  -> 1.08 x intervalo
-    100 km/h -> 1.10 x intervalo
+    Factor de duración según velocidad - R33 PRUEBA:
+    60 km/h  -> 1.09 x intervalo
+    80 km/h  -> 1.11 x intervalo
+    100 km/h -> 1.13 x intervalo
 
     El video real de 80 km/h sirve como punto medio de calibración.
   */
   const FACTOR_CONTINUO_60_KMH =
-    1.07;
-
-  const FACTOR_CONTINUO_80_KMH =
     1.09;
 
-  const FACTOR_CONTINUO_100_KMH =
+  const FACTOR_CONTINUO_80_KMH =
     1.11;
+
+  const FACTOR_CONTINUO_100_KMH =
+    1.13;
 
   /*
     Evita que un punto perdido genere una transición excesivamente
@@ -3619,7 +3619,7 @@ body.seguimientoFinalizadoVisual #estado{
     1950;
 
   const DURACION_CONTINUA_MAX_MS =
-    2800;
+    3000;
 
   /*
     R30 - COLCHÓN VISUAL ALTA VELOCIDAD
@@ -6025,16 +6025,18 @@ ocultarHoraLlegada();
       - usa prácticamente todo el intervalo real;
       - factor progresivo 1.00 -> 1.02.
 
-      30-60 km/h:
-      - nueva continuidad intermedia;
-      - factor progresivo 1.03 -> 1.05;
-      - el próximo GPS puede llegar antes de que termine el tramo.
+      30-40 km/h:
+      - conserva el comportamiento de calibración vigente.
+
+      40-60 km/h:
+      - continuidad extendida;
+      - factor progresivo 1.07 -> 1.10;
+      - techo ampliado a 3000 ms.
 
       >= 60 km/h:
-      - queda EXACTAMENTE la lógica R30/R31 vigente;
-      - factor continuo 60/80/100;
-      - límites 1950/2800 ms;
-      - colchón adicional de +300 ms.
+      - factor continuo R33: 1.09 / 1.11 / 1.13;
+      - límites 1950/3000 ms;
+      - colchón adicional de +300 ms sin cambios.
     */
     if(
       Number.isFinite(
@@ -6069,19 +6071,53 @@ ocultarHoraLlegada();
       velocidad >= 30
     ){
 
+      /*
+        R33 - PRUEBA DE CONTINUIDAD DESDE 40 KM/H
+
+        30-40 km/h:
+        conserva el comportamiento vigente de R32 para no volver
+        pesada la respuesta urbana.
+
+        40-60 km/h:
+        ampliamos progresivamente la duración visual para privilegiar
+        continuidad. El techo pasa a 3000 ms únicamente en este tramo.
+      */
+      if(
+        velocidad < 40
+      ){
+
+        const factorMediaBaja =
+          interpolar(
+            velocidad,
+            30,
+            1.05,
+            40,
+            1.07
+          );
+
+        return Math.max(
+          650,
+          Math.min(
+            2200,
+            intervalo *
+            factorMediaBaja
+          )
+        );
+      }
+
       const factorMedia =
         interpolar(
           velocidad,
-          30,
-          1.05,
+          40,
+          1.07,
           60,
-          1.07
+          1.10
         );
 
       return Math.max(
         650,
         Math.min(
-          2200,
+          3000,
           intervalo *
           factorMedia
         )
