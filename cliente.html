@@ -3481,7 +3481,7 @@ body.seguimientoFinalizadoVisual #estado{
 
 
   /*
-    V9 - ESTABILIZACION DE RUMBO A VELOCIDAD MEDIA/ALTA
+    V9 / R34 - ESTABILIZACION DE RUMBO A VELOCIDAD MEDIA/ALTA
 
     Guarda una pequeña memoria de rumbo para que un único punto GPS
     desplazado lateralmente no haga triangular el pin.
@@ -3492,6 +3492,15 @@ body.seguimientoFinalizadoVisual #estado{
     [];
 
   let desviosAltaVelocidadConsecutivos =
+    0;
+
+  /*
+    R34 - memoria del anti-retroceso visual desde 30 km/h.
+    No modifica los puntos del servidor: sólo evita dibujar
+    una marcha atrás artificial cuando el pin visual quedó por
+    delante del nuevo punto durante una desaceleración.
+  */
+  let retrocesosVisualesConsecutivos =
     0;
 
   /*
@@ -3573,6 +3582,30 @@ body.seguimientoFinalizadoVisual #estado{
   const DISTANCIA_MINIMA_MOVIMIENTO_VISUAL_METROS =
     2.5;
 
+  /*
+    R34 - ANTI-RETROCESO VISUAL DESDE 30 KM/H
+
+    Cuando la animación larga deja al pin visual por delante del
+    nuevo GPS durante una desaceleración, no dibujamos una marcha
+    atrás artificial. La corrección queda habilitada naturalmente
+    al bajar de 30 km/h.
+  */
+  const VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH =
+    30;
+
+  const ANGULO_ANTI_RETROCESO_VISUAL_GRADOS =
+    100;
+
+  const DISTANCIA_MINIMA_ANTI_RETROCESO_VISUAL_METROS =
+    4;
+
+  /*
+    R34 - FILTRO LATERAL REFORZADO DESDE 40 KM/H.
+    Antes empezaba recién a 60 km/h.
+  */
+  const VELOCIDAD_FILTRO_LATERAL_DESDE_KMH =
+    40;
+
 
   /*
     V9 - MOVIMIENTO CONTINUO EN RUTA / ALTA VELOCIDAD
@@ -3633,10 +3666,11 @@ body.seguimientoFinalizadoVisual #estado{
 
 
   /*
-    FILTRO LATERAL 60-100 km/h
+    R34 - FILTRO LATERAL 40+ km/h
 
-    Un punto aislado fuera de rumbo se amortigua.
+    Un punto aislado fuera de rumbo se amortigua con más fuerza.
     Si el cambio persiste durante varias lecturas, se acepta como giro real.
+    La lógica de fluidez de R33 queda intacta.
   */
   const ANGULO_DESVIO_ALTA_VELOCIDAD_GRADOS =
     18;
@@ -3654,10 +3688,10 @@ body.seguimientoFinalizadoVisual #estado{
     3;
 
   const FACTOR_LATERAL_PRIMER_DESVIO =
-    0.22;
+    0.12;
 
   const FACTOR_LATERAL_SEGUNDO_DESVIO =
-    0.55;
+    0.35;
 
   const iconoPioca =
     L.divIcon({
@@ -4806,6 +4840,9 @@ body.seguimientoFinalizadoVisual #estado{
     desviosAltaVelocidadConsecutivos =
       0;
 
+    retrocesosVisualesConsecutivos =
+      0;
+
 
 
 
@@ -5058,6 +5095,9 @@ ocultarHoraLlegada();
       [];
 
     desviosAltaVelocidadConsecutivos =
+      0;
+
+    retrocesosVisualesConsecutivos =
       0;
 
 
@@ -5459,7 +5499,7 @@ ocultarHoraLlegada();
         velocidadKmh
       ) ||
       velocidadKmh <
-        VELOCIDAD_CONTINUA_DESDE_KMH ||
+        VELOCIDAD_FILTRO_LATERAL_DESDE_KMH ||
       !penultimoPuntoServidor ||
       !ultimoPuntoServidor
     ){
@@ -6155,6 +6195,131 @@ ocultarHoraLlegada();
       )
     );
   }
+
+  function esRetrocesoVisualDesde30(
+    latDestino,
+    lonDestino,
+    velocidadKmh
+  ){
+
+    if(
+      !marcador ||
+      !Number.isFinite(
+        velocidadKmh
+      ) ||
+      velocidadKmh <
+        VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH ||
+      !penultimoPuntoServidor ||
+      !ultimoPuntoServidor
+    ){
+      retrocesosVisualesConsecutivos =
+        0;
+
+      return false;
+    }
+
+    const posicionVisual =
+      marcador.getLatLng();
+
+    const latVisualActual =
+      Number(
+        posicionVisual.lat
+      );
+
+    const lonVisualActual =
+      Number(
+        posicionVisual.lng
+      );
+
+    if(
+      !Number.isFinite(
+        latVisualActual
+      ) ||
+      !Number.isFinite(
+        lonVisualActual
+      )
+    ){
+      return false;
+    }
+
+    const distanciaObjetivo =
+      distanciaMetros(
+        latVisualActual,
+        lonVisualActual,
+        latDestino,
+        lonDestino
+      );
+
+    if(
+      !Number.isFinite(
+        distanciaObjetivo
+      ) ||
+      distanciaObjetivo <
+        DISTANCIA_MINIMA_ANTI_RETROCESO_VISUAL_METROS
+    ){
+      retrocesosVisualesConsecutivos =
+        0;
+
+      return false;
+    }
+
+    const distanciaRumboBase =
+      distanciaMetros(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    if(
+      !Number.isFinite(
+        distanciaRumboBase
+      ) ||
+      distanciaRumboBase <
+        DISTANCIA_MINIMA_GIRO_METROS
+    ){
+      return false;
+    }
+
+    const rumboBase =
+      rumboGrados(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const rumboVisualAlObjetivo =
+      rumboGrados(
+        latVisualActual,
+        lonVisualActual,
+        latDestino,
+        lonDestino
+      );
+
+    const diferencia =
+      diferenciaRumboGrados(
+        rumboBase,
+        rumboVisualAlObjetivo
+      );
+
+    const esRetroceso =
+      diferencia >=
+        ANGULO_ANTI_RETROCESO_VISUAL_GRADOS;
+
+    if(
+      esRetroceso
+    ){
+      retrocesosVisualesConsecutivos++;
+      return true;
+    }
+
+    retrocesosVisualesConsecutivos =
+      0;
+
+    return false;
+  }
+
 
   function esRetrocesoProbablePorRuido(
     latNuevo,
@@ -7073,6 +7238,19 @@ if(
         lon
       );
 
+    /*
+      R34:
+      A partir de 30 km/h también protegemos la posición VISUAL.
+      Esto cubre el caso que apareció con R33 al desacelerar:
+      el pin todavía iba hacia adelante y el nuevo GPS quedó detrás.
+    */
+    const retrocesoVisual =
+      esRetrocesoVisualDesde30(
+        latVisual,
+        lonVisual,
+        velocidadInterna
+      );
+
     const distanciaDesdeUltimo =
       ultimoPuntoServidor
         ? distanciaMetros(
@@ -7084,17 +7262,21 @@ if(
         : Infinity;
 
     if(
-      retrocesoRuido
+      retrocesoRuido ||
+      retrocesoVisual
     ){
 
       /*
-        No hacemos retroceder visualmente el pin por una oscilación
-        corta y casi opuesta del GPS.
+        R34 - ANTI-RETROCESO REFORZADO
 
-        IMPORTANTE:
-        no descartamos el timestamp del servidor. Simplemente
-        preservamos la posición visual estable y esperamos el
-        siguiente punto, que llegará aproximadamente en 2 s.
+        No hacemos retroceder visualmente el pin:
+        - por una oscilación corta y casi opuesta del GPS; o
+        - porque durante una desaceleración el pin visual quedó
+          por delante del nuevo punto recibido.
+
+        No descartamos el timestamp ni la memoria real del servidor.
+        Sólo evitamos dibujar la marcha atrás artificial.
+        Al bajar de 30 km/h la corrección vuelve a quedar libre.
       */
       detenerAnimacionMarcador();
 
