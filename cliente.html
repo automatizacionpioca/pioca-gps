@@ -6258,7 +6258,8 @@ ocultarHoraLlegada();
   function esRetrocesoVisualDesde30(
     latDestino,
     lonDestino,
-    velocidadKmh
+    velocidadKmh,
+    giroRealTransicion
   ){
 
     if(
@@ -6274,6 +6275,37 @@ ocultarHoraLlegada();
       !penultimoPuntoServidor ||
       !ultimoPuntoServidor
     ){
+      retrocesosVisualesConsecutivos =
+        0;
+
+      return false;
+    }
+
+    /*
+      R36 - CUIDADO DE GIROS EN LA TRANSICIÓN >=30 -> <30
+
+      Si acabamos de entrar en baja velocidad y la geometría de los
+      puntos confirma un giro real, NO lo tratamos como retroceso.
+      Liberamos la protección transitoria y dejamos que la lógica
+      normal de giro protegido dibuje la esquina.
+
+      Así evitamos:
+      - bloquear un giro verdadero;
+      - dejar el pin quieto de más al doblar;
+      - confundir cambio de rumbo con marcha atrás.
+    */
+    if(
+      protegerEntradaBajaVelocidad &&
+      velocidadKmh <
+        VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH &&
+      giroRealTransicion === true
+    ){
+      protegerEntradaBajaVelocidad =
+        false;
+
+      veniaDeRegimenDesde30 =
+        false;
+
       retrocesosVisualesConsecutivos =
         0;
 
@@ -7275,9 +7307,11 @@ if(
       );
 
     /*
-      R35:
+      R35 / R36:
       Memoriza si veníamos de >=30 km/h para proteger la entrada
       inmediata al régimen de baja velocidad.
+      R36 permite liberar esa protección si el cambio de rumbo
+      confirma un giro real.
     */
     actualizarProteccionTransicion30(
       velocidadInterna
@@ -7331,7 +7365,8 @@ if(
       esRetrocesoVisualDesde30(
         latVisual,
         lonVisual,
-        velocidadInterna
+        velocidadInterna,
+        giroProtegido
       );
 
     const distanciaDesdeUltimo =
