@@ -3504,6 +3504,19 @@ body.seguimientoFinalizadoVisual #estado{
     0;
 
   /*
+    R35 - protección de salida del régimen >=30 km/h.
+    Si una lectura nueva cae por debajo de 30 km/h justo después
+    de venir de media/alta velocidad, mantenemos temporalmente
+    la protección anti-retroceso para evitar que el cambio de
+    animación haga retroceder el pin.
+  */
+  let veniaDeRegimenDesde30 =
+    false;
+
+  let protegerEntradaBajaVelocidad =
+    false;
+
+  /*
     V9:
     Android genera una posición aproximadamente cada 2 segundos.
     La animación debe terminar apenas antes del siguiente punto
@@ -4843,6 +4856,12 @@ body.seguimientoFinalizadoVisual #estado{
     retrocesosVisualesConsecutivos =
       0;
 
+    veniaDeRegimenDesde30 =
+      false;
+
+    protegerEntradaBajaVelocidad =
+      false;
+
 
 
 
@@ -5099,6 +5118,12 @@ ocultarHoraLlegada();
 
     retrocesosVisualesConsecutivos =
       0;
+
+    veniaDeRegimenDesde30 =
+      false;
+
+    protegerEntradaBajaVelocidad =
+      false;
 
 
 
@@ -6196,6 +6221,40 @@ ocultarHoraLlegada();
     );
   }
 
+  function actualizarProteccionTransicion30(
+    velocidadKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      )
+    ){
+      return;
+    }
+
+    if(
+      velocidadKmh >=
+        VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH
+    ){
+      veniaDeRegimenDesde30 =
+        true;
+
+      protegerEntradaBajaVelocidad =
+        false;
+
+      return;
+    }
+
+    if(
+      veniaDeRegimenDesde30
+    ){
+      protegerEntradaBajaVelocidad =
+        true;
+    }
+  }
+
+
   function esRetrocesoVisualDesde30(
     latDestino,
     lonDestino,
@@ -6207,8 +6266,11 @@ ocultarHoraLlegada();
       !Number.isFinite(
         velocidadKmh
       ) ||
-      velocidadKmh <
-        VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH ||
+      (
+        velocidadKmh <
+          VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH &&
+        !protegerEntradaBajaVelocidad
+      ) ||
       !penultimoPuntoServidor ||
       !ultimoPuntoServidor
     ){
@@ -6316,6 +6378,18 @@ ocultarHoraLlegada();
 
     retrocesosVisualesConsecutivos =
       0;
+
+    if(
+      protegerEntradaBajaVelocidad &&
+      velocidadKmh <
+        VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH
+    ){
+      protegerEntradaBajaVelocidad =
+        false;
+
+      veniaDeRegimenDesde30 =
+        false;
+    }
 
     return false;
   }
@@ -7199,6 +7273,15 @@ if(
         lon,
         createdAt
       );
+
+    /*
+      R35:
+      Memoriza si veníamos de >=30 km/h para proteger la entrada
+      inmediata al régimen de baja velocidad.
+    */
+    actualizarProteccionTransicion30(
+      velocidadInterna
+    );
 
     /*
       El punto bruto sigue alimentando velocidad y memoria real.
