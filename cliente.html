@@ -3706,6 +3706,37 @@ body.seguimientoFinalizadoVisual #estado{
   const FACTOR_LATERAL_SEGUNDO_DESVIO =
     0.35;
 
+  /*
+    R37 - MODO RUMBO INCIERTO = TEMPORALMENTE TIEMPOS R32
+
+    Cuando desde 40 km/h el filtro lateral detecta que el nuevo
+    punto cambia de rumbo de forma dudosa, NO usamos la animación
+    larga R36 para ese tramo.
+
+    Recuperamos únicamente la duración que tenía R32:
+    - 40-60 km/h: factor R32 y techo 2200 ms;
+    - >=60 km/h: factores R32 1.07 / 1.09 / 1.11,
+      techo 2800 ms y margen +300 ms.
+
+    El objetivo es que el pin llegue antes al punto visual filtrado
+    y reaparezca la pequeña pausa natural de R32, sin congelarlo y
+    sin perder la capacidad de seguir una curva o rotonda real.
+  */
+  const FACTOR_R32_CONTINUO_60_KMH =
+    1.07;
+
+  const FACTOR_R32_CONTINUO_80_KMH =
+    1.09;
+
+  const FACTOR_R32_CONTINUO_100_KMH =
+    1.11;
+
+  const DURACION_R32_MEDIA_MAX_MS =
+    2200;
+
+  const DURACION_R32_ALTA_MAX_MS =
+    2800;
+
   const iconoPioca =
     L.divIcon({
       className:"piocaPinIcon",
@@ -6029,11 +6060,58 @@ ocultarHoraLlegada();
   }
 
 
+  function factorContinuoR32SegunVelocidad(
+    velocidadKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      )
+    ){
+      return FACTOR_R32_CONTINUO_80_KMH;
+    }
+
+    if(
+      velocidadKmh <= 60
+    ){
+      return FACTOR_R32_CONTINUO_60_KMH;
+    }
+
+    if(
+      velocidadKmh <= 80
+    ){
+      return interpolar(
+        velocidadKmh,
+        60,
+        FACTOR_R32_CONTINUO_60_KMH,
+        80,
+        FACTOR_R32_CONTINUO_80_KMH
+      );
+    }
+
+    if(
+      velocidadKmh <= 100
+    ){
+      return interpolar(
+        velocidadKmh,
+        80,
+        FACTOR_R32_CONTINUO_80_KMH,
+        100,
+        FACTOR_R32_CONTINUO_100_KMH
+      );
+    }
+
+    return FACTOR_R32_CONTINUO_100_KMH;
+  }
+
+
   function calcularDuracionAnimacion(
     latNuevo,
     lonNuevo,
     createdAtNuevo,
-    velocidadInterna
+    velocidadInterna,
+    rumboIncierto
   ){
 
     const nuevoMs =
@@ -6083,7 +6161,72 @@ ocultarHoraLlegada();
           );
 
     /*
-      R32 - TRES ZONAS DE CONTINUIDAD
+      R37 - RUMBO INCIERTO DESDE 40 KM/H
+
+      El propio filtro lateral marca "filtrado:true" cuando el rumbo
+      todavía no está confirmado. Sólo en ese caso recuperamos la
+      duración temporal de R32.
+
+      IMPORTANTE:
+      - no congelamos el pin;
+      - no inventamos una espera fija;
+      - no modificamos el GPS ni los puntos del servidor;
+      - simplemente terminamos antes ese tramo para recuperar
+        la pequeña pausa natural que protegía mejor la trayectoria.
+    */
+    if(
+      rumboIncierto === true &&
+      Number.isFinite(
+        velocidad
+      ) &&
+      velocidad >=
+        VELOCIDAD_FILTRO_LATERAL_DESDE_KMH
+    ){
+
+      if(
+        velocidad <
+          VELOCIDAD_CONTINUA_DESDE_KMH
+      ){
+
+        const factorMediaR32 =
+          interpolar(
+            velocidad,
+            30,
+            1.05,
+            60,
+            1.07
+          );
+
+        return Math.max(
+          650,
+          Math.min(
+            DURACION_R32_MEDIA_MAX_MS,
+            intervalo *
+            factorMediaR32
+          )
+        );
+      }
+
+      const factorContinuoR32 =
+        factorContinuoR32SegunVelocidad(
+          velocidad
+        );
+
+      return Math.max(
+        DURACION_CONTINUA_MIN_MS,
+        Math.min(
+          DURACION_R32_ALTA_MAX_MS,
+          (
+            intervalo *
+            factorContinuoR32
+          ) +
+          MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS
+        )
+      );
+    }
+
+    /*
+      R36 - TRES ZONAS DE CONTINUIDAD NORMAL
 
       0-30 km/h:
       - conserva smoothstep;
@@ -7334,12 +7477,23 @@ if(
     const lonVisual =
       puntoVisual.lon;
 
+    /*
+      R37:
+      Si el filtro lateral está amortiguando el punto, el rumbo todavía
+      es incierto. Ese tramo usa temporalmente la duración R32.
+      Cuando el rumbo vuelve a ser coherente o queda confirmado,
+      filtrado vuelve a false y recuperamos automáticamente R36.
+    */
+    const rumboIncierto =
+      puntoVisual.filtrado === true;
+
     const duracion =
       calcularDuracionAnimacion(
         latVisual,
         lonVisual,
         createdAt,
-        velocidadInterna
+        velocidadInterna,
+        rumboIncierto
       );
 
     const giroProtegido =
@@ -7437,9 +7591,16 @@ if(
     }else{
 
       /*
-        En 60–100 km/h esta llamada entra en modo continuo:
-        - duración ligeramente superior al intervalo GPS;
-        - interpolación lineal;
+        R36 / R37:
+        Con rumbo estable conserva la continuidad larga R36.
+
+        Si el filtro lateral marcó rumbo incierto, la duración de este
+        tramo ya fue reducida temporalmente a los valores R32:
+        el pin llega antes al destino visual filtrado y puede reaparecer
+        una pequeña pausa natural hasta el siguiente GPS.
+
+        En ambos casos:
+        - interpolación lineal desde 30 km/h;
         - el nuevo punto corrige el objetivo en vuelo;
         - nunca reinicia desde el último GPS, sino desde el punto
           visual exacto donde estaba el marcador.
