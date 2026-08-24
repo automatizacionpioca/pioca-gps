@@ -2523,6 +2523,44 @@ body.seguimientoFinalizadoVisual #estado{
 
 
 /* ==========================================================
+   R38 - PREVIEW TÉCNICO: SALIDA SIEMPRE DISPONIBLE AL FINALIZAR
+   ========================================================== */
+
+#btnVolverPanelPreviewFinal{
+  display:none;
+}
+
+body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal.visible{
+  display:block !important;
+  position:fixed !important;
+  z-index:5000 !important;
+  left:50% !important;
+  bottom:max(18px, env(safe-area-inset-bottom)) !important;
+  transform:translateX(-50%) !important;
+  min-width:170px !important;
+  height:40px !important;
+  padding:0 18px !important;
+  border:2px solid #E87500 !important;
+  border-radius:11px !important;
+  background:#FF8C1A !important;
+  color:#000 !important;
+  box-shadow:0 4px 12px rgba(0,0,0,.22) !important;
+  font-family:Arial,sans-serif !important;
+  font-size:12px !important;
+  line-height:36px !important;
+  font-weight:800 !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  cursor:pointer !important;
+  -webkit-tap-highlight-color:transparent !important;
+}
+
+body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
+  transform:translateX(-50%) scale(.98) !important;
+}
+
+
+/* ==========================================================
    R28 - PROGRESO DE ETAPAS POR TRANSFORM
    Sólo cambia cómo se DIBUJA el avance 2 -> 3 -> 4.
    El cálculo de ETA, Date.now(), etapas y porcentajes sigue igual.
@@ -2740,6 +2778,12 @@ body.seguimientoFinalizadoVisual #estado{
 
 </div>
 
+<button
+  id="btnVolverPanelPreviewFinal"
+  type="button">
+  Volver al panel
+</button>
+
 <script
   src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
 </script>
@@ -2806,6 +2850,11 @@ body.seguimientoFinalizadoVisual #estado{
   const btnVolverPanelPreview =
     document.getElementById(
       "btnVolverPanelPreview"
+    );
+
+  const btnVolverPanelPreviewFinal =
+    document.getElementById(
+      "btnVolverPanelPreviewFinal"
     );
 
   const btnMensajeTecnico =
@@ -2978,6 +3027,15 @@ body.seguimientoFinalizadoVisual #estado{
     btnVolverPanelPreview
   ){
     btnVolverPanelPreview.classList.toggle(
+      "visible",
+      esPreviewTecnico
+    );
+  }
+
+  if(
+    btnVolverPanelPreviewFinal
+  ){
+    btnVolverPanelPreviewFinal.classList.toggle(
       "visible",
       esPreviewTecnico
     );
@@ -4854,6 +4912,20 @@ body.seguimientoFinalizadoVisual #estado{
     document.body.classList.add(
       "seguimientoFinalizadoVisual"
     );
+
+    /*
+      R38:
+      En preview técnico la pantalla "HEMOS LLEGADO" puede mostrarse,
+      pero nunca debe dejar atrapado al técnico.
+    */
+    if(
+      btnVolverPanelPreviewFinal
+    ){
+      btnVolverPanelPreviewFinal.classList.toggle(
+        "visible",
+        esPreviewTecnico
+      );
+    }
 
     detenerReloj();
 
@@ -7920,39 +7992,45 @@ if(
   }
 
 
+  function volverAlPanelTecnico(){
+
+    if(
+      !esPreviewTecnico
+    ){
+      return;
+    }
+
+    try{
+      if(
+        window.history.length > 1
+      ){
+        window.history.back();
+        return;
+      }
+    }catch(e){}
+
+    window.location.href =
+      "index.html?tracking=" +
+      encodeURIComponent(
+        String(codigo || "").trim().toUpperCase()
+      );
+  }
+
   if(
     btnVolverPanelPreview
   ){
     btnVolverPanelPreview.addEventListener(
       "click",
-      function(){
+      volverAlPanelTecnico
+    );
+  }
 
-        if(
-          !esPreviewTecnico
-        ){
-          return;
-        }
-
-        /*
-          Si el preview fue abierto desde el panel, history.back()
-          devuelve directamente al controlador anterior.
-          Como respaldo, construimos el index del mismo tracking.
-        */
-        try{
-          if(
-            window.history.length > 1
-          ){
-            window.history.back();
-            return;
-          }
-        }catch(e){}
-
-        window.location.href =
-          "index.html?tracking=" +
-          encodeURIComponent(
-            String(codigo || "").trim().toUpperCase()
-          );
-      }
+  if(
+    btnVolverPanelPreviewFinal
+  ){
+    btnVolverPanelPreviewFinal.addEventListener(
+      "click",
+      volverAlPanelTecnico
     );
   }
 
