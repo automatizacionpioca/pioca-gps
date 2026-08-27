@@ -3575,6 +3575,34 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     false;
 
   /*
+    R39 - CINTURÓN DE SEGURIDAD DE AUTOPISTA
+
+    A alta velocidad no aceptamos visualmente un cambio de rumbo
+    extremadamente brusco por una sola lectura GPS.
+
+    - historialVelocidadesAutopista:
+      promedio corto de velocidades válidas aceptadas.
+
+    - puntoAltaVelocidadPendiente:
+      guarda un único punto brusco (>35°) hasta que el siguiente GPS
+      confirme si era una salida/curva real o una deriva lateral.
+  */
+  let historialVelocidadesAutopista =
+    [];
+
+  let puntoAltaVelocidadPendiente =
+    null;
+
+  /*
+    Dedupe independiente de la memoria de puntos CONFIRMADOS.
+    Es necesario porque un punto en cuarentena no debe contaminar
+    ultimoPuntoServidor / ultimoCreatedAtServidor, pero tampoco
+    queremos procesar la misma lectura cada 1,5 s.
+  */
+  let ultimoCreatedAtProcesadoGps =
+    null;
+
+  /*
     V9:
     Android genera una posición aproximadamente cada 2 segundos.
     La animación debe terminar apenas antes del siguiente punto
@@ -3794,6 +3822,50 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
   const DURACION_R32_ALTA_MAX_MS =
     2800;
+
+  /*
+    R39 - PROTECCIÓN ESPECIAL DE AUTOPISTA
+
+    El filtro normal sigue usando 15° desde 40 km/h.
+    Esta protección es distinta y sólo actúa en régimen alto:
+
+    - promedio >=65 km/h;
+    - cambio instantáneo >35° respecto del rumbo estable;
+    - el punto NO se dibuja todavía;
+    - microavance dinámico del 70% sobre el último rumbo confiable;
+    - el siguiente GPS confirma o descarta el punto.
+  */
+  const VELOCIDAD_PROMEDIO_PROTECCION_AUTOPISTA_KMH =
+    65;
+
+  const ANGULO_BRUSCO_PROTECCION_AUTOPISTA_GRADOS =
+    35;
+
+  const HISTORIAL_VELOCIDAD_AUTOPISTA_MAX =
+    3;
+
+  const PORCENTAJE_MICROAVANCE_AUTOPISTA =
+    0.70;
+
+  const DISTANCIA_MAXIMA_MICROAVANCE_AUTOPISTA_METROS =
+    45;
+
+  const DURACION_MICROAVANCE_AUTOPISTA_MS =
+    1200;
+
+  /*
+    Confirmación de cambio real:
+    el segundo punto debe continuar aproximadamente el rumbo
+    iniciado por el punto en cuarentena.
+  */
+  const ANGULO_CONFIRMACION_AUTOPISTA_GRADOS =
+    25;
+
+  const DISTANCIA_MINIMA_CONFIRMACION_AUTOPISTA_METROS =
+    8;
+
+  const DISTANCIA_MAXIMA_CONFIRMACION_AUTOPISTA_METROS =
+    110;
 
   const iconoPioca =
     L.divIcon({
@@ -4965,6 +5037,15 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     protegerEntradaBajaVelocidad =
       false;
 
+    historialVelocidadesAutopista =
+      [];
+
+    puntoAltaVelocidadPendiente =
+      null;
+
+    ultimoCreatedAtProcesadoGps =
+      null;
+
 
 
 
@@ -5227,6 +5308,15 @@ ocultarHoraLlegada();
 
     protegerEntradaBajaVelocidad =
       false;
+
+    historialVelocidadesAutopista =
+      [];
+
+    puntoAltaVelocidadPendiente =
+      null;
+
+    ultimoCreatedAtProcesadoGps =
+      null;
 
 
 
@@ -5588,6 +5678,349 @@ ocultarHoraLlegada();
       360;
 
     return grados;
+  }
+
+
+  function registrarVelocidadAutopista(
+    velocidadKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadKmh
+      ) ||
+      velocidadKmh < 0 ||
+      velocidadKmh >
+        VELOCIDAD_MAXIMA_VALIDA_KMH
+    ){
+      return;
+    }
+
+    historialVelocidadesAutopista.push(
+      velocidadKmh
+    );
+
+    while(
+      historialVelocidadesAutopista.length >
+        HISTORIAL_VELOCIDAD_AUTOPISTA_MAX
+    ){
+      historialVelocidadesAutopista.shift();
+    }
+  }
+
+
+  function promedioVelocidadAutopista(){
+
+    if(
+      !Array.isArray(
+        historialVelocidadesAutopista
+      ) ||
+      historialVelocidadesAutopista.length ===
+        0
+    ){
+      return null;
+    }
+
+    const validas =
+      historialVelocidadesAutopista.filter(
+        Number.isFinite
+      );
+
+    if(
+      validas.length ===
+        0
+    ){
+      return null;
+    }
+
+    return validas.reduce(
+      function(
+        suma,
+        valor
+      ){
+        return suma + valor;
+      },
+      0
+    ) /
+    validas.length;
+  }
+
+
+  function evaluarCambioBruscoAutopista(
+    latNuevo,
+    lonNuevo,
+    velocidadPromedioKmh
+  ){
+
+    if(
+      !Number.isFinite(
+        velocidadPromedioKmh
+      ) ||
+      velocidadPromedioKmh <
+        VELOCIDAD_PROMEDIO_PROTECCION_AUTOPISTA_KMH ||
+      !penultimoPuntoServidor ||
+      !ultimoPuntoServidor
+    ){
+      return {
+        brusco:false
+      };
+    }
+
+    const distanciaNueva =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(
+        distanciaNueva
+      ) ||
+      distanciaNueva <
+        DISTANCIA_MINIMA_FILTRO_LATERAL_METROS ||
+      distanciaNueva >
+        DISTANCIA_MAXIMA_ANIMACION_METROS
+    ){
+      return {
+        brusco:false
+      };
+    }
+
+    const rumboAnterior =
+      rumboGrados(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const rumboMemoria =
+      promedioCircularRumbos(
+        historialRumbosAltaVelocidad
+      );
+
+    const rumboEstable =
+      Number.isFinite(
+        rumboMemoria
+      )
+        ? rumboMemoria
+        : rumboAnterior;
+
+    const rumboNuevo =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    const diferencia =
+      diferenciaRumboGrados(
+        rumboEstable,
+        rumboNuevo
+      );
+
+    return {
+      brusco:
+        diferencia >
+          ANGULO_BRUSCO_PROTECCION_AUTOPISTA_GRADOS,
+      rumboEstable:
+        rumboEstable,
+      rumboNuevo:
+        rumboNuevo,
+      diferencia:
+        diferencia,
+      distancia:
+        distanciaNueva
+    };
+  }
+
+
+  function confirmarPuntoPendienteAutopista(
+    latNuevo,
+    lonNuevo
+  ){
+
+    if(
+      !puntoAltaVelocidadPendiente ||
+      !ultimoPuntoServidor
+    ){
+      return false;
+    }
+
+    const pendiente =
+      puntoAltaVelocidadPendiente;
+
+    const distanciaPendienteNuevo =
+      distanciaMetros(
+        pendiente.lat,
+        pendiente.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(
+        distanciaPendienteNuevo
+      ) ||
+      distanciaPendienteNuevo <
+        DISTANCIA_MINIMA_CONFIRMACION_AUTOPISTA_METROS ||
+      distanciaPendienteNuevo >
+        DISTANCIA_MAXIMA_CONFIRMACION_AUTOPISTA_METROS
+    ){
+      return false;
+    }
+
+    const rumboPendienteNuevo =
+      rumboGrados(
+        pendiente.lat,
+        pendiente.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    const continuidadNuevoRumbo =
+      diferenciaRumboGrados(
+        pendiente.rumboNuevo,
+        rumboPendienteNuevo
+      );
+
+    const rumboDesdeUltimoConfirmado =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    const sigueSeparadoDelRumboViejo =
+      diferenciaRumboGrados(
+        pendiente.rumboEstable,
+        rumboDesdeUltimoConfirmado
+      ) >=
+        ANGULO_CONFIRMACION_AUTOPISTA_GRADOS;
+
+    return (
+      continuidadNuevoRumbo <=
+        ANGULO_CONFIRMACION_AUTOPISTA_GRADOS &&
+      sigueSeparadoDelRumboViejo
+    );
+  }
+
+
+  function iniciarMicroavanceAutopista(
+    rumboEstable,
+    velocidadPromedioKmh,
+    createdAtNuevo
+  ){
+
+    if(
+      !marcador ||
+      !Number.isFinite(
+        rumboEstable
+      ) ||
+      !Number.isFinite(
+        velocidadPromedioKmh
+      )
+    ){
+      return;
+    }
+
+    let intervaloSegundos =
+      2;
+
+    if(
+      ultimoCreatedAtServidor &&
+      createdAtNuevo
+    ){
+
+      const nuevoMs =
+        new Date(
+          createdAtNuevo
+        )
+        .getTime();
+
+      const anteriorMs =
+        new Date(
+          ultimoCreatedAtServidor
+        )
+        .getTime();
+
+      const intervaloCalculado =
+        (
+          nuevoMs -
+          anteriorMs
+        ) /
+        1000;
+
+      if(
+        Number.isFinite(
+          intervaloCalculado
+        ) &&
+        intervaloCalculado >
+          0 &&
+        intervaloCalculado <=
+          5
+      ){
+        intervaloSegundos =
+          intervaloCalculado;
+      }
+    }
+
+    const velocidadMs =
+      velocidadPromedioKmh /
+      3.6;
+
+    const distanciaEsperada =
+      velocidadMs *
+      intervaloSegundos;
+
+    const distanciaMicroavance =
+      Math.max(
+        4,
+        Math.min(
+          DISTANCIA_MAXIMA_MICROAVANCE_AUTOPISTA_METROS,
+          distanciaEsperada *
+          PORCENTAJE_MICROAVANCE_AUTOPISTA
+        )
+      );
+
+    const posicionVisual =
+      marcador.getLatLng();
+
+    const destino =
+      proyectarPuntoPorRumbo(
+        Number(
+          posicionVisual.lat
+        ),
+        Number(
+          posicionVisual.lng
+        ),
+        rumboEstable,
+        distanciaMicroavance
+      );
+
+    /*
+      R39 - 70% DINÁMICO:
+      ante un punto brusco >35° en régimen de autopista,
+      no perseguimos el punto dudoso ni congelamos el pin.
+
+      Avanzamos sobre el último rumbo confiable un 70% de la
+      distancia esperable según:
+      velocidad promedio x intervalo real entre GPS.
+
+      Ejemplo:
+      70 km/h x 2 s = ~38,9 m esperables.
+      Microavance = ~27,2 m.
+    */
+    animarMarcadorHasta(
+      destino.lat,
+      destino.lon,
+      DURACION_MICROAVANCE_AUTOPISTA_MS,
+      20
+    );
   }
 
 
@@ -7456,13 +7889,19 @@ if(
       )
       .getTime();
 
+    /*
+      R39:
+      Dedupe por última lectura PROCESADA, no por último punto
+      confirmado. Así un punto en cuarentena no se procesa varias
+      veces mientras esperamos el GPS siguiente.
+    */
     if(
-      ultimoCreatedAtServidor
+      ultimoCreatedAtProcesadoGps
     ){
 
-      const ultimoMs =
+      const ultimoProcesadoMs =
         new Date(
-          ultimoCreatedAtServidor
+          ultimoCreatedAtProcesadoGps
         )
         .getTime();
 
@@ -7471,14 +7910,17 @@ if(
           createdMs
         ) &&
         Number.isFinite(
-          ultimoMs
+          ultimoProcesadoMs
         ) &&
         createdMs <=
-          ultimoMs
+          ultimoProcesadoMs
       ){
         return;
       }
     }
+
+    ultimoCreatedAtProcesadoGps =
+      createdAt;
 
     if(
       !marcador
@@ -7511,6 +7953,9 @@ if(
       ultimoCreatedAtServidor =
         createdAt;
 
+      ultimoCreatedAtProcesadoGps =
+        createdAt;
+
       return;
     }
 
@@ -7520,6 +7965,166 @@ if(
         lon,
         createdAt
       );
+
+    /*
+      R39 - PROTECCIÓN ESPECIAL DE AUTOPISTA
+
+      La decisión se basa en el promedio de las últimas velocidades
+      válidas YA ACEPTADAS, para que un salto GPS no pueda activar
+      por sí mismo el modo autopista.
+    */
+    const velocidadPromedioAnterior =
+      promedioVelocidadAutopista();
+
+    let reengancheRapidoAutopista =
+      false;
+
+    /*
+      Si hay un punto brusco pendiente, esta lectura es la encargada
+      de confirmar o descartar el cambio de rumbo.
+    */
+    if(
+      puntoAltaVelocidadPendiente
+    ){
+
+      const pendiente =
+        puntoAltaVelocidadPendiente;
+
+      const confirmaNuevoRumbo =
+        confirmarPuntoPendienteAutopista(
+          lat,
+          lon
+        );
+
+      if(
+        confirmaNuevoRumbo
+      ){
+
+        /*
+          Dos lecturas consecutivas sostienen el nuevo rumbo:
+          lo aceptamos como salida/curva real.
+
+          Para no dibujar una diagonal larga, el punto pendiente
+          funciona como vértice intermedio y usamos duración prudente
+          equivalente al modo R32.
+        */
+        puntoAltaVelocidadPendiente =
+          null;
+
+        registrarVelocidadAutopista(
+          velocidadInterna
+        );
+
+        historialRumbosAltaVelocidad = [
+          pendiente.rumboNuevo,
+          rumboGrados(
+            pendiente.lat,
+            pendiente.lon,
+            lat,
+            lon
+          )
+        ];
+
+        const duracionConfirmacion =
+          calcularDuracionAnimacion(
+            lat,
+            lon,
+            createdAt,
+            velocidadInterna,
+            true
+          );
+
+        animarMarcadorConGiroProtegido(
+          pendiente.lat,
+          pendiente.lon,
+          lat,
+          lon,
+          duracionConfirmacion
+        );
+
+        penultimoPuntoServidor = {
+          lat:pendiente.lat,
+          lon:pendiente.lon
+        };
+
+        ultimoPuntoServidor = {
+          lat:lat,
+          lon:lon
+        };
+
+        ultimoCreatedAtServidor =
+          createdAt;
+
+        ultimaVelocidadValidaKmh =
+          velocidadInterna;
+
+        return;
+
+      }else{
+
+        /*
+          La siguiente lectura NO corroboró el punto lateral:
+          el pendiente se considera deriva GPS.
+
+          No dibujamos aquel punto. La posición actual válida hará
+          un reenganche inmediato para recuperar el retraso acumulado.
+        */
+        puntoAltaVelocidadPendiente =
+          null;
+
+        reengancheRapidoAutopista =
+          true;
+      }
+    }
+
+    /*
+      Sólo una vez resuelta una cuarentena anterior evaluamos si
+      la lectura ACTUAL inicia una nueva.
+    */
+    const cambioBruscoAutopista =
+      evaluarCambioBruscoAutopista(
+        lat,
+        lon,
+        velocidadPromedioAnterior
+      );
+
+    if(
+      cambioBruscoAutopista.brusco
+    ){
+
+      puntoAltaVelocidadPendiente = {
+        lat:lat,
+        lon:lon,
+        createdAt:createdAt,
+        rumboEstable:
+          cambioBruscoAutopista.rumboEstable,
+        rumboNuevo:
+          cambioBruscoAutopista.rumboNuevo,
+        diferencia:
+          cambioBruscoAutopista.diferencia
+      };
+
+      /*
+        El punto queda fuera de la memoria CONFIRMADA.
+        Tampoco dejamos que su velocidad calculada contamine
+        el promedio que decide el modo autopista.
+      */
+      iniciarMicroavanceAutopista(
+        cambioBruscoAutopista.rumboEstable,
+        velocidadPromedioAnterior,
+        createdAt
+      );
+
+      return;
+    }
+
+    /*
+      La lectura actual superó todas las protecciones de autopista:
+      recién ahora su velocidad puede entrar en el promedio corto.
+    */
+    registrarVelocidadAutopista(
+      velocidadInterna
+    );
 
     /*
       R35 / R36:
@@ -7636,6 +8241,30 @@ if(
         Deriva mínima: no dibujamos una mini-animación nerviosa.
       */
       detenerAnimacionMarcador();
+
+    }else if(
+      reengancheRapidoAutopista
+    ){
+
+      /*
+        R39:
+        El punto anterior fue descartado como deriva.
+        Recuperamos inmediatamente la posición válida actual para
+        no arrastrar 2-3 segundos de retraso adicional.
+      */
+      detenerAnimacionMarcador();
+
+      marcador.setLatLng(
+        [latVisual, lonVisual]
+      );
+
+      centrarMapaEnAreaUtil(
+        latVisual,
+        lonVisual,
+        {
+          animate:false
+        }
+      );
 
     }else if(
       giroProtegido &&
