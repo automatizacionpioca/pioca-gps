@@ -520,6 +520,35 @@
     }
 
     /* ==========================================================
+       R40 - MINUTOS RESTANTES JUNTO A LA ETA
+       Visual únicamente. Se recalcula desde la ETA real vigente.
+       ========================================================== */
+    #piocaEtaMinutos{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:27px;
+      margin-left:6px;
+      color:#6D6BC4;
+      font-size:13.5px;
+      line-height:1;
+      font-weight:800;
+      vertical-align:-2px;
+      white-space:nowrap;
+      animation:piocaEtaMinutosBlink 1.35s ease-in-out infinite;
+      transition:color .25s ease;
+    }
+
+    #piocaEtaMinutos.proximo{
+      color:#38e06f;
+    }
+
+    @keyframes piocaEtaMinutosBlink{
+      0%,100%{ opacity:1; }
+      50%{ opacity:.44; }
+    }
+
+    /* ==========================================================
        4 ETAPAS - GRID FIJO, SIN SELECTORES AMBIGUOS
        ========================================================== */
 
@@ -826,6 +855,12 @@
 
       #piocaEtaHora{
         font-size:24px;
+      }
+
+      #piocaEtaMinutos{
+        height:24px;
+        margin-left:5px;
+        font-size:12px;
       }
 
       #piocaTrayecto{
@@ -2718,6 +2753,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         <div id="piocaEtaLinea">
           Llegada aproximada:
           <span id="piocaEtaHora">--:-- hs</span>
+          <span id="piocaEtaMinutos"></span>
         </div>
 
       </div>
@@ -2892,6 +2928,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   const piocaEtaHora =
     document.getElementById(
       "piocaEtaHora"
+    );
+
+  const piocaEtaMinutos =
+    document.getElementById(
+      "piocaEtaMinutos"
     );
 
   const piocaLineaProgreso =
@@ -4257,6 +4298,39 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       formatearHoraTrayecto(
         llegadaClienteMs
       );
+
+    /*
+      R40 - MINUTOS RESTANTES
+      Se calculan siempre desde la ETA vigente y Date.now().
+      No hay contador independiente: si la ETA cambia, el valor
+      y el color se corrigen automáticamente en el siguiente repintado.
+    */
+    if(
+      piocaEtaMinutos
+    ){
+
+      const minutosRestantes =
+        Math.max(
+          0,
+          Math.ceil(
+            faltanMin
+          )
+        );
+
+      piocaEtaMinutos.textContent =
+        minutosRestantes +
+        " min";
+
+      /*
+        Verde sólo mientras la ETA vigente esté dentro de los
+        últimos 2 minutos. Si luego la ETA se extiende por encima
+        de 2 minutos, vuelve automáticamente al color original.
+      */
+      piocaEtaMinutos.classList.toggle(
+        "proximo",
+        faltanMin <= 2
+      );
+    }
 
     piocaHoraEtapa3.textContent =
       "";
