@@ -1685,7 +1685,10 @@
       (
         minutosActuales === null
           ? "--"
-          : minutosActuales
+          : Math.max(
+              1,
+              minutosActuales
+            )
       ) +
       " min";
 
