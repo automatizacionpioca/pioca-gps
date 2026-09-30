@@ -4341,6 +4341,28 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       ) /
       60000;
 
+    /*
+      Llegada visual anticipada:
+      si la ETA vigente lleva 60 segundos cumplida,
+      mostramos HEMOS LLEGADO en el cliente.
+
+      IMPORTANTE:
+      esto NO finaliza el seguimiento en Supabase.
+      El vencimiento real de seguridad sigue siendo
+      client_arrival + 5 minutos, exactamente como antes.
+
+      Si Google recalcula la ETA durante este minuto de gracia,
+      llegadaClienteMs se actualiza y esta condición se desplaza
+      automáticamente con la nueva ETA.
+    */
+    if(
+      ahoraMs >=
+        llegadaClienteMs + 60000
+    ){
+      mostrarFinalizado();
+      return;
+    }
+
     actualizarZoomSegunEta(
       faltanMin
     );
