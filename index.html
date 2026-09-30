@@ -681,7 +681,7 @@
     <button
       id="btnWhatsapp"
       type="button">
-      💬 ENVIAR SEGUIMIENTO POR WHATSAPP
+      💬 COMPARTIR POR WHATSAPP
     </button>
 
     <button
@@ -2473,12 +2473,11 @@
   function abrirWhatsApp(){
 
     if(
-      !telefonoCliente ||
       !linkCliente
     ){
 
       mostrarError(
-        "No están disponibles los datos del cliente."
+        "No está disponible el link del seguimiento."
       );
 
       return;
@@ -2534,16 +2533,40 @@
 
       "_Este es un mensaje automático y no hace falta responderlo._";
 
-    const numero =
-      telefonoWhatsAppArgentina(
-        telefonoCliente
-      );
+    /*
+      V10 - Compartir sin destinatario preseleccionado.
+
+      Si la APK nueva expone shareWhatsApp(), Android abre WhatsApp
+      con el mensaje preparado y permite elegir el contacto.
+
+      En APK anteriores o navegador común usamos wa.me sin número,
+      que conserva el mismo criterio: primero se elige destinatario.
+    */
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.shareWhatsApp ===
+        "function"
+    ){
+
+      try{
+        window.PiocaNative.shareWhatsApp(
+          mensaje
+        );
+        return;
+      }catch(e){}
+    }
 
     const texto =
       encodeURIComponent(
         mensaje
       );
 
+    /*
+      Compatibilidad V9:
+      si todavía estamos dentro de una APK anterior, que no posee
+      shareWhatsApp(), y el seguimiento manual conserva teléfono,
+      mantenemos exactamente el envío dirigido que ya funcionaba.
+    */
     const ua =
       navigator.userAgent ||
       navigator.vendor ||
@@ -2552,8 +2575,14 @@
     if(
       /android/i.test(
         ua
-      )
+      ) &&
+      telefonoCliente
     ){
+
+      const numero =
+        telefonoWhatsAppArgentina(
+          telefonoCliente
+        );
 
       window.location.href =
 
@@ -2577,10 +2606,7 @@
     }
 
     window.location.href =
-
-      "https://wa.me/" +
-      numero +
-      "?text=" +
+      "https://wa.me/?text=" +
       texto;
   }
 
