@@ -1060,6 +1060,9 @@
   let recuperacionEnCurso =
     false;
 
+  let compartidoEnProceso =
+    false;
+
   let ultimaRecuperacionForeground =
     0;
 
@@ -1488,6 +1491,259 @@
     );
   }
 
+  function obtenerTextoCompartidoNativo(){
+
+    if(
+      !window.PiocaNative ||
+      typeof window.PiocaNative.consumeSharedDestination !== "function"
+    ){
+      return "";
+    }
+
+    try{
+      return String(
+        window.PiocaNative.consumeSharedDestination() || ""
+      ).trim();
+    }catch(e){
+      return "";
+    }
+  }
+
+
+  function obtenerPosicionActual(){
+
+    return new Promise(
+      function(resolve,reject){
+
+        if(!navigator.geolocation){
+          reject(
+            new Error("GPS_NO_DISPONIBLE")
+          );
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          function(posicion){
+            resolve({
+              lat:Number(posicion.coords.latitude),
+              lng:Number(posicion.coords.longitude),
+              accuracy:Number(posicion.coords.accuracy || 0)
+            });
+          },
+          function(){
+            reject(
+              new Error("GPS_NO_DISPONIBLE")
+            );
+          },
+          {
+            enableHighAccuracy:true,
+            maximumAge:5000,
+            timeout:15000
+          }
+        );
+      }
+    );
+  }
+
+
+  async function invocarTrackingRouter(body){
+
+    const {data,error} =
+      await supabaseClient.functions.invoke(
+        "tracking-router",
+        {
+          body:body
+        }
+      );
+
+    if(error){
+      throw error;
+    }
+
+    if(!data || data.ok !== true){
+      throw new Error(
+        data && data.error
+          ? String(data.error)
+          : "TRACKING_ROUTER_ERROR"
+      );
+    }
+
+    return data;
+  }
+
+
+  async function procesarCompartidoPendiente(){
+
+    if(compartidoEnProceso){
+      return;
+    }
+
+    const textoCompartido =
+      obtenerTextoCompartidoNativo();
+
+    if(!textoCompartido){
+      return;
+    }
+
+    compartidoEnProceso = true;
+
+    ocultarEstado(adminEstado);
+    ocultarEstado(emergenciaEstado);
+
+    btnCrear.disabled = true;
+
+    mostrarEstado(
+      adminEstado,
+      "Procesando el destino compartido desde Google Maps...",
+      "info"
+    );
+
+    try{
+
+      const resuelto =
+        await invocarTrackingRouter({
+          action:"resolve_shared_destination",
+          shared_text:textoCompartido
+        });
+
+      const destino =
+        resuelto.destination || null;
+
+      if(
+        !destino ||
+        !Number.isFinite(Number(destino.lat)) ||
+        !Number.isFinite(Number(destino.lng))
+      ){
+        throw new Error("DESTINO_INVALIDO");
+      }
+
+      const direccion =
+        String(destino.address || "Destino compartido").trim();
+
+      const confirmar =
+        window.confirm(
+          "¿Usar esta dirección para crear un seguimiento?\n\n" +
+          direccion
+        );
+
+      if(!confirmar){
+        ocultarEstado(adminEstado);
+        return;
+      }
+
+      mostrarEstado(
+        adminEstado,
+        "Obteniendo tu posición y calculando la llegada...",
+        "info"
+      );
+
+      const origen =
+        await obtenerPosicionActual();
+
+      const ruta =
+        await invocarTrackingRouter({
+          action:"route",
+          origin:{
+            lat:origen.lat,
+            lng:origen.lng
+          },
+          destination:{
+            lat:Number(destino.lat),
+            lng:Number(destino.lng)
+          }
+        });
+
+      if(
+        !ruta.route ||
+        !ruta.route.arrival_at
+      ){
+        throw new Error("RUTA_INVALIDA");
+      }
+
+      mostrarEstado(
+        adminEstado,
+        "Creando seguimiento...",
+        "info"
+      );
+
+      const {data,error} =
+        await supabaseClient.rpc(
+          "create_tracking_service_eta",
+          {
+            p_destination_address:direccion,
+            p_destination_lat:Number(destino.lat),
+            p_destination_lon:Number(destino.lng),
+            p_destination_place_id:
+              destino.placeId || null,
+            p_client_arrival:
+              ruta.route.arrival_at,
+            p_route_polyline:
+              ruta.route.encoded_polyline || null,
+            p_route_distance_meters:
+              Math.max(
+                0,
+                Math.round(
+                  Number(ruta.route.distance_meters || 0)
+                )
+              ),
+            p_route_duration_seconds:
+              Math.max(
+                0,
+                Math.round(
+                  Number(ruta.route.duration_seconds || 0)
+                )
+              ),
+            p_additional_info:null
+          }
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+        throw new Error(
+          "Respuesta vacía del servidor."
+        );
+      }
+
+      const s = data[0];
+
+      if(
+        s.success === false &&
+        s.message === "ACTIVE_EXISTS"
+      ){
+        abrirPanelActivo(s);
+        return;
+      }
+
+      if(s.success !== true){
+        throw new Error(
+          "No se pudo crear el seguimiento."
+        );
+      }
+
+      abrirPanelActivo(s);
+
+    }catch(error){
+
+      mostrarEstado(
+        adminEstado,
+        "No se pudo crear el seguimiento desde Google Maps. Podés volver a compartir el destino o usar la creación manual.",
+        "error"
+      );
+
+    }finally{
+
+      btnCrear.disabled = false;
+      compartidoEnProceso = false;
+    }
+  }
+
+
   async function seleccionarContacto(){
     ocultarEstado(contactoEstado);
 
@@ -1669,6 +1925,11 @@
       "block";
 
     cargarHorarios();
+
+    setTimeout(
+      procesarCompartidoPendiente,
+      250
+    );
   }
 
   async function recuperarEstadoAlVolver(){
