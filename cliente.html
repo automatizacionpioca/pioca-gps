@@ -420,6 +420,24 @@
     }
 
     /* ==========================================================
+       DESTINO - PIN ROJO TRADICIONAL
+       Capa fija e independiente del marcador del vehículo.
+       ========================================================== */
+
+    .piocaDestinoIcon{
+      background:transparent !important;
+      border:0 !important;
+      filter:drop-shadow(0 2px 3px rgba(0,0,0,.32));
+    }
+
+    .piocaDestinoIcon svg{
+      display:block;
+      width:34px;
+      height:44px;
+      overflow:visible;
+    }
+
+    /* ==========================================================
        BOTÓN REFRESCAR
        Se ancla respecto del panel inferior mediante variable CSS.
        JS actualiza la variable con la altura real del panel.
@@ -3093,6 +3111,24 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let marcador =
     null;
 
+  let marcadorDestino =
+    null;
+
+  let destinoLat =
+    null;
+
+  let destinoLon =
+    null;
+
+  let destinoConsultaCompleta =
+    false;
+
+  let destinoConsultaEnCurso =
+    false;
+
+  let ultimoIntentoDestinoMs =
+    0;
+
   let ultimaActualizacionMs =
     null;
 
@@ -3919,6 +3955,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       iconSize:[30,46],
       iconAnchor:[20,46],
       popupAnchor:[0,-42]
+    });
+
+  const iconoDestino =
+    L.divIcon({
+      className:"piocaDestinoIcon",
+      html:
+        '<svg viewBox="0 0 34 44" aria-hidden="true">' +
+          '<path d="M17 1.5C9.05 1.5 2.6 7.95 2.6 15.9c0 10.8 14.4 26.1 14.4 26.1s14.4-15.3 14.4-26.1C31.4 7.95 24.95 1.5 17 1.5Z" fill="#e1262d" stroke="#ffffff" stroke-width="2.2"/>' +
+          '<circle cx="17" cy="15.7" r="5.4" fill="#ffffff"/>' +
+        '</svg>',
+      iconSize:[34,44],
+      iconAnchor:[17,43]
     });
 
 
@@ -5022,6 +5070,200 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
   }
 
+  function asegurarMarcadorDestino(){
+
+    if(
+      !mapa ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon)
+    ){
+      return;
+    }
+
+    if(
+      !marcadorDestino
+    ){
+
+      marcadorDestino =
+        L.marker(
+          [destinoLat,destinoLon],
+          {
+            icon:iconoDestino,
+            interactive:false,
+            keyboard:false,
+            zIndexOffset:-100
+          }
+        )
+        .addTo(
+          mapa
+        );
+
+      return;
+    }
+
+    marcadorDestino.setLatLng(
+      [destinoLat,destinoLon]
+    );
+  }
+
+  function quitarMarcadorDestino(){
+
+    if(
+      mapa &&
+      marcadorDestino
+    ){
+      try{
+        mapa.removeLayer(
+          marcadorDestino
+        );
+      }catch(e){}
+    }
+
+    marcadorDestino =
+      null;
+  }
+
+  function limpiarDestinoSeguimiento(){
+
+    quitarMarcadorDestino();
+
+    destinoLat =
+      null;
+
+    destinoLon =
+      null;
+
+    destinoConsultaCompleta =
+      false;
+
+    destinoConsultaEnCurso =
+      false;
+
+    ultimoIntentoDestinoMs =
+      0;
+  }
+
+  async function consultarDestinoSeguimiento(){
+
+    if(
+      terminado ||
+      !codigo ||
+      destinoConsultaCompleta ||
+      destinoConsultaEnCurso
+    ){
+      return;
+    }
+
+    const ahora =
+      Date.now();
+
+    /*
+      Si el primer intento coincide con una pérdida momentánea de red,
+      reintentamos como máximo cada 10 segundos hasta obtener una
+      respuesta válida. Una vez resuelto, el destino es fijo.
+    */
+    if(
+      ultimoIntentoDestinoMs &&
+      ahora - ultimoIntentoDestinoMs < 10000
+    ){
+      return;
+    }
+
+    ultimoIntentoDestinoMs =
+      ahora;
+
+    destinoConsultaEnCurso =
+      true;
+
+    try{
+
+      const respuesta =
+        await fetch(
+          SUPABASE_URL +
+          "/rest/v1/rpc/get_tracking_route_snapshot",
+          {
+            method:"POST",
+            headers:{
+              "apikey":SUPABASE_KEY,
+              "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+              p_code:codigo
+            })
+          }
+        );
+
+      if(
+        !respuesta.ok
+      ){
+        return;
+      }
+
+      const datos =
+        await respuesta.json();
+
+      if(
+        !Array.isArray(datos) ||
+        datos.length === 0
+      ){
+        return;
+      }
+
+      const d =
+        datos[0];
+
+      /*
+        Una respuesta válida ya define si este seguimiento posee
+        destino. Los seguimientos legacy simplemente no muestran pin.
+      */
+      destinoConsultaCompleta =
+        true;
+
+      if(
+        d.state !== "active"
+      ){
+        return;
+      }
+
+      const lat =
+        Number(
+          d.destination_latitude
+        );
+
+      const lon =
+        Number(
+          d.destination_longitude
+        );
+
+      if(
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon)
+      ){
+        return;
+      }
+
+      destinoLat =
+        lat;
+
+      destinoLon =
+        lon;
+
+      asegurarMarcadorDestino();
+
+    }catch(e){
+
+      /*
+        Un fallo de red no toca el mapa ni el seguimiento.
+        El próximo ciclo podrá volver a intentarlo.
+      */
+
+    }finally{
+
+      destinoConsultaEnCurso =
+        false;
+    }
+  }
+
   function quitarMarcador(){
 
     if(
@@ -5126,6 +5368,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 
     quitarMarcador();
+
+    limpiarDestinoSeguimiento();
 
     mapaWrap.style.display =
       "none";
@@ -5402,6 +5646,8 @@ ocultarHoraLlegada();
     detenerAnimacionMarcador();
 
     quitarMarcador();
+
+    limpiarDestinoSeguimiento();
   }
 
   function actualizarIndicador(){
@@ -7942,6 +8188,8 @@ if(
         100
       );
 
+      asegurarMarcadorDestino();
+
 
     }
   }
@@ -8586,6 +8834,8 @@ if(
       mostrarHoraLlegada(
         p.client_arrival
       );
+
+      consultarDestinoSeguimiento();
 
       if(
         p.latitude ===
