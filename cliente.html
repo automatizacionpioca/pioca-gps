@@ -3516,6 +3516,41 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
 
+    /*
+      R43 - COMPATIBILIDAD DE RECENTRADO CON GOOGLE MAPS
+
+      La lógica original de REFRESCAR POSICIÓN calcula el área útil
+      mediante mapa.getSize(). Leaflet ofrecía ese método y la capa
+      Google necesitaba exponer el equivalente.
+
+      Devuelve el tamaño real visible del contenedor del mapa.
+      No modifica GPS, zoom, ETA, marcadores ni consultas.
+    */
+    getSize(){
+
+      const rect =
+        this._element
+        .getBoundingClientRect();
+
+      const ancho =
+        Number(rect.width) ||
+        Number(this._element.clientWidth) ||
+        Number(window.innerWidth) ||
+        0;
+
+      const alto =
+        Number(rect.height) ||
+        Number(this._element.clientHeight) ||
+        Number(window.innerHeight) ||
+        0;
+
+      return {
+        x:ancho,
+        y:alto
+      };
+    }
+
+
     setZoom(
       zoom
     ){
