@@ -1090,7 +1090,7 @@
     /*
       Icono de trayecto aportado por el usuario.
       Archivo esperado en GitHub:
-      icono-trayecto-pioca.png
+      https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/icono-trayecto-pioca.png
     */
     #piocaTrayectoTitulo::before{
       content:"" !important;
@@ -1099,7 +1099,7 @@
       margin-right:9px !important;
       display:inline-block !important;
       vertical-align:-4px !important;
-      background-image:url("icono-trayecto-pioca.png") !important;
+      background-image:url("https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/icono-trayecto-pioca.png") !important;
       background-size:contain !important;
       background-position:center !important;
       background-repeat:no-repeat !important;
@@ -2664,7 +2664,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 /* ==========================================================
    R41 - PIN DEL DOMICILIO DEL CLIENTE
-   - Usa pin_cliente.png
+   - Usa https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/pin_cliente.png
    - Mismo ancho visual que el pin de la camioneta: 50 px
    - Mantiene la punta anclada exactamente en las coordenadas
    - Salto vertical muy sutil de 4 px
@@ -2842,7 +2842,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     <div class="logo">
 
       <img
-        src="isologo-fondo-transparente.png"
+        src="https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/isologo-fondo-transparente.png"
         alt="piOca"
       >
 
@@ -2974,7 +2974,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
         <div id="piocaCamionetaProgreso">
           <img
-            src="logo-barra-inferior.png"
+            src="https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/logo-barra-inferior.png"
             alt="piOca en camino"
           >
         </div>
@@ -4936,7 +4936,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       className:"piocaPinIcon",
       html:
         '<div class="pinBase pin1">' +
-        '<img class="pinMapaPiocaImagen" src="pin-mapa-pioca.png" alt="piOca">' +
+        '<img class="pinMapaPiocaImagen" src="https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/pin-mapa-pioca.png" alt="piOca">' +
         '<span class="pinPosicionPunto"></span>' +
         '</div>',
       iconSize:[30,46],
@@ -4948,7 +4948,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     L.divIcon({
       className:"piocaDestinoIcon",
       html:
-        '<img class="piocaDestinoImagen" src="pin_cliente.png" alt="">',
+        '<img class="piocaDestinoImagen" src="https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/pin_cliente.png" alt="">',
       iconSize:[50,61],
       iconAnchor:[25,61]
     });
@@ -6252,12 +6252,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               encuadreInicialMapaTimer =
                 null;
 
-              encuadreInicialMapaActivo =
-                false;
-
+              /*
+                R49:
+                mantenemos bloqueado el recentrado automático durante
+                TODA la transición. Antes se liberaba acá y una actualización
+                de posición podía ejecutar panTo() justo antes del zoom,
+                generando la corrida lateral que veía el cliente.
+              */
               if(
                 terminado
               ){
+                encuadreInicialMapaActivo =
+                  false;
                 return;
               }
 
@@ -6380,6 +6386,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       if(
         !mapaGoogle
       ){
+        encuadreInicialMapaActivo =
+          false;
         mapa.setZoom(
           tramo.zoom
         );
@@ -6401,6 +6409,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         !Number.isFinite(zoomInicio) ||
         !Number.isFinite(zoomDestino)
       ){
+        encuadreInicialMapaActivo =
+          false;
         mapaGoogle.setZoom(
           zoomDestino
         );
@@ -6414,30 +6424,52 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       const centroGoogle =
         mapaGoogle.getCenter();
 
-      const centroInicio =
-        centroGoogle
-          ? {
-              lat:Number(
-                centroGoogle.lat()
-              ),
-              lng:Number(
-                centroGoogle.lng()
-              )
-            }
-          : {
-              lat:Number(
-                posicionCamioneta.lat
-              ),
-              lng:Number(
-                posicionCamioneta.lng
-              )
-            };
+      if(
+        !centroGoogle
+      ){
+        encuadreInicialMapaActivo =
+          false;
+        mapaGoogle.setZoom(
+          zoomDestino
+        );
+        recentrarPinTrasCambioZoom();
+        return;
+      }
+
+      const centroInicio = {
+        lat:Number(
+          centroGoogle.lat()
+        ),
+        lng:Number(
+          centroGoogle.lng()
+        )
+      };
 
       /*
-        Calculamos el centro final con exactamente el mismo criterio
-        visual usado por "REFRESCAR POSICIÓN": la camioneta queda
-        centrada en el área útil, descontando el panel inferior.
+        R50:
+        La cámara ya no interpola "centro contra centro" a un zoom fijo.
+        Ese método podía hacer que la camioneta se desplazara de costado,
+        incluso casi salir de pantalla, antes de terminar el acercamiento.
+
+        Ahora usamos la camioneta como ANCLA VISUAL:
+        - medimos dónde está realmente en pantalla al comenzar;
+        - definimos dónde debe terminar en el área útil;
+        - mientras cambia el zoom calculamos el centro exacto necesario
+          para que la camioneta recorra una trayectoria recta y monotónica
+          entre esos dos puntos de pantalla.
+
+        Resultado: paneo y zoom ocurren juntos, sin corrida lateral previa
+        ni sobrepaso de la posición final.
       */
+      const tamanoMapa =
+        mapa.getSize();
+
+      const anchoMapa =
+        Number(tamanoMapa.x) || 0;
+
+      const altoMapa =
+        Number(tamanoMapa.y) || 0;
+
       let altoPanel =
         0;
 
@@ -6450,9 +6482,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
             .height;
       }
 
-      const altoMapa =
-        mapa.getSize().y;
-
       const offsetY =
         Math.max(
           0,
@@ -6462,37 +6491,74 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           )
         );
 
-      const puntoPinDestino =
+      const puntoCamionetaInicio =
         mapa.project(
           [
             Number(posicionCamioneta.lat),
             Number(posicionCamioneta.lng)
           ],
-          zoomDestino
+          zoomInicio
         );
 
-      const centroObjetivo =
-        mapa.unproject(
+      const puntoCentroInicio =
+        mapa.project(
+          centroInicio,
+          zoomInicio
+        );
+
+      const xPantallaInicio =
+        anchoMapa * 0.5 +
+        (
+          puntoCamionetaInicio.x -
+          puntoCentroInicio.x
+        );
+
+      const yPantallaInicio =
+        altoMapa * 0.5 +
+        (
+          puntoCamionetaInicio.y -
+          puntoCentroInicio.y
+        );
+
+      const xPantallaFinal =
+        anchoMapa * 0.5;
+
+      const yPantallaFinal =
+        altoMapa * 0.5 -
+        offsetY;
+
+      function calcularCentroParaCamionetaEnPantalla(
+        zoomActual,
+        xPantalla,
+        yPantalla
+      ){
+
+        const puntoCamioneta =
+          mapa.project(
+            [
+              Number(posicionCamioneta.lat),
+              Number(posicionCamioneta.lng)
+            ],
+            zoomActual
+          );
+
+        return mapa.unproject(
           [
-            puntoPinDestino.x,
-            puntoPinDestino.y +
-              offsetY
+            puntoCamioneta.x -
+              (
+                xPantalla -
+                anchoMapa * 0.5
+              ),
+            puntoCamioneta.y -
+              (
+                yPantalla -
+                altoMapa * 0.5
+              )
           ],
-          zoomDestino
+          zoomActual
         );
+      }
 
-      /*
-        R46:
-        La transición inicial ya no tiene una duración fija corta.
-
-        - mínimo 1,6 s;
-        - suma tiempo según cuántos niveles de zoom haya que recorrer;
-        - máximo 3,0 s.
-
-        Funciona igual si debe ACERCARSE o ALEJARSE.
-        Si el zoom ya coincide, igualmente hace un paneo suave desde
-        el encuadre camioneta+destino hasta la camioneta.
-      */
       const diferenciaZoom =
         Math.abs(
           zoomDestino -
@@ -6512,22 +6578,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       const inicioAnimacion =
         performance.now();
 
-      /*
-        Interpolamos el centro en Mercator para que el viaje visual sea
-        uniforme incluso cuando el encuadre inicial es bastante amplio.
-      */
-      const centroInicioPx =
-        mapa.project(
-          centroInicio,
-          zoomDestino
-        );
-
-      const centroDestinoPx =
-        mapa.project(
-          centroObjetivo,
-          zoomDestino
-        );
-
       mapaGoogle.setOptions({
         isFractionalZoomEnabled:true
       });
@@ -6542,6 +6592,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           mapaGoogle.setOptions({
             isFractionalZoomEnabled:false
           });
+          encuadreInicialMapaActivo =
+            false;
           return;
         }
 
@@ -6577,42 +6629,69 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               ) /
               2;
 
-        mapaGoogle.setZoom(
+        const zoomInterpolado =
           zoomInicio +
           (
             zoomDestino -
             zoomInicio
           ) *
-          suavizado
-        );
+          suavizado;
+
+        const xPantallaInterpolado =
+          xPantallaInicio +
+          (
+            xPantallaFinal -
+            xPantallaInicio
+          ) *
+          suavizado;
+
+        const yPantallaInterpolado =
+          yPantallaInicio +
+          (
+            yPantallaFinal -
+            yPantallaInicio
+          ) *
+          suavizado;
 
         const centroInterpolado =
-          mapa.unproject(
-            [
-              centroInicioPx.x +
-              (
-                centroDestinoPx.x -
-                centroInicioPx.x
-              ) *
-              suavizado,
-              centroInicioPx.y +
-              (
-                centroDestinoPx.y -
-                centroInicioPx.y
-              ) *
-              suavizado
-            ],
-            zoomDestino
+          calcularCentroParaCamionetaEnPantalla(
+            zoomInterpolado,
+            xPantallaInterpolado,
+            yPantallaInterpolado
           );
 
-        mapaGoogle.setCenter({
-          lat:Number(
-            centroInterpolado.lat
-          ),
-          lng:Number(
-            centroInterpolado.lng
-          )
-        });
+        const camaraInterpolada = {
+          center:{
+            lat:Number(
+              centroInterpolado.lat
+            ),
+            lng:Number(
+              centroInterpolado.lng
+            )
+          },
+          zoom:zoomInterpolado
+        };
+
+        /*
+          R49:
+          centro + zoom se aplican juntos. Esto evita que Google pinte
+          primero un paneo lateral y recién después el acercamiento.
+        */
+        if(
+          typeof mapaGoogle.moveCamera ===
+            "function"
+        ){
+          mapaGoogle.moveCamera(
+            camaraInterpolada
+          );
+        }else{
+          mapaGoogle.setCenter(
+            camaraInterpolada.center
+          );
+          mapaGoogle.setZoom(
+            camaraInterpolada.zoom
+          );
+        }
 
         if(
           progreso < 1
@@ -6623,22 +6702,50 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           return;
         }
 
-        mapaGoogle.setZoom(
-          zoomDestino
-        );
+        const centroFinal =
+          calcularCentroParaCamionetaEnPantalla(
+            zoomDestino,
+            xPantallaFinal,
+            yPantallaFinal
+          );
 
-        mapaGoogle.setCenter({
-          lat:Number(
-            centroObjetivo.lat
-          ),
-          lng:Number(
-            centroObjetivo.lng
-          )
-        });
+        const camaraFinal = {
+          center:{
+            lat:Number(
+              centroFinal.lat
+            ),
+            lng:Number(
+              centroFinal.lng
+            )
+          },
+          zoom:zoomDestino
+        };
+
+        if(
+          typeof mapaGoogle.moveCamera ===
+            "function"
+        ){
+          mapaGoogle.moveCamera(
+            camaraFinal
+          );
+        }else{
+          mapaGoogle.setCenter(
+            camaraFinal.center
+          );
+          mapaGoogle.setZoom(
+            camaraFinal.zoom
+          );
+        }
 
         mapaGoogle.setOptions({
           isFractionalZoomEnabled:false
         });
+
+        /*
+          Recién ahora liberamos el seguimiento automático.
+        */
+        encuadreInicialMapaActivo =
+          false;
       }
 
       requestAnimationFrame(
@@ -6646,6 +6753,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
 
     }catch(e){
+
+      encuadreInicialMapaActivo =
+        false;
 
       try{
         mapa.setZoom(
@@ -7028,7 +7138,7 @@ horaLlegadaBox.style.display =
               '</div>' +
 
               '<div class="llegadaFinalCamionetaAnimada" id="llegadaFinalCamionetaAnimada">' +
-                '<img src="logo-barra-inferior.png" alt="piOca">' +
+                '<img src="https://raw.githubusercontent.com/automatizacionpioca/pioca-gps/main/logo-barra-inferior.png" alt="piOca">' +
               '</div>' +
             '</div>' +
 
