@@ -425,11 +425,11 @@
     }
 
     #formNuevo::after{
-      content:"Completá los datos para iniciar un nuevo seguimiento.";
+      content:"Datos opcionales del seguimiento.";
       display:block;
       font-size:12.5px;
       color:#6b7681;
-      margin-bottom:12px;
+      margin-bottom:14px;
       order:-1;
     }
 
@@ -440,27 +440,70 @@
       line-height:1.4;
     }
 
-    .nombreContactoFila{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) 96px;
-      gap:10px;
-      align-items:stretch;
+    .legacyManualField{
+      display:none !important;
+    }
+
+    .contactoSolo{
+      display:block;
     }
 
     #btnContacto{
-      width:96px;
+      width:100% !important;
       margin-top:0;
-      padding:8px 6px;
-      min-height:52px;
-      font-size:10.5px;
+      padding:10px 12px;
+      min-height:56px;
+      font-size:12px;
       line-height:1.1;
       border-radius:12px;
     }
 
     #btnContacto .contactoIcono{
+      display:inline-block;
+      font-size:18px;
+      margin-right:7px;
+      vertical-align:-1px;
+    }
+
+    .inicioMapsInfo{
+      display:flex;
+      gap:11px;
+      align-items:flex-start;
+      margin-top:16px;
+      padding:13px 14px;
+      border:1px solid #c9dceb;
+      border-radius:14px;
+      background:#f1f7fc;
+      color:#31566f;
+    }
+
+    .inicioMapsIcono{
+      flex:0 0 auto;
+      width:30px;
+      height:30px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:9px;
+      background:#dcecf8;
+      font-size:17px;
+    }
+
+    .inicioMapsTexto{
+      min-width:0;
+      font-size:11.5px;
+      line-height:1.45;
+    }
+
+    .inicioMapsTexto b{
       display:block;
-      font-size:19px;
       margin-bottom:3px;
+      color:#234761;
+      font-size:12px;
+    }
+
+    #btnCrear{
+      display:none !important;
     }
 
     #accionesSeguimiento{
@@ -674,13 +717,8 @@
         padding:15px;
       }
 
-      .nombreContactoFila{
-        grid-template-columns:minmax(0,1fr) 82px;
-        gap:8px;
-      }
-
       #btnContacto{
-        width:82px;
+        width:100% !important;
       }
 
       #accionesSeguimiento{
@@ -794,13 +832,14 @@
     <div id="formNuevo" style="display:none;">
 
       <label>
-        Nombre del cliente (opcional)
+        Contacto (opcional)
       </label>
 
-      <div class="nombreContactoFila">
+      <div class="contactoSolo">
 
         <input
           id="clientName"
+          class="legacyManualField"
           type="text"
           autocomplete="name"
           placeholder="Nombre del cliente"
@@ -811,17 +850,10 @@
           class="btnAzul"
           type="button">
 
-          <span class="contactoIcono">
-            👤
-          </span>
-
-          CONTACTO
+          <span class="contactoIcono">👤</span>
+          SELECCIONAR CONTACTO
         </button>
 
-      </div>
-
-      <div class="ayuda">
-        Si no está agendado, cargá los datos manualmente.
       </div>
 
       <div
@@ -829,35 +861,46 @@
         class="estado">
       </div>
 
+      <div class="legacyManualField">
+        <label>
+          Teléfono
+        </label>
+
+        <input
+          id="clientPhone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          placeholder="Ej: 1155555555"
+        >
+
+        <label>
+          Hora estimada de llegada
+        </label>
+
+        <select id="estimatedArrival"></select>
+      </div>
+
       <label>
-        Teléfono
-      </label>
-
-      <input
-        id="clientPhone"
-        type="tel"
-        inputmode="tel"
-        autocomplete="tel"
-        placeholder="Ej: 1155555555"
-      >
-
-      <label>
-        Hora estimada de llegada
-      </label>
-
-      <select id="estimatedArrival"></select>
-
-      <label>
-        Información adicional
+        Información adicional (opcional)
       </label>
 
       <textarea
         id="additionalInfo"
-        placeholder="Opcional. Ej: Por favor dejar libre el acceso al portón."
+        placeholder="Ej: Por favor dejar libre el acceso al portón."
         maxlength="500"></textarea>
 
       <div class="ayuda">
         Si lo dejás vacío, no se agrega nada al mensaje de WhatsApp.
+      </div>
+
+      <div class="inicioMapsInfo">
+        <div class="inicioMapsIcono">📍</div>
+        <div class="inicioMapsTexto">
+          <b>Para iniciar un seguimiento</b>
+          Desde Google Maps, seleccioná el domicilio y compartilo con piOca Seguimiento.
+          Al recibir la ubicación, la app calcula la llegada e inicia la transmisión GPS nativa.
+        </div>
       </div>
 
     </div>
@@ -1026,6 +1069,43 @@
 
   const additionalInfo =
     document.getElementById("additionalInfo");
+
+  const DRAFT_KEY =
+    "pioca_tracking_draft_v1";
+
+  function guardarBorradorNuevo(){
+    try{
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          clientName:clientName ? clientName.value : "",
+          clientPhone:clientPhone ? clientPhone.value : "",
+          additionalInfo:additionalInfo ? additionalInfo.value : ""
+        })
+      );
+    }catch(e){}
+  }
+
+  function cargarBorradorNuevo(){
+    try{
+      const draft =
+        JSON.parse(
+          localStorage.getItem(DRAFT_KEY) || "{}"
+        );
+
+      if(clientName && typeof draft.clientName === "string"){
+        clientName.value = draft.clientName;
+      }
+
+      if(clientPhone && typeof draft.clientPhone === "string"){
+        clientPhone.value = draft.clientPhone;
+      }
+
+      if(additionalInfo && typeof draft.additionalInfo === "string"){
+        additionalInfo.value = draft.additionalInfo;
+      }
+    }catch(e){}
+  }
 
   const btnCrear =
     document.getElementById("btnCrear");
@@ -1481,6 +1561,10 @@
   function abrirPanelActivo(s){
     guardarSeguimientoLocal(s);
 
+    try{
+      localStorage.removeItem(DRAFT_KEY);
+    }catch(e){}
+
     window.location.replace(
       "index.html?tracking=" +
       encodeURIComponent(
@@ -1693,7 +1777,7 @@
                   Number(ruta.route.duration_seconds || 0)
                 )
               ),
-            p_additional_info:null
+            p_additional_info:additionalInfo.value.trim() || null
           }
         );
 
@@ -1916,13 +2000,13 @@
       "block";
 
     accionesSeguimiento.style.display =
-      "flex";
+      "none";
 
     btnCrear.style.display =
-      "block";
+      "none";
 
     btnEmergencia.style.display =
-      "block";
+      "none";
 
     cargarHorarios();
 
@@ -2131,6 +2215,21 @@
   btnContacto.addEventListener(
     "click",
     seleccionarContacto
+  );
+
+  additionalInfo.addEventListener(
+    "input",
+    guardarBorradorNuevo
+  );
+
+  clientName.addEventListener(
+    "input",
+    guardarBorradorNuevo
+  );
+
+  clientPhone.addEventListener(
+    "input",
+    guardarBorradorNuevo
   );
 
   btnLogin.addEventListener(
@@ -2426,7 +2525,13 @@
         document.visibilityState ===
         "visible"
       ){
+        setTimeout(
+          guardarBorradorNuevo,
+          250
+        );
         recuperarEstadoAlVolver();
+      }else{
+        guardarBorradorNuevo();
       }
     }
   );
@@ -2445,6 +2550,8 @@
     "online",
     recuperarEstadoAlVolver
   );
+
+  cargarBorradorNuevo();
 
   cargarUltimoTest();
 
