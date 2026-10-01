@@ -11,11 +11,6 @@
 
   <title></title>
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  >
-
   <style>
     :root{
       --pioca-azul:#0833A2;
@@ -2672,8 +2667,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
    - Usa pin_cliente.png
    - Mismo ancho visual que el pin de la camioneta: 50 px
    - Mantiene la punta anclada exactamente en las coordenadas
-   - Animación vertical aplicada al PNG interno para evitar conflicto
-     con los transforms que Leaflet usa sobre el marcador
+   - Salto vertical muy sutil de 4 px
    ========================================================== */
 
 .piocaDestinoIcon{
@@ -2686,8 +2680,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 }
 
 .piocaDestinoImagen{
-  position:relative;
-  top:0;
   display:block;
   width:50px;
   height:61px;
@@ -2695,34 +2687,69 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   object-fit:contain;
   pointer-events:none;
   user-select:none;
-  -webkit-user-select:none;
   -webkit-user-drag:none;
-  will-change:top;
-  -webkit-animation:piocaDestinoSalto 1.45s ease-in-out infinite !important;
-  animation:piocaDestinoSalto 1.45s ease-in-out infinite !important;
-}
-
-@-webkit-keyframes piocaDestinoSalto{
-  0%, 15%, 100%{
-    top:0;
-  }
-  42%{
-    top:-7px;
-  }
-  70%{
-    top:0;
-  }
+  transform-origin:50% 100%;
+  will-change:transform;
+  animation:piocaDestinoSalto 1.45s cubic-bezier(.45,0,.25,1) infinite;
 }
 
 @keyframes piocaDestinoSalto{
-  0%, 15%, 100%{
-    top:0;
+  0%, 18%, 100%{
+    transform:translateY(0);
   }
-  42%{
-    top:-7px;
+  46%{
+    transform:translateY(-6px);
   }
-  70%{
-    top:0;
+  72%{
+    transform:translateY(0);
+  }
+}
+
+
+/* ==========================================================
+   R42 - GOOGLE MAPS
+   Sólo reemplaza el motor visual del mapa.
+   El resto del cliente, GPS, ETA, paneles y animaciones queda intacto.
+   ========================================================== */
+
+.piocaGoogleZoomControl{
+  margin-top:138px;
+  margin-left:18px;
+  display:flex;
+  flex-direction:column;
+  border:1px solid rgba(0,0,0,.18);
+  border-radius:4px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
+}
+
+.piocaGoogleZoomControl button{
+  width:38px;
+  height:38px;
+  margin:0;
+  padding:0;
+  border:0;
+  background:#fff;
+  color:#111;
+  font:700 25px/38px Arial,sans-serif;
+  text-align:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.piocaGoogleZoomControl button + button{
+  border-top:1px solid rgba(0,0,0,.14);
+}
+
+.piocaGoogleZoomControl button:active{
+  background:#f1f1f1;
+}
+
+@media(max-width:430px){
+  .piocaGoogleZoomControl{
+    margin-top:126px;
+    margin-left:18px;
   }
 }
 
@@ -2899,11 +2926,772 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 </button>
 
 <script
-  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDE0iExc9s5QeZBPIN6BNYCucNFDrjmyKM&v=weekly">
 </script>
 
-<script
-  src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js">
+<script>
+(function(){
+
+  "use strict";
+
+  const PIOCA_GOOGLE_MAP_ID =
+    "5b5eacc813451228218f181f";
+
+  function normalizarLatLng(
+    valor
+  ){
+
+    if(
+      Array.isArray(valor)
+    ){
+      return {
+        lat:Number(valor[0]),
+        lng:Number(valor[1])
+      };
+    }
+
+    if(
+      valor &&
+      typeof valor.lat === "function" &&
+      typeof valor.lng === "function"
+    ){
+      return {
+        lat:Number(valor.lat()),
+        lng:Number(valor.lng())
+      };
+    }
+
+    if(
+      valor &&
+      Number.isFinite(Number(valor.lat)) &&
+      Number.isFinite(Number(valor.lng))
+    ){
+      return {
+        lat:Number(valor.lat),
+        lng:Number(valor.lng)
+      };
+    }
+
+    if(
+      valor &&
+      Number.isFinite(Number(valor.lat)) &&
+      Number.isFinite(Number(valor.lon))
+    ){
+      return {
+        lat:Number(valor.lat),
+        lng:Number(valor.lon)
+      };
+    }
+
+    return {
+      lat:0,
+      lng:0
+    };
+  }
+
+
+  function proyectarMercator(
+    valor,
+    zoom
+  ){
+
+    const p =
+      normalizarLatLng(
+        valor
+      );
+
+    const escala =
+      256 *
+      Math.pow(
+        2,
+        Number(zoom) || 0
+      );
+
+    const latLimitada =
+      Math.max(
+        -85.05112878,
+        Math.min(
+          85.05112878,
+          p.lat
+        )
+      );
+
+    const seno =
+      Math.sin(
+        latLimitada *
+        Math.PI /
+        180
+      );
+
+    return {
+      x:
+        (
+          0.5 +
+          p.lng /
+          360
+        ) *
+        escala,
+      y:
+        (
+          0.5 -
+          Math.log(
+            (
+              1 + seno
+            ) /
+            (
+              1 - seno
+            )
+          ) /
+          (
+            4 *
+            Math.PI
+          )
+        ) *
+        escala
+    };
+  }
+
+
+  function desproyectarMercator(
+    punto,
+    zoom
+  ){
+
+    const escala =
+      256 *
+      Math.pow(
+        2,
+        Number(zoom) || 0
+      );
+
+    const x =
+      Array.isArray(punto)
+        ? Number(punto[0])
+        : Number(punto.x);
+
+    const y =
+      Array.isArray(punto)
+        ? Number(punto[1])
+        : Number(punto.y);
+
+    const lng =
+      x /
+      escala *
+      360 -
+      180;
+
+    const n =
+      Math.PI -
+      (
+        2 *
+        Math.PI *
+        y /
+        escala
+      );
+
+    const lat =
+      180 /
+      Math.PI *
+      Math.atan(
+        Math.sinh(n)
+      );
+
+    return {
+      lat:lat,
+      lng:lng
+    };
+  }
+
+
+  class PiocaGoogleMarker{
+
+    constructor(
+      latLng,
+      opciones
+    ){
+
+      this._position =
+        normalizarLatLng(
+          latLng
+        );
+
+      this._options =
+        opciones || {};
+
+      this._overlay =
+        null;
+
+      this._mapWrapper =
+        null;
+
+      this._root =
+        null;
+    }
+
+
+    addTo(
+      mapWrapper
+    ){
+
+      const self =
+        this;
+
+      const icono =
+        this._options.icon || {};
+
+      const iconSize =
+        Array.isArray(icono.iconSize)
+          ? icono.iconSize
+          : [30,46];
+
+      const iconAnchor =
+        Array.isArray(icono.iconAnchor)
+          ? icono.iconAnchor
+          : [
+              iconSize[0] / 2,
+              iconSize[1]
+            ];
+
+      class PiocaOverlay
+        extends google.maps.OverlayView{
+
+        onAdd(){
+
+          const root =
+            document.createElement(
+              "div"
+            );
+
+          root.className =
+            icono.className || "";
+
+          root.style.position =
+            "absolute";
+
+          root.style.width =
+            Number(iconSize[0]) +
+            "px";
+
+          root.style.height =
+            Number(iconSize[1]) +
+            "px";
+
+          root.style.overflow =
+            "visible";
+
+          root.style.pointerEvents =
+            self._options.interactive === true
+              ? "auto"
+              : "none";
+
+          root.style.zIndex =
+            String(
+              1000 +
+              Number(
+                self._options.zIndexOffset || 0
+              )
+            );
+
+          root.innerHTML =
+            icono.html || "";
+
+          const panes =
+            this.getPanes();
+
+          const pane =
+            self._options.interactive === true
+              ? panes.overlayMouseTarget
+              : panes.overlayLayer;
+
+          pane.appendChild(
+            root
+          );
+
+          self._root =
+            root;
+        }
+
+
+        draw(){
+
+          if(
+            !self._root
+          ){
+            return;
+          }
+
+          const projection =
+            this.getProjection();
+
+          if(
+            !projection
+          ){
+            return;
+          }
+
+          const pixel =
+            projection.fromLatLngToDivPixel(
+              new google.maps.LatLng(
+                self._position.lat,
+                self._position.lng
+              )
+            );
+
+          if(
+            !pixel
+          ){
+            return;
+          }
+
+          self._root.style.left =
+            pixel.x +
+            "px";
+
+          self._root.style.top =
+            pixel.y +
+            "px";
+
+          self._root.style.transform =
+            "translate(" +
+            (
+              -Number(iconAnchor[0])
+            ) +
+            "px," +
+            (
+              -Number(iconAnchor[1])
+            ) +
+            "px)";
+        }
+
+
+        onRemove(){
+
+          if(
+            self._root &&
+            self._root.parentNode
+          ){
+            self._root.parentNode.removeChild(
+              self._root
+            );
+          }
+
+          self._root =
+            null;
+        }
+      }
+
+      this._overlay =
+        new PiocaOverlay();
+
+      this._mapWrapper =
+        mapWrapper;
+
+      this._overlay.setMap(
+        mapWrapper._map
+      );
+
+      return this;
+    }
+
+
+    setLatLng(
+      latLng
+    ){
+
+      this._position =
+        normalizarLatLng(
+          latLng
+        );
+
+      if(
+        this._overlay &&
+        typeof this._overlay.draw === "function"
+      ){
+        this._overlay.draw();
+      }
+
+      return this;
+    }
+
+
+    getLatLng(){
+
+      return {
+        lat:this._position.lat,
+        lng:this._position.lng
+      };
+    }
+
+
+    remove(){
+
+      if(
+        this._overlay
+      ){
+        this._overlay.setMap(
+          null
+        );
+      }
+
+      this._overlay =
+        null;
+
+      this._mapWrapper =
+        null;
+
+      this._root =
+        null;
+    }
+  }
+
+
+  class PiocaGoogleMap{
+
+    constructor(
+      elementoId,
+      opciones
+    ){
+
+      this._element =
+        document.getElementById(
+          elementoId
+        );
+
+      this._options =
+        opciones || {};
+
+      this._map =
+        new google.maps.Map(
+          this._element,
+          {
+            center:{
+              lat:0,
+              lng:0
+            },
+            zoom:16,
+            minZoom:3,
+            maxZoom:20,
+            mapId:
+              PIOCA_GOOGLE_MAP_ID,
+            mapTypeId:
+              "roadmap",
+            disableDefaultUI:true,
+            zoomControl:false,
+            streetViewControl:false,
+            mapTypeControl:false,
+            fullscreenControl:false,
+            rotateControl:false,
+            clickableIcons:false,
+            keyboardShortcuts:false,
+            gestureHandling:"greedy",
+            isFractionalZoomEnabled:false
+          }
+        );
+
+      this._crearControlZoom();
+    }
+
+
+    _crearControlZoom(){
+
+      const control =
+        document.createElement(
+          "div"
+        );
+
+      control.className =
+        "piocaGoogleZoomControl";
+
+      const btnMas =
+        document.createElement(
+          "button"
+        );
+
+      btnMas.type =
+        "button";
+
+      btnMas.textContent =
+        "+";
+
+      btnMas.setAttribute(
+        "aria-label",
+        "Acercar mapa"
+      );
+
+      const btnMenos =
+        document.createElement(
+          "button"
+        );
+
+      btnMenos.type =
+        "button";
+
+      btnMenos.textContent =
+        "−";
+
+      btnMenos.setAttribute(
+        "aria-label",
+        "Alejar mapa"
+      );
+
+      btnMas.addEventListener(
+        "click",
+        () => {
+
+          const zoomActual =
+            Number(
+              this._map.getZoom()
+            ) || 16;
+
+          this._map.setZoom(
+            Math.min(
+              20,
+              zoomActual + 1
+            )
+          );
+        }
+      );
+
+      btnMenos.addEventListener(
+        "click",
+        () => {
+
+          const zoomActual =
+            Number(
+              this._map.getZoom()
+            ) || 16;
+
+          this._map.setZoom(
+            Math.max(
+              3,
+              zoomActual - 1
+            )
+          );
+        }
+      );
+
+      control.appendChild(
+        btnMas
+      );
+
+      control.appendChild(
+        btnMenos
+      );
+
+      this._map.controls[
+        google.maps.ControlPosition.LEFT_TOP
+      ].push(
+        control
+      );
+    }
+
+
+    setView(
+      latLng,
+      zoom
+    ){
+
+      const p =
+        normalizarLatLng(
+          latLng
+        );
+
+      this._map.setCenter(
+        p
+      );
+
+      this._map.setZoom(
+        Number(zoom)
+      );
+
+      return this;
+    }
+
+
+    getZoom(){
+
+      return Number(
+        this._map.getZoom()
+      );
+    }
+
+
+    setZoom(
+      zoom
+    ){
+
+      this._map.setZoom(
+        Number(zoom)
+      );
+
+      return this;
+    }
+
+
+    once(
+      evento,
+      callback
+    ){
+
+      const eventoGoogle =
+        evento === "zoomend"
+          ? "idle"
+          : evento;
+
+      google.maps.event.addListenerOnce(
+        this._map,
+        eventoGoogle,
+        callback
+      );
+
+      return this;
+    }
+
+
+    invalidateSize(){
+
+      const centro =
+        this._map.getCenter();
+
+      google.maps.event.trigger(
+        this._map,
+        "resize"
+      );
+
+      if(
+        centro
+      ){
+        this._map.setCenter(
+          centro
+        );
+      }
+
+      return this;
+    }
+
+
+    project(
+      latLng,
+      zoom
+    ){
+
+      return proyectarMercator(
+        latLng,
+        zoom
+      );
+    }
+
+
+    unproject(
+      punto,
+      zoom
+    ){
+
+      return desproyectarMercator(
+        punto,
+        zoom
+      );
+    }
+
+
+    panTo(
+      latLng,
+      opciones
+    ){
+
+      const p =
+        normalizarLatLng(
+          latLng
+        );
+
+      if(
+        opciones &&
+        opciones.animate === true
+      ){
+        this._map.panTo(
+          p
+        );
+      }else{
+        this._map.setCenter(
+          p
+        );
+      }
+
+      return this;
+    }
+
+
+    removeLayer(
+      layer
+    ){
+
+      if(
+        layer &&
+        typeof layer.remove === "function"
+      ){
+        layer.remove();
+      }
+
+      return this;
+    }
+  }
+
+
+  window.L = {
+
+    map:
+      function(
+        elementoId,
+        opciones
+      ){
+        return new PiocaGoogleMap(
+          elementoId,
+          opciones
+        );
+      },
+
+    marker:
+      function(
+        latLng,
+        opciones
+      ){
+        return new PiocaGoogleMarker(
+          latLng,
+          opciones
+        );
+      },
+
+    divIcon:
+      function(
+        opciones
+      ){
+        return opciones || {};
+      },
+
+    control:{
+      attribution:
+        function(){
+          return {
+            addTo:
+              function(){
+                return this;
+              }
+          };
+        }
+    },
+
+    tileLayer:
+      function(){
+        return {
+          addTo:
+            function(){
+              return this;
+            }
+        };
+      }
+  };
+
+})();
 </script>
 
 <script>
