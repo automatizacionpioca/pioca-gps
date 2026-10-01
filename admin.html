@@ -424,80 +424,157 @@
       margin-bottom:4px;
     }
 
-    .formNuevoIntro{
-      margin:2px 0 16px;
-      font-size:12.5px;
-      line-height:1.4;
-      color:#6b7681;
-    }
-
-    .ayuda{
-      font-size:11.5px;
-      color:#6e7781;
-      margin-top:6px;
-      line-height:1.4;
-    }
-
     .legacyManualField{
       display:none !important;
     }
 
-    .contactoSolo{
-      display:block;
+    .mensajeAdicionalCabecera{
+      display:flex;
+      align-items:flex-start;
+      gap:11px;
+      margin:4px 0 13px;
     }
 
-    #btnContacto{
-      width:100% !important;
-      margin-top:0;
-      padding:10px 12px;
-      min-height:56px;
-      font-size:12px;
-      line-height:1.1;
-      border-radius:12px;
+    .mensajeAdicionalIcono{
+      flex:0 0 auto;
+      width:38px;
+      height:38px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:11px;
+      background:#eaf2fb;
+      color:var(--azul2);
+      font-size:20px;
     }
 
-    #btnContacto .contactoIcono{
+    .mensajeAdicionalTitulo{
+      margin:0;
+      color:#24384c;
+      font-size:15px;
+      line-height:1.2;
+      font-weight:800;
+    }
+
+    .mensajeAdicionalBadge{
       display:inline-block;
-      font-size:18px;
-      margin-right:7px;
-      vertical-align:-1px;
+      margin-left:5px;
+      padding:2px 6px;
+      border-radius:999px;
+      background:#edf2f7;
+      color:#6a7682;
+      font-size:9px;
+      font-weight:800;
+      letter-spacing:.35px;
+      vertical-align:2px;
+    }
+
+    .mensajeAdicionalTexto{
+      margin:4px 0 0;
+      color:#687687;
+      font-size:11.5px;
+      line-height:1.4;
+    }
+
+    #additionalInfo{
+      min-height:175px;
+      resize:vertical;
+      padding:15px 14px;
+      font-size:14px;
+      line-height:1.45;
+      border-radius:14px;
+      background:#fbfcfe;
+    }
+
+    .ayudaMensaje{
+      margin-top:8px;
+      padding:9px 11px;
+      border-radius:10px;
+      background:#f7f9fb;
+      color:#6d7884;
+      font-size:11px;
+      line-height:1.4;
     }
 
     .inicioMapsInfo{
       display:none;
-      gap:11px;
-      align-items:flex-start;
-      margin:12px 0 0;
-      padding:13px 14px;
+      margin:14px 0 0;
+      padding:16px;
       border:1px solid #c9dceb;
-      border-radius:14px;
-      background:#f1f7fc;
+      border-radius:16px;
+      background:linear-gradient(180deg,#f5f9fd,#eef6fb);
       color:#31566f;
+      box-shadow:0 4px 14px rgba(31,80,120,.05);
+    }
+
+    .inicioMapsCabecera{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:12px;
     }
 
     .inicioMapsIcono{
       flex:0 0 auto;
-      width:30px;
-      height:30px;
+      width:38px;
+      height:38px;
       display:flex;
       align-items:center;
       justify-content:center;
-      border-radius:9px;
+      border-radius:11px;
       background:#dcecf8;
-      font-size:17px;
+      font-size:19px;
     }
 
     .inicioMapsTexto{
       min-width:0;
-      font-size:11.5px;
-      line-height:1.45;
     }
 
     .inicioMapsTexto b{
       display:block;
-      margin-bottom:3px;
       color:#234761;
-      font-size:12px;
+      font-size:13px;
+      line-height:1.2;
+    }
+
+    .inicioMapsTexto span{
+      display:block;
+      margin-top:2px;
+      color:#6a7d8d;
+      font-size:10.5px;
+      line-height:1.3;
+    }
+
+    .inicioMapsPasos{
+      display:grid;
+      gap:8px;
+    }
+
+    .inicioMapsPaso{
+      display:grid;
+      grid-template-columns:26px minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      padding:9px 10px;
+      border:1px solid #dbe8f1;
+      border-radius:11px;
+      background:rgba(255,255,255,.72);
+      color:#3e5f76;
+      font-size:11.5px;
+      line-height:1.35;
+    }
+
+    .inicioMapsPasoNumero{
+      width:26px;
+      height:26px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:#1f6fb2;
+      color:#fff;
+      font-size:11px;
+      font-weight:900;
     }
 
     #btnCrear{
@@ -715,10 +792,6 @@
         padding:15px;
       }
 
-      #btnContacto{
-        width:100% !important;
-      }
-
       #accionesSeguimiento{
         gap:8px;
       }
@@ -829,19 +902,31 @@
 
     <div id="formNuevo" style="display:none;">
 
-      <div class="formNuevoIntro">
-        Datos opcionales que se incorporarán al mensaje de WhatsApp.
+      <div class="mensajeAdicionalCabecera">
+        <div class="mensajeAdicionalIcono">💬</div>
+        <div>
+          <div class="mensajeAdicionalTitulo">
+            Mensaje adicional
+            <span class="mensajeAdicionalBadge">OPCIONAL</span>
+          </div>
+          <div class="mensajeAdicionalTexto">
+            Este texto se incorpora al mensaje de WhatsApp que se comparte con el cliente.
+          </div>
+        </div>
       </div>
 
-      <label>
-        Contacto (opcional)
-      </label>
+      <textarea
+        id="additionalInfo"
+        placeholder="Ej.: Por favor dejar libre el acceso al portón."
+        maxlength="500"></textarea>
 
-      <div class="contactoSolo">
+      <div class="ayudaMensaje">
+        Si lo dejás vacío, el mensaje se comparte sin información adicional.
+      </div>
 
+      <div class="legacyManualField" aria-hidden="true">
         <input
           id="clientName"
-          class="legacyManualField"
           type="text"
           autocomplete="name"
           placeholder="Nombre del cliente"
@@ -851,22 +936,13 @@
           id="btnContacto"
           class="btnAzul"
           type="button">
-
-          <span class="contactoIcono">👤</span>
-          SELECCIONAR CONTACTO
+          CONTACTO
         </button>
 
-      </div>
-
-      <div
-        id="contactoEstado"
-        class="estado">
-      </div>
-
-      <div class="legacyManualField">
-        <label>
-          Teléfono
-        </label>
+        <div
+          id="contactoEstado"
+          class="estado">
+        </div>
 
         <input
           id="clientPhone"
@@ -876,36 +952,37 @@
           placeholder="Ej: 1155555555"
         >
 
-        <label>
-          Hora estimada de llegada
-        </label>
-
         <select id="estimatedArrival"></select>
-      </div>
-
-      <label>
-        Información adicional (opcional)
-      </label>
-
-      <textarea
-        id="additionalInfo"
-        placeholder="Ej: Por favor dejar libre el acceso al portón."
-        maxlength="500"></textarea>
-
-      <div class="ayuda">
-        Si lo dejás vacío, no se agrega nada adicional.
       </div>
 
     </div>
 
     <div id="inicioMapsInfo" class="inicioMapsInfo">
+      <div class="inicioMapsCabecera">
         <div class="inicioMapsIcono">📍</div>
         <div class="inicioMapsTexto">
-          <b>Para iniciar un seguimiento</b>
-          Desde Google Maps, seleccioná el domicilio y compartilo con piOca Seguimiento.
-          La app calcula la llegada e inicia la transmisión GPS nativa.
+          <b>INICIAR TRACKING</b>
+          <span>El seguimiento se crea desde una ubicación compartida de Google Maps.</span>
         </div>
       </div>
+
+      <div class="inicioMapsPasos">
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">1</div>
+          <div>Abrí Google Maps y seleccioná el domicilio del cliente.</div>
+        </div>
+
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">2</div>
+          <div>Tocá Compartir y elegí <b>piOca Seguimiento</b>.</div>
+        </div>
+
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">3</div>
+          <div>La app calcula la llegada, crea el tracking e inicia la transmisión GPS nativa.</div>
+        </div>
+      </div>
+    </div>
 
     <div id="accionesSeguimiento">
 
