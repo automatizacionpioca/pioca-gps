@@ -2536,39 +2536,18 @@
 
       "_Este es un mensaje automático y no hace falta responderlo._";
 
-    /*
-      V10 - Compartir sin destinatario preseleccionado.
-
-      Si la APK nueva expone shareWhatsApp(), Android abre WhatsApp
-      con el mensaje preparado y permite elegir el contacto.
-
-      En APK anteriores o navegador común usamos wa.me sin número,
-      que conserva el mismo criterio: primero se elige destinatario.
-    */
-    if(
-      window.PiocaNative &&
-      typeof window.PiocaNative.shareWhatsApp ===
-        "function"
-    ){
-
-      try{
-        window.PiocaNative.shareWhatsApp(
-          mensaje
-        );
-        return;
-      }catch(e){}
-    }
-
     const texto =
       encodeURIComponent(
         mensaje
       );
 
     /*
-      Compatibilidad V9:
-      si todavía estamos dentro de una APK anterior, que no posee
-      shareWhatsApp(), y el seguimiento manual conserva teléfono,
-      mantenemos exactamente el envío dirigido que ya funcionaba.
+      WHATSAPP BUSINESS ESTRICTO
+
+      - Sólo se intenta abrir el paquete com.whatsapp.w4b.
+      - No se usa el selector nativo.
+      - No se usa wa.me.
+      - No existe fallback al WhatsApp personal.
     */
     const ua =
       navigator.userAgent ||
@@ -2576,41 +2555,101 @@
       window.opera;
 
     if(
-      /android/i.test(
+      !/android/i.test(
         ua
-      ) &&
-      telefonoCliente
+      )
     ){
 
-      const numero =
-        telefonoWhatsAppArgentina(
-          telefonoCliente
-        );
-
-      window.location.href =
-
-        "intent://send" +
-
-        "?phone=" +
-        numero +
-
-        "&text=" +
-        texto +
-
-        "#Intent;" +
-
-        "scheme=whatsapp;" +
-
-        "package=com.whatsapp.w4b;" +
-
-        "end";
+      window.alert(
+        "WhatsApp Business no está disponible en este dispositivo."
+      );
 
       return;
     }
 
+    let businessAbierto =
+      false;
+
+    let controlFinalizado =
+      false;
+
+    const confirmarSalidaABusiness =
+      function(){
+
+        if(
+          document.visibilityState ===
+            "hidden"
+        ){
+
+          businessAbierto =
+            true;
+
+          controlFinalizado =
+            true;
+
+          document.removeEventListener(
+            "visibilitychange",
+            confirmarSalidaABusiness
+          );
+        }
+      };
+
+    document.addEventListener(
+      "visibilitychange",
+      confirmarSalidaABusiness
+    );
+
+    /*
+      Paquete Android explícito de WhatsApp Business.
+      Nunca se apunta a com.whatsapp.
+    */
     window.location.href =
-      "https://wa.me/?text=" +
-      texto;
+
+      "intent://send" +
+
+      "?text=" +
+      texto +
+
+      "#Intent;" +
+
+      "scheme=whatsapp;" +
+
+      "package=com.whatsapp.w4b;" +
+
+      "end";
+
+    /*
+      Si Android no abre Business, el WebView queda visible.
+      Mostramos aviso y no intentamos ninguna otra app.
+    */
+    setTimeout(
+      function(){
+
+        if(
+          controlFinalizado
+        ){
+          return;
+        }
+
+        document.removeEventListener(
+          "visibilitychange",
+          confirmarSalidaABusiness
+        );
+
+        if(
+          !businessAbierto &&
+          document.visibilityState ===
+            "visible"
+        ){
+
+          window.alert(
+            "La aplicación WhatsApp Business no está instalada."
+          );
+        }
+
+      },
+      1800
+    );
   }
 
   async function enviarPosicion(
