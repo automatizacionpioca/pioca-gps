@@ -424,13 +424,11 @@
       margin-bottom:4px;
     }
 
-    #formNuevo::after{
-      content:"Datos opcionales del seguimiento.";
-      display:block;
+    .formNuevoIntro{
+      margin:2px 0 16px;
       font-size:12.5px;
+      line-height:1.4;
       color:#6b7681;
-      margin-bottom:14px;
-      order:-1;
     }
 
     .ayuda{
@@ -466,10 +464,10 @@
     }
 
     .inicioMapsInfo{
-      display:flex;
+      display:none;
       gap:11px;
       align-items:flex-start;
-      margin-top:16px;
+      margin:12px 0 0;
       padding:13px 14px;
       border:1px solid #c9dceb;
       border-radius:14px;
@@ -831,6 +829,10 @@
 
     <div id="formNuevo" style="display:none;">
 
+      <div class="formNuevoIntro">
+        Datos opcionales que se incorporarán al mensaje de WhatsApp.
+      </div>
+
       <label>
         Contacto (opcional)
       </label>
@@ -891,19 +893,19 @@
         maxlength="500"></textarea>
 
       <div class="ayuda">
-        Si lo dejás vacío, no se agrega nada al mensaje de WhatsApp.
+        Si lo dejás vacío, no se agrega nada adicional.
       </div>
 
-      <div class="inicioMapsInfo">
+    </div>
+
+    <div id="inicioMapsInfo" class="inicioMapsInfo">
         <div class="inicioMapsIcono">📍</div>
         <div class="inicioMapsTexto">
           <b>Para iniciar un seguimiento</b>
           Desde Google Maps, seleccioná el domicilio y compartilo con piOca Seguimiento.
-          Al recibir la ubicación, la app calcula la llegada e inicia la transmisión GPS nativa.
+          La app calcula la llegada e inicia la transmisión GPS nativa.
         </div>
       </div>
-
-    </div>
 
     <div id="accionesSeguimiento">
 
@@ -1039,6 +1041,9 @@
 
   const formNuevo =
     document.getElementById("formNuevo");
+
+  const inicioMapsInfo =
+    document.getElementById("inicioMapsInfo");
 
   const email =
     document.getElementById("email");
@@ -1999,6 +2004,9 @@
     formNuevo.style.display =
       "block";
 
+    inicioMapsInfo.style.display =
+      "flex";
+
     accionesSeguimiento.style.display =
       "none";
 
@@ -2113,6 +2121,7 @@
 
   async function verificarSeguimientoActivo(){
     formNuevo.style.display = "none";
+    inicioMapsInfo.style.display = "none";
 
     accionesSeguimiento.style.display = "flex";
     btnCrear.style.display = "none";
@@ -2265,6 +2274,7 @@
       await supabaseClient.auth.signOut();
       panelAdmin.style.display = "none";
       formNuevo.style.display = "none";
+      inicioMapsInfo.style.display = "none";
       accionesSeguimiento.style.display = "none";
       verificandoBox.style.display = "none";
       loginBox.style.display = "block";
