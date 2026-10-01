@@ -4070,6 +4070,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     null;
 
   /*
+    R44 - ENCUADRE INICIAL CAMIONETA + DESTINO
+    Se ejecuta una sola vez cuando ambos pines ya existen.
+    Durante 2 segundos bloquea únicamente el zoom/recentrado automático.
+    Después devuelve el control a la lógica ETA vigente.
+  */
+  let encuadreInicialMapaActivo =
+    false;
+
+  let encuadreInicialMapaEjecutado =
+    false;
+
+  let encuadreInicialMapaTimer =
+    null;
+
+  /*
     R15:
     ETA de referencia con la que nació esta vista del cliente.
     Sirve sólo para repartir visualmente el avance entre etapas.
@@ -5142,6 +5157,17 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     faltanMin
   ){
 
+    /*
+      R44:
+      mientras se muestra el encuadre inicial camioneta + destino,
+      no dejamos que la lógica ETA lo reemplace antes de los 2 segundos.
+    */
+    if(
+      encuadreInicialMapaActivo
+    ){
+      return;
+    }
+
     const tramo =
       obtenerTramoZoomEta(
         faltanMin
@@ -5985,6 +6011,238 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
   }
 
+  function intentarEncuadreInicialMapa(){
+
+    if(
+      terminado ||
+      encuadreInicialMapaActivo ||
+      encuadreInicialMapaEjecutado ||
+      !mapa ||
+      !marcador ||
+      !marcadorDestino ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon)
+    ){
+      return;
+    }
+
+    let posicionCamioneta =
+      null;
+
+    try{
+      posicionCamioneta =
+        marcador.getLatLng();
+    }catch(e){
+      return;
+    }
+
+    if(
+      !posicionCamioneta ||
+      !Number.isFinite(
+        Number(posicionCamioneta.lat)
+      ) ||
+      !Number.isFinite(
+        Number(posicionCamioneta.lng)
+      )
+    ){
+      return;
+    }
+
+    const faltanMinActual =
+      (
+        llegadaClienteMs &&
+        Number.isFinite(
+          llegadaClienteMs
+        )
+      )
+        ? (
+            llegadaClienteMs -
+            Date.now()
+          ) /
+          60000
+        : Infinity;
+
+    const tramoEta =
+      obtenerTramoZoomEta(
+        faltanMinActual
+      ) || {
+        clave:"normal",
+        zoom:16
+      };
+
+    /*
+      Si camioneta y destino ya entran dentro del zoom ETA normal,
+      no permitimos que fitBounds acerque más de ese zoom.
+      Así, a distancias cortas, el segundo movimiento es mínimo o nulo.
+    */
+    const zoomMaximoEncuadre =
+      Number(tramoEta.zoom) || 16;
+
+    encuadreInicialMapaEjecutado =
+      true;
+
+    encuadreInicialMapaActivo =
+      true;
+
+    try{
+
+      const mapaGoogle =
+        mapa._map;
+
+      if(
+        !mapaGoogle ||
+        typeof mapaGoogle.fitBounds !== "function"
+      ){
+        throw new Error(
+          "MAPA_GOOGLE_NO_DISPONIBLE"
+        );
+      }
+
+      const limites =
+        new google.maps.LatLngBounds();
+
+      limites.extend({
+        lat:Number(posicionCamioneta.lat),
+        lng:Number(posicionCamioneta.lng)
+      });
+
+      limites.extend({
+        lat:Number(destinoLat),
+        lng:Number(destinoLon)
+      });
+
+      let altoPanel =
+        0;
+
+      if(
+        piocaTrayectoPanel
+      ){
+        altoPanel =
+          Math.ceil(
+            piocaTrayectoPanel
+              .getBoundingClientRect()
+              .height
+          );
+      }
+
+      /*
+        El padding evita que alguno de los dos pines quede tapado
+        por el logo superior o por el panel inferior.
+      */
+      mapaGoogle.fitBounds(
+        limites,
+        {
+          top:150,
+          right:38,
+          bottom:Math.max(
+            50,
+            altoPanel + 34
+          ),
+          left:38
+        }
+      );
+
+      /*
+        fitBounds puede acercarse demasiado si los dos puntos están
+        muy próximos. Lo limitamos al zoom ETA que corresponde.
+      */
+      google.maps.event.addListenerOnce(
+        mapaGoogle,
+        "idle",
+        function(){
+
+          if(
+            !encuadreInicialMapaActivo
+          ){
+            return;
+          }
+
+          const zoomFit =
+            Number(
+              mapaGoogle.getZoom()
+            );
+
+          if(
+            Number.isFinite(zoomFit) &&
+            zoomFit > zoomMaximoEncuadre
+          ){
+            mapaGoogle.setZoom(
+              zoomMaximoEncuadre
+            );
+          }
+        }
+      );
+
+    }catch(e){
+
+      encuadreInicialMapaActivo =
+        false;
+
+      tramoZoomEtaActual =
+        null;
+
+      actualizarZoomSegunEta(
+        faltanMinActual
+      );
+
+      return;
+    }
+
+    if(
+      encuadreInicialMapaTimer !== null
+    ){
+      clearTimeout(
+        encuadreInicialMapaTimer
+      );
+    }
+
+    encuadreInicialMapaTimer =
+      setTimeout(
+        function(){
+
+          encuadreInicialMapaTimer =
+            null;
+
+          encuadreInicialMapaActivo =
+            false;
+
+          if(
+            terminado
+          ){
+            return;
+          }
+
+          /*
+            Liberamos el tramo actual para obligar a que la lógica ETA
+            vuelva a aplicar su zoom correspondiente una sola vez.
+          */
+          tramoZoomEtaActual =
+            null;
+
+          const faltanMinDespues =
+            (
+              llegadaClienteMs &&
+              Number.isFinite(
+                llegadaClienteMs
+              )
+            )
+              ? (
+                  llegadaClienteMs -
+                  Date.now()
+                ) /
+                60000
+              : faltanMinActual;
+
+          actualizarZoomSegunEta(
+            faltanMinDespues
+          );
+
+        },
+        2000
+      );
+  }
+
+
   function asegurarMarcadorDestino(){
 
     if(
@@ -6013,12 +6271,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           mapa
         );
 
+      intentarEncuadreInicialMapa();
+
       return;
     }
 
     marcadorDestino.setLatLng(
       [destinoLat,destinoLon]
     );
+
+    intentarEncuadreInicialMapa();
   }
 
   function quitarMarcadorDestino(){
@@ -6203,6 +6465,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     terminado =
       true;
+
+    if(
+      encuadreInicialMapaTimer !== null
+    ){
+      clearTimeout(
+        encuadreInicialMapaTimer
+      );
+
+      encuadreInicialMapaTimer =
+        null;
+    }
+
+    encuadreInicialMapaActivo =
+      false;
 
     borrarReferenciaTrayectoPersistida();
 
@@ -8895,6 +9171,18 @@ ocultarHoraLlegada();
     opciones
   ){
 
+    /*
+      R44:
+      durante el pantallazo inicial conservamos fijo el encuadre
+      camioneta + destino. El seguimiento visual sigue actualizando
+      el marcador, pero no mueve la cámara hasta terminar los 2 s.
+    */
+    if(
+      encuadreInicialMapaActivo
+    ){
+      return;
+    }
+
     if(
       !mapa ||
       !Number.isFinite(lat) ||
@@ -9192,6 +9480,8 @@ if(
 
       ultimoCreatedAtProcesadoGps =
         createdAt;
+
+      intentarEncuadreInicialMapa();
 
       return;
     }
