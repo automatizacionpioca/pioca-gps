@@ -2753,6 +2753,82 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 }
 
+
+
+    /* ==========================================================
+       R47 - ETA INVERTIDA
+       - Minutos restantes = dato principal, grande.
+       - Hora estimada = referencia secundaria al lado.
+       - Hora titila en rojo y pasa a verde en los últimos 2 min.
+       ========================================================== */
+
+    #piocaEtaMinutos{
+      display:inline-block !important;
+      height:auto !important;
+      margin-left:7px !important;
+      color:#1955A3 !important;
+      font-size:27px !important;
+      line-height:1 !important;
+      font-weight:900 !important;
+      vertical-align:-2px !important;
+      white-space:nowrap !important;
+      animation:piocaEtaMinutosVivoR48 2.4s ease-in-out infinite !important;
+      transition:color .25s ease !important;
+    }
+
+    @keyframes piocaEtaMinutosVivoR48{
+      0%,100%{
+        opacity:1;
+        filter:brightness(1);
+      }
+      50%{
+        opacity:.88;
+        filter:brightness(1.04);
+      }
+    }
+
+    #piocaEtaMinutos.proximo{
+      color:#1955A3 !important;
+    }
+
+    #piocaEtaHora{
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      height:27px !important;
+      margin-left:7px !important;
+      color:#e94235 !important;
+      font-size:15.5px !important;
+      line-height:1 !important;
+      font-weight:800 !important;
+      vertical-align:-2px !important;
+      white-space:nowrap !important;
+      animation:piocaEtaHoraBlinkR47 1.35s ease-in-out infinite !important;
+      transition:color .25s ease !important;
+    }
+
+    #piocaEtaHora.proximo{
+      color:#38e06f !important;
+    }
+
+    @keyframes piocaEtaHoraBlinkR47{
+      0%,100%{ opacity:1; }
+      50%{ opacity:.44; }
+    }
+
+    @media(max-width:430px){
+      #piocaEtaMinutos{
+        font-size:24px !important;
+        margin-left:5px !important;
+      }
+
+      #piocaEtaHora{
+        height:24px !important;
+        margin-left:6px !important;
+        font-size:14px !important;
+      }
+    }
+
 </style>
 
 </head>
@@ -2857,8 +2933,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
         <div id="piocaEtaLinea">
           Llegada al domicilio:
-          <span id="piocaEtaHora">--:-- hs</span>
           <span id="piocaEtaMinutos"></span>
+          <span id="piocaEtaHora">--:-- hs</span>
         </div>
 
       </div>
@@ -5315,7 +5391,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         últimos 2 minutos. Si luego la ETA se extiende por encima
         de 2 minutos, vuelve automáticamente al color original.
       */
-      piocaEtaMinutos.classList.toggle(
+      piocaEtaMinutos.classList.remove(
+        "proximo"
+      );
+
+      piocaEtaHora.classList.toggle(
         "proximo",
         faltanMin <= 2
       );
