@@ -19,6 +19,7 @@ Cada vez que se actualice este archivo:
 GitHub y Cloudflare deben tener siempre el mismo código.
 ============================================================
 -->
+
 <!DOCTYPE html>
 <html lang="es">
 
@@ -3531,20 +3532,62 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         "Alejar mapa"
       );
 
-      btnMas.addEventListener(
-        "click",
-        () => {
+      const cambiarZoomManual =
+        (delta) => {
 
           const zoomActual =
             Number(
               this._map.getZoom()
             ) || 16;
 
+          const zoomDestino =
+            Math.max(
+              3,
+              Math.min(
+                20,
+                zoomActual +
+                  Number(delta || 0)
+              )
+            );
+
+          if(
+            zoomDestino ===
+              zoomActual
+          ){
+            return;
+          }
+
+          /*
+            R50 - ZOOM MANUAL ANCLADO A LA CAMIONETA
+
+            El control + / - delega el cambio de cámara a la lógica
+            principal del cliente, que conoce la posición actual
+            de la camioneta y el área útil visible.
+          */
+          if(
+            typeof window.piocaZoomManualCamioneta ===
+              "function"
+          ){
+            window.piocaZoomManualCamioneta(
+              zoomDestino
+            );
+            return;
+          }
+
+          /*
+            Respaldo únicamente si la lógica principal todavía
+            no terminó de inicializar.
+          */
           this._map.setZoom(
-            Math.min(
-              20,
-              zoomActual + 1
-            )
+            zoomDestino
+          );
+        };
+
+      btnMas.addEventListener(
+        "click",
+        () => {
+          cambiarZoomManual(
+            1
           );
         }
       );
@@ -3552,17 +3595,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       btnMenos.addEventListener(
         "click",
         () => {
-
-          const zoomActual =
-            Number(
-              this._map.getZoom()
-            ) || 16;
-
-          this._map.setZoom(
-            Math.max(
-              3,
-              zoomActual - 1
-            )
+          cambiarZoomManual(
+            -1
           );
         }
       );
@@ -6445,52 +6479,30 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       const centroGoogle =
         mapaGoogle.getCenter();
 
-      if(
-        !centroGoogle
-      ){
-        encuadreInicialMapaActivo =
-          false;
-        mapaGoogle.setZoom(
-          zoomDestino
-        );
-        recentrarPinTrasCambioZoom();
-        return;
-      }
-
-      const centroInicio = {
-        lat:Number(
-          centroGoogle.lat()
-        ),
-        lng:Number(
-          centroGoogle.lng()
-        )
-      };
+      const centroInicio =
+        centroGoogle
+          ? {
+              lat:Number(
+                centroGoogle.lat()
+              ),
+              lng:Number(
+                centroGoogle.lng()
+              )
+            }
+          : {
+              lat:Number(
+                posicionCamioneta.lat
+              ),
+              lng:Number(
+                posicionCamioneta.lng
+              )
+            };
 
       /*
-        R50:
-        La cámara ya no interpola "centro contra centro" a un zoom fijo.
-        Ese método podía hacer que la camioneta se desplazara de costado,
-        incluso casi salir de pantalla, antes de terminar el acercamiento.
-
-        Ahora usamos la camioneta como ANCLA VISUAL:
-        - medimos dónde está realmente en pantalla al comenzar;
-        - definimos dónde debe terminar en el área útil;
-        - mientras cambia el zoom calculamos el centro exacto necesario
-          para que la camioneta recorra una trayectoria recta y monotónica
-          entre esos dos puntos de pantalla.
-
-        Resultado: paneo y zoom ocurren juntos, sin corrida lateral previa
-        ni sobrepaso de la posición final.
+        Calculamos el centro final con exactamente el mismo criterio
+        visual usado por "REFRESCAR POSICIÓN": la camioneta queda
+        centrada en el área útil, descontando el panel inferior.
       */
-      const tamanoMapa =
-        mapa.getSize();
-
-      const anchoMapa =
-        Number(tamanoMapa.x) || 0;
-
-      const altoMapa =
-        Number(tamanoMapa.y) || 0;
-
       let altoPanel =
         0;
 
@@ -6503,6 +6515,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
             .height;
       }
 
+      const altoMapa =
+        mapa.getSize().y;
+
       const offsetY =
         Math.max(
           0,
@@ -6512,74 +6527,37 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           )
         );
 
-      const puntoCamionetaInicio =
+      const puntoPinDestino =
         mapa.project(
           [
             Number(posicionCamioneta.lat),
             Number(posicionCamioneta.lng)
           ],
-          zoomInicio
+          zoomDestino
         );
 
-      const puntoCentroInicio =
-        mapa.project(
-          centroInicio,
-          zoomInicio
-        );
-
-      const xPantallaInicio =
-        anchoMapa * 0.5 +
-        (
-          puntoCamionetaInicio.x -
-          puntoCentroInicio.x
-        );
-
-      const yPantallaInicio =
-        altoMapa * 0.5 +
-        (
-          puntoCamionetaInicio.y -
-          puntoCentroInicio.y
-        );
-
-      const xPantallaFinal =
-        anchoMapa * 0.5;
-
-      const yPantallaFinal =
-        altoMapa * 0.5 -
-        offsetY;
-
-      function calcularCentroParaCamionetaEnPantalla(
-        zoomActual,
-        xPantalla,
-        yPantalla
-      ){
-
-        const puntoCamioneta =
-          mapa.project(
-            [
-              Number(posicionCamioneta.lat),
-              Number(posicionCamioneta.lng)
-            ],
-            zoomActual
-          );
-
-        return mapa.unproject(
+      const centroObjetivo =
+        mapa.unproject(
           [
-            puntoCamioneta.x -
-              (
-                xPantalla -
-                anchoMapa * 0.5
-              ),
-            puntoCamioneta.y -
-              (
-                yPantalla -
-                altoMapa * 0.5
-              )
+            puntoPinDestino.x,
+            puntoPinDestino.y +
+              offsetY
           ],
-          zoomActual
+          zoomDestino
         );
-      }
 
+      /*
+        R46:
+        La transición inicial ya no tiene una duración fija corta.
+
+        - mínimo 1,6 s;
+        - suma tiempo según cuántos niveles de zoom haya que recorrer;
+        - máximo 3,0 s.
+
+        Funciona igual si debe ACERCARSE o ALEJARSE.
+        Si el zoom ya coincide, igualmente hace un paneo suave desde
+        el encuadre camioneta+destino hasta la camioneta.
+      */
       const diferenciaZoom =
         Math.abs(
           zoomDestino -
@@ -6598,6 +6576,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       const inicioAnimacion =
         performance.now();
+
+      /*
+        Interpolamos el centro en Mercator para que el viaje visual sea
+        uniforme incluso cuando el encuadre inicial es bastante amplio.
+      */
+      const centroInicioPx =
+        mapa.project(
+          centroInicio,
+          zoomDestino
+        );
+
+      const centroDestinoPx =
+        mapa.project(
+          centroObjetivo,
+          zoomDestino
+        );
 
       mapaGoogle.setOptions({
         isFractionalZoomEnabled:true
@@ -6658,27 +6652,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           ) *
           suavizado;
 
-        const xPantallaInterpolado =
-          xPantallaInicio +
-          (
-            xPantallaFinal -
-            xPantallaInicio
-          ) *
-          suavizado;
-
-        const yPantallaInterpolado =
-          yPantallaInicio +
-          (
-            yPantallaFinal -
-            yPantallaInicio
-          ) *
-          suavizado;
-
         const centroInterpolado =
-          calcularCentroParaCamionetaEnPantalla(
-            zoomInterpolado,
-            xPantallaInterpolado,
-            yPantallaInterpolado
+          mapa.unproject(
+            [
+              centroInicioPx.x +
+              (
+                centroDestinoPx.x -
+                centroInicioPx.x
+              ) *
+              suavizado,
+              centroInicioPx.y +
+              (
+                centroDestinoPx.y -
+                centroInicioPx.y
+              ) *
+              suavizado
+            ],
+            zoomDestino
           );
 
         const camaraInterpolada = {
@@ -6723,20 +6713,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           return;
         }
 
-        const centroFinal =
-          calcularCentroParaCamionetaEnPantalla(
-            zoomDestino,
-            xPantallaFinal,
-            yPantallaFinal
-          );
-
         const camaraFinal = {
           center:{
             lat:Number(
-              centroFinal.lat
+              centroObjetivo.lat
             ),
             lng:Number(
-              centroFinal.lng
+              centroObjetivo.lng
             )
           },
           zoom:zoomDestino
@@ -9709,6 +9692,151 @@ ocultarHoraLlegada();
         primerTramo
       );
   }
+
+
+  /*
+    R50 - ZOOM MANUAL TOMANDO LA CAMIONETA COMO EJE
+
+    Al tocar + o - no cambiamos primero el zoom y luego recentramos.
+    Calculamos directamente la cámara final para el nuevo nivel de zoom
+    usando la posición ACTUAL de la camioneta y el mismo centro visual útil
+    que emplea REFRESCAR POSICIÓN.
+
+    Resultado:
+    - la camioneta no se corre lateralmente;
+    - centro y zoom cambian en una sola operación;
+    - no hace falta volver a reestablecer el mapa después de acercar/alejar.
+  */
+  function aplicarZoomManualConCamionetaComoEje(
+    zoomDestino
+  ){
+
+    if(
+      !mapa ||
+      !marcador ||
+      encuadreInicialMapaActivo
+    ){
+      return;
+    }
+
+    zoomDestino =
+      Math.max(
+        3,
+        Math.min(
+          20,
+          Number(zoomDestino) || 16
+        )
+      );
+
+    try{
+
+      const posicionActual =
+        marcador.getLatLng();
+
+      const latCamioneta =
+        Number(
+          posicionActual.lat
+        );
+
+      const lonCamioneta =
+        Number(
+          posicionActual.lng
+        );
+
+      if(
+        !Number.isFinite(
+          latCamioneta
+        ) ||
+        !Number.isFinite(
+          lonCamioneta
+        )
+      ){
+        return;
+      }
+
+      let altoPanel =
+        0;
+
+      if(
+        piocaTrayectoPanel
+      ){
+        altoPanel =
+          piocaTrayectoPanel
+          .getBoundingClientRect()
+          .height;
+      }
+
+      const altoMapa =
+        mapa
+        .getSize()
+        .y;
+
+      const offsetY =
+        Math.max(
+          0,
+          Math.min(
+            altoPanel * 0.50,
+            altoMapa * 0.32
+          )
+        );
+
+      /*
+        El centro objetivo se calcula directamente PARA EL ZOOM NUEVO.
+        Así la camioneta conserva su eje visual durante todo el cambio.
+      */
+      const puntoPin =
+        mapa.project(
+          [
+            latCamioneta,
+            lonCamioneta
+          ],
+          zoomDestino
+        );
+
+      const centroObjetivo =
+        mapa.unproject(
+          [
+            puntoPin.x,
+            puntoPin.y +
+              offsetY
+          ],
+          zoomDestino
+        );
+
+      const mapaGoogle =
+        mapa._map;
+
+      if(
+        mapaGoogle &&
+        typeof mapaGoogle.moveCamera ===
+          "function"
+      ){
+
+        mapaGoogle.moveCamera({
+          center:{
+            lat:Number(
+              centroObjetivo.lat
+            ),
+            lng:Number(
+              centroObjetivo.lng
+            )
+          },
+          zoom:zoomDestino
+        });
+
+      }else{
+
+        mapa.setView(
+          centroObjetivo,
+          zoomDestino
+        );
+      }
+
+    }catch(e){}
+  }
+
+  window.piocaZoomManualCamioneta =
+    aplicarZoomManualConCamionetaComoEje;
 
 
   function centrarMapaEnAreaUtil(
