@@ -5160,7 +5160,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     /*
       R44:
       mientras se muestra el encuadre inicial camioneta + destino,
-      no dejamos que la lógica ETA lo reemplace antes de los 2 segundos.
+      no dejamos que la lógica ETA lo reemplace antes de completar el pantallazo inicial de 3,5 segundos.
     */
     if(
       encuadreInicialMapaActivo
@@ -6143,8 +6143,79 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
 
       /*
+        R45:
+        El tiempo de lectura inicial empieza recién cuando Google terminó
+        de acomodar camioneta + destino. Así la carga del mapa no consume
+        parte de los 3,5 segundos que queremos mostrar al cliente.
+      */
+      function iniciarPausaEncuadreInicial(){
+
+        if(
+          !encuadreInicialMapaActivo ||
+          terminado
+        ){
+          return;
+        }
+
+        if(
+          encuadreInicialMapaTimer !== null
+        ){
+          clearTimeout(
+            encuadreInicialMapaTimer
+          );
+        }
+
+        encuadreInicialMapaTimer =
+          setTimeout(
+            function(){
+
+              encuadreInicialMapaTimer =
+                null;
+
+              encuadreInicialMapaActivo =
+                false;
+
+              if(
+                terminado
+              ){
+                return;
+              }
+
+              /*
+                Liberamos el tramo actual para que la lógica ETA tome
+                el control una sola vez al terminar el pantallazo.
+              */
+              tramoZoomEtaActual =
+                null;
+
+              const faltanMinDespues =
+                (
+                  llegadaClienteMs &&
+                  Number.isFinite(
+                    llegadaClienteMs
+                  )
+                )
+                  ? (
+                      llegadaClienteMs -
+                      Date.now()
+                    ) /
+                    60000
+                  : faltanMinActual;
+
+              aplicarZoomEtaInicialSuave(
+                faltanMinDespues
+              );
+
+            },
+            3500
+          );
+      }
+
+      /*
         fitBounds puede acercarse demasiado si los dos puntos están
         muy próximos. Lo limitamos al zoom ETA que corresponde.
+        Si hay que corregir ese zoom, esperamos también a que termine
+        esa corrección antes de iniciar los 3,5 segundos.
       */
       google.maps.event.addListenerOnce(
         mapaGoogle,
@@ -6166,10 +6237,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
             Number.isFinite(zoomFit) &&
             zoomFit > zoomMaximoEncuadre
           ){
+
+            google.maps.event.addListenerOnce(
+              mapaGoogle,
+              "idle",
+              iniciarPausaEncuadreInicial
+            );
+
             mapaGoogle.setZoom(
               zoomMaximoEncuadre
             );
+
+            return;
           }
+
+          iniciarPausaEncuadreInicial();
         }
       );
 
@@ -6187,59 +6269,312 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       return;
     }
+  }
+
+
+  function aplicarZoomEtaInicialSuave(
+    faltanMin
+  ){
+
+    const tramo =
+      obtenerTramoZoomEta(
+        faltanMin
+      );
 
     if(
-      encuadreInicialMapaTimer !== null
+      !tramo ||
+      !mapa ||
+      !marcador
     ){
-      clearTimeout(
-        encuadreInicialMapaTimer
-      );
+      return;
     }
 
-    encuadreInicialMapaTimer =
-      setTimeout(
-        function(){
+    tramoZoomEtaActual =
+      tramo.clave;
 
-          encuadreInicialMapaTimer =
-            null;
+    try{
 
-          encuadreInicialMapaActivo =
-            false;
+      const mapaGoogle =
+        mapa._map;
 
-          if(
-            terminado
-          ){
-            return;
-          }
+      if(
+        !mapaGoogle
+      ){
+        mapa.setZoom(
+          tramo.zoom
+        );
+        recentrarPinTrasCambioZoom();
+        return;
+      }
 
-          /*
-            Liberamos el tramo actual para obligar a que la lógica ETA
-            vuelva a aplicar su zoom correspondiente una sola vez.
-          */
-          tramoZoomEtaActual =
-            null;
+      const zoomInicio =
+        Number(
+          mapaGoogle.getZoom()
+        );
 
-          const faltanMinDespues =
-            (
-              llegadaClienteMs &&
-              Number.isFinite(
-                llegadaClienteMs
+      const zoomDestino =
+        Number(
+          tramo.zoom
+        );
+
+      if(
+        !Number.isFinite(zoomInicio) ||
+        !Number.isFinite(zoomDestino)
+      ){
+        mapaGoogle.setZoom(
+          zoomDestino
+        );
+        recentrarPinTrasCambioZoom();
+        return;
+      }
+
+      const posicionCamioneta =
+        marcador.getLatLng();
+
+      const centroGoogle =
+        mapaGoogle.getCenter();
+
+      const centroInicio =
+        centroGoogle
+          ? {
+              lat:Number(
+                centroGoogle.lat()
+              ),
+              lng:Number(
+                centroGoogle.lng()
               )
-            )
-              ? (
-                  llegadaClienteMs -
-                  Date.now()
-                ) /
-                60000
-              : faltanMinActual;
+            }
+          : {
+              lat:Number(
+                posicionCamioneta.lat
+              ),
+              lng:Number(
+                posicionCamioneta.lng
+              )
+            };
 
-          actualizarZoomSegunEta(
-            faltanMinDespues
+      /*
+        Calculamos el centro final con exactamente el mismo criterio
+        visual usado por "REFRESCAR POSICIÓN": la camioneta queda
+        centrada en el área útil, descontando el panel inferior.
+      */
+      let altoPanel =
+        0;
+
+      if(
+        piocaTrayectoPanel
+      ){
+        altoPanel =
+          piocaTrayectoPanel
+            .getBoundingClientRect()
+            .height;
+      }
+
+      const altoMapa =
+        mapa.getSize().y;
+
+      const offsetY =
+        Math.max(
+          0,
+          Math.min(
+            altoPanel * 0.50,
+            altoMapa * 0.32
+          )
+        );
+
+      const puntoPinDestino =
+        mapa.project(
+          [
+            Number(posicionCamioneta.lat),
+            Number(posicionCamioneta.lng)
+          ],
+          zoomDestino
+        );
+
+      const centroObjetivo =
+        mapa.unproject(
+          [
+            puntoPinDestino.x,
+            puntoPinDestino.y +
+              offsetY
+          ],
+          zoomDestino
+        );
+
+      /*
+        R46:
+        La transición inicial ya no tiene una duración fija corta.
+
+        - mínimo 1,6 s;
+        - suma tiempo según cuántos niveles de zoom haya que recorrer;
+        - máximo 3,0 s.
+
+        Funciona igual si debe ACERCARSE o ALEJARSE.
+        Si el zoom ya coincide, igualmente hace un paneo suave desde
+        el encuadre camioneta+destino hasta la camioneta.
+      */
+      const diferenciaZoom =
+        Math.abs(
+          zoomDestino -
+          zoomInicio
+        );
+
+      const duracionZoomInicialMs =
+        Math.max(
+          1600,
+          Math.min(
+            3000,
+            1500 +
+            diferenciaZoom * 350
+          )
+        );
+
+      const inicioAnimacion =
+        performance.now();
+
+      /*
+        Interpolamos el centro en Mercator para que el viaje visual sea
+        uniforme incluso cuando el encuadre inicial es bastante amplio.
+      */
+      const centroInicioPx =
+        mapa.project(
+          centroInicio,
+          zoomDestino
+        );
+
+      const centroDestinoPx =
+        mapa.project(
+          centroObjetivo,
+          zoomDestino
+        );
+
+      mapaGoogle.setOptions({
+        isFractionalZoomEnabled:true
+      });
+
+      function pasoZoom(
+        ahora
+      ){
+
+        if(
+          terminado
+        ){
+          mapaGoogle.setOptions({
+            isFractionalZoomEnabled:false
+          });
+          return;
+        }
+
+        const progreso =
+          Math.max(
+            0,
+            Math.min(
+              1,
+              (
+                ahora -
+                inicioAnimacion
+              ) /
+              duracionZoomInicialMs
+            )
           );
 
-        },
-        2000
+        /*
+          Ease-in-out cúbico:
+          arranca suave, acelera en el medio y vuelve a frenar.
+        */
+        const suavizado =
+          progreso < 0.5
+            ? 4 *
+              progreso *
+              progreso *
+              progreso
+            : 1 -
+              Math.pow(
+                -2 *
+                progreso +
+                2,
+                3
+              ) /
+              2;
+
+        mapaGoogle.setZoom(
+          zoomInicio +
+          (
+            zoomDestino -
+            zoomInicio
+          ) *
+          suavizado
+        );
+
+        const centroInterpolado =
+          mapa.unproject(
+            [
+              centroInicioPx.x +
+              (
+                centroDestinoPx.x -
+                centroInicioPx.x
+              ) *
+              suavizado,
+              centroInicioPx.y +
+              (
+                centroDestinoPx.y -
+                centroInicioPx.y
+              ) *
+              suavizado
+            ],
+            zoomDestino
+          );
+
+        mapaGoogle.setCenter({
+          lat:Number(
+            centroInterpolado.lat
+          ),
+          lng:Number(
+            centroInterpolado.lng
+          )
+        });
+
+        if(
+          progreso < 1
+        ){
+          requestAnimationFrame(
+            pasoZoom
+          );
+          return;
+        }
+
+        mapaGoogle.setZoom(
+          zoomDestino
+        );
+
+        mapaGoogle.setCenter({
+          lat:Number(
+            centroObjetivo.lat
+          ),
+          lng:Number(
+            centroObjetivo.lng
+          )
+        });
+
+        mapaGoogle.setOptions({
+          isFractionalZoomEnabled:false
+        });
+      }
+
+      requestAnimationFrame(
+        pasoZoom
       );
+
+    }catch(e){
+
+      try{
+        mapa.setZoom(
+          tramo.zoom
+        );
+      }catch(_){}
+
+      recentrarPinTrasCambioZoom();
+    }
   }
 
 
