@@ -2666,6 +2666,53 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   pointer-events:none;
 }
 
+
+/* ==========================================================
+   R41 - PIN DEL DOMICILIO DEL CLIENTE
+   - Usa pin_cliente.png
+   - Mismo ancho visual que el pin de la camioneta: 50 px
+   - Mantiene la punta anclada exactamente en las coordenadas
+   - Salto vertical muy sutil de 4 px
+   ========================================================== */
+
+.piocaDestinoIcon{
+  width:50px !important;
+  height:61px !important;
+  background:transparent !important;
+  border:0 !important;
+  overflow:visible !important;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.25)) !important;
+}
+
+.piocaDestinoImagen{
+  display:block;
+  width:50px;
+  height:61px;
+  max-width:none;
+  object-fit:contain;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-drag:none;
+  transform-origin:50% 100%;
+  will-change:transform;
+  animation:piocaDestinoSalto 1.8s ease-in-out infinite;
+}
+
+@keyframes piocaDestinoSalto{
+  0%, 58%, 100%{
+    transform:translateY(0);
+  }
+  29%{
+    transform:translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .piocaDestinoImagen{
+    animation:none !important;
+  }
+}
+
 </style>
 
 </head>
@@ -3974,12 +4021,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     L.divIcon({
       className:"piocaDestinoIcon",
       html:
-        '<svg viewBox="0 0 34 44" aria-hidden="true">' +
-          '<path d="M17 1.5C9.05 1.5 2.6 7.95 2.6 15.9c0 10.8 14.4 26.1 14.4 26.1s14.4-15.3 14.4-26.1C31.4 7.95 24.95 1.5 17 1.5Z" fill="#e1262d" stroke="#ffffff" stroke-width="2.2"/>' +
-          '<circle cx="17" cy="15.7" r="5.4" fill="#ffffff"/>' +
-        '</svg>',
-      iconSize:[34,44],
-      iconAnchor:[17,43]
+        '<img class="piocaDestinoImagen" src="pin_cliente.png" alt="">',
+      iconSize:[50,61],
+      iconAnchor:[25,61]
     });
 
 
