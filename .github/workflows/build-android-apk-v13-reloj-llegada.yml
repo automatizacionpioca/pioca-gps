@@ -1,0 +1,241 @@
+name: Compilar piOca Android APK V13 Reloj Llegada
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Instalar Android 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Generar proyecto base V7
+        shell: bash
+        run: |
+          set -e
+
+          python3 -m pip install --quiet pyyaml
+
+          python3 - <<'PY'
+          import yaml
+          from pathlib import Path
+
+          source = Path(".github/workflows/build-android-apk.yml")
+
+          with source.open("r", encoding="utf-8") as f:
+              data = yaml.safe_load(f)
+
+          script = None
+
+          for step in data["jobs"]["build"]["steps"]:
+              name = str(step.get("name", ""))
+
+              if name.startswith("Crear proyecto Android v7"):
+                  script = step.get("run")
+                  break
+
+          if not script:
+              raise SystemExit(
+                  "ERROR: No encontré el bloque de generación V7 "
+                  "en build-android-apk.yml"
+              )
+
+          Path("/tmp/pioca-genera-v7.sh").write_text(
+              script,
+              encoding="utf-8"
+          )
+          PY
+
+          bash /tmp/pioca-genera-v7.sh
+
+      - name: Aplicar V8 silencio No molestar
+        run: |
+          python3 .github/scripts/patch_android_v8_silencio.py
+
+      - name: Aplicar V9 GPS cada 2 segundos
+        run: |
+          python3 .github/scripts/patch_android_v9_gps_2s.py
+
+      - name: Aplicar V10 compartir Google Maps y WhatsApp
+        run: |
+          python3 .github/scripts/patch_android_v10_maps_share.py
+
+      - name: Aplicar V11 ETA dinamica
+        run: |
+          python3 .github/scripts/patch_android_v11_eta_dinamica.py
+
+      - name: Aplicar V12 ETA Freeze
+        run: |
+          python3 .github/scripts/patch_android_v12_eta_freeze.py
+
+      - name: Aplicar V13 reloj llegada y DND 2/4
+        run: |
+          python3 .github/scripts/patch_android_v13_reloj_llegada.py
+
+      - name: Verificar configuración V13
+        shell: bash
+        run: |
+          set -e
+
+          SERVICE="android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java"
+          MAIN="android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java"
+          MANIFEST="android-pioca/app/src/main/AndroidManifest.xml"
+          GRADLE="android-pioca/app/build.gradle"
+
+          grep -q 'versionCode 13' "$GRADLE"
+          grep -q 'versionName "0.13-reloj-llegada"' "$GRADLE"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          service = Path(
+              "android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java"
+          ).read_text(encoding="utf-8")
+
+          main = Path(
+              "android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java"
+          ).read_text(encoding="utf-8")
+
+          checks = [
+              (
+                  r'LocationManager\.GPS_PROVIDER,\s*2000L',
+                  "GPS principal dejó de estar en 2 s",
+              ),
+              (
+                  r'LocationManager\.NETWORK_PROVIDER,\s*10000L',
+                  "NETWORK dejó de estar en 10 s",
+              ),
+              (
+                  r'last\s*!=\s*null\s*&&\s*now\s*-\s*lastOk\s*>=\s*10000L',
+                  "heartbeat GPS dejó de estar en 10 s",
+              ),
+              (
+                  r'DND_ENTER_BEFORE_ARRIVAL_MS\s*=\s*2L\s*\*\s*60L\s*\*\s*1000L',
+                  "DND no entra a los 2 min",
+              ),
+              (
+                  r'DND_EXIT_BEFORE_ARRIVAL_MS\s*=\s*4L\s*\*\s*60L\s*\*\s*1000L',
+                  "DND no sale a los 4 min",
+              ),
+              (
+                  r'ETA_REFRESH_NORMAL_MS\s*=\s*60L\s*\*\s*1000L',
+                  "ETA normal dejó de estar en 60 s",
+              ),
+              (
+                  r'ETA_REFRESH_FINAL_MS\s*=\s*15L\s*\*\s*1000L',
+                  "ETA final dejó de estar en 15 s",
+              ),
+              (
+                  r'ETA_FINAL_WINDOW_MS\s*=\s*3L\s*\*\s*60L\s*\*\s*1000L',
+                  "ventana ETA final dejó de estar en 3 min",
+              ),
+              (
+                  r'clientArrivalMillis\s*>\s*0\s*&&\s*now\s*>=\s*clientArrivalMillis',
+                  "falta freeze ETA V12 al alcanzar T0",
+              ),
+              (
+                  r'etaApplyNow\s*>=\s*clientArrivalMillis',
+                  "falta barrera anti-carrera V12",
+              ),
+              (
+                  r'arrivalReachedAtMillis\s*=\s*clientArrivalMillis',
+                  "falta latch T0",
+              ),
+              (
+                  r'arrivalReachedAtMillis\s*\+\s*TRACKING_AFTER_ARRIVAL_MS',
+                  "falta reloj fijo T0+5",
+              ),
+              (
+                  r'maybeLatchArrivalAndFinish\(now\)',
+                  "heartbeat no usa reloj T0+5",
+              ),
+          ]
+
+          for pattern, message in checks:
+              if not re.search(pattern, service, re.S):
+                  raise SystemExit("ERROR V13: " + message)
+
+          required = [
+              "get_tracking_runtime_eta_state",
+              "/functions/v1/tracking-router",
+              "update_tracking_route_eta",
+              "maybeRefreshRouteEta(now)",
+              "maybeEnableDnd(now)",
+              "maybeLatchArrivalAndFinish(now)",
+          ]
+
+          for needle in required:
+              if needle not in service:
+                  raise SystemExit("ERROR V13: falta " + needle)
+
+          if "DND_BEFORE_ARRIVAL_MS" in service:
+              raise SystemExit("ERROR V13: quedó umbral DND viejo")
+
+          if re.search(
+              r'now\s*>=\s*expiresAtMillis',
+              service,
+              re.S,
+          ):
+              raise SystemExit(
+                  "ERROR V13: quedó cierre pre-T0 por expiresAtMillis"
+              )
+
+          if "cuando falten 2 minutos para llegar" not in main:
+              raise SystemExit("ERROR V13: texto DND no quedó en 2 min")
+
+          print(
+              "GPS 2 s, ETA dinámica, DND 2/4, freeze T0 y "
+              "reloj nativo fijo T0+5 verificados."
+          )
+          PY
+
+          grep -q 'android.intent.action.SEND' "$MANIFEST"
+          grep -q 'android:mimeType="text/plain"' "$MANIFEST"
+          grep -q 'android:launchMode="singleTop"' "$MANIFEST"
+          grep -q 'consumeSharedDestination' "$MAIN"
+          grep -q 'shareWhatsApp' "$MAIN"
+          grep -q 'pending_shared_destination' "$MAIN"
+          grep -q 'com.whatsapp.w4b' "$MAIN"
+          grep -q '"com.whatsapp"' "$MAIN"
+
+          echo "Configuración V13 Reloj Llegada verificada."
+
+      - name: Compilar APK debug
+        working-directory: android-pioca
+        run: |
+          gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK
+        run: |
+          cp \
+            android-pioca/app/build/outputs/apk/debug/app-debug.apk \
+            piOca-Seguimiento-V13-reloj-llegada.apk
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-Seguimiento-APK-V13-reloj-llegada
+          path: piOca-Seguimiento-V13-reloj-llegada.apk
+          retention-days: 90
