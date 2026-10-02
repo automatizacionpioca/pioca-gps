@@ -6167,14 +6167,70 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               const posicionActual =
                 marcador.getLatLng();
 
-              centrarMapaEnAreaUtil(
-                posicionActual.lat,
-                posicionActual.lng,
-                {
-                  animate:true,
-                  duration:0.45
+              const faltanMinRefresco =
+                (
+                  llegadaClienteMs &&
+                  Number.isFinite(
+                    llegadaClienteMs
+                  )
+                )
+                  ? (
+                      llegadaClienteMs -
+                      Date.now()
+                    ) /
+                    60000
+                  : null;
+
+              const tramoRefresco =
+                Number.isFinite(
+                  faltanMinRefresco
+                )
+                  ? obtenerTramoZoomEta(
+                      faltanMinRefresco
+                    )
+                  : null;
+
+              if(
+                tramoRefresco
+              ){
+                tramoZoomEtaActual =
+                  tramoRefresco.clave;
+
+                const zoomActual =
+                  Number(
+                    mapa.getZoom()
+                  );
+
+                if(
+                  Number.isFinite(zoomActual) &&
+                  zoomActual ===
+                    Number(tramoRefresco.zoom)
+                ){
+                  centrarMapaEnAreaUtil(
+                    posicionActual.lat,
+                    posicionActual.lng,
+                    {
+                      animate:true,
+                      duration:0.45
+                    }
+                  );
+                }else{
+                  aplicarZoomManualConCamionetaComoEje(
+                    tramoRefresco.zoom
+                  );
                 }
-              );
+
+              }else{
+
+                centrarMapaEnAreaUtil(
+                  posicionActual.lat,
+                  posicionActual.lng,
+                  {
+                    animate:true,
+                    duration:0.45
+                  }
+                );
+              }
 
             }catch(e){}
           }
@@ -6739,9 +6795,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
   /*
     ORIENTACIÓN INICIAL ÚNICA DEL MAPA
-    Calcula el rumbo camioneta -> domicilio para que, al terminar
-    la transición inicial, el domicilio quede visualmente arriba.
-    No se vuelve a recalcular ni a aplicar durante el seguimiento.
+
+    - El rumbo se calcula una sola vez por carga usando camioneta -> domicilio.
+    - El domicilio queda visualmente arriba.
+    - Después se conserva ese heading; ningún refresh ni cambio ETA lo modifica.
   */
   function calcularRumboInicialDestino(
     latOrigen,
@@ -6803,6 +6860,116 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       rumbo +
       360
     ) % 360;
+  }
+
+
+  function diferenciaRumboMasCorta(
+    desde,
+    hasta
+  ){
+
+    return (
+      (
+        Number(hasta) -
+        Number(desde) +
+        540
+      ) %
+      360
+    ) -
+    180;
+  }
+
+
+  /*
+    Calcula el centro geográfico necesario para que un punto quede en una
+    coordenada concreta de pantalla aunque el mapa esté rotado.
+
+    Esto conserva el centrado original de la camioneta después de rotar
+    el mapa, al refrescar y cuando cambia el zoom por ETA.
+  */
+  function calcularCentroPuntoEnPantallaConRumbo(
+    lat,
+    lon,
+    zoom,
+    xPantalla,
+    yPantalla,
+    heading
+  ){
+
+    if(
+      !mapa ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      !Number.isFinite(zoom) ||
+      !Number.isFinite(xPantalla) ||
+      !Number.isFinite(yPantalla)
+    ){
+      return null;
+    }
+
+    const tamano =
+      mapa.getSize();
+
+    const ancho =
+      Number(tamano.x) || 0;
+
+    const alto =
+      Number(tamano.y) || 0;
+
+    if(
+      ancho <= 0 ||
+      alto <= 0
+    ){
+      return null;
+    }
+
+    const punto =
+      mapa.project(
+        [lat,lon],
+        zoom
+      );
+
+    const dxPantalla =
+      xPantalla -
+      ancho * 0.5;
+
+    const dyPantalla =
+      yPantalla -
+      alto * 0.5;
+
+    const angulo =
+      (
+        Number(heading) || 0
+      ) *
+      Math.PI /
+      180;
+
+    /*
+      La pantalla está rotada -heading respecto del mundo.
+      Para recuperar el desplazamiento en coordenadas Mercator
+      aplicamos la rotación inversa (+heading).
+    */
+    const dxMundo =
+      Math.cos(angulo) *
+      dxPantalla -
+      Math.sin(angulo) *
+      dyPantalla;
+
+    const dyMundo =
+      Math.sin(angulo) *
+      dxPantalla +
+      Math.cos(angulo) *
+      dyPantalla;
+
+    return mapa.unproject(
+      [
+        punto.x -
+          dxMundo,
+        punto.y -
+          dyMundo
+      ],
+      zoom
+    );
   }
 
 
@@ -6876,6 +7043,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           Number(destinoLat),
           Number(destinoLon)
         );
+
+      const headingInicio =
+        Number(
+          typeof mapaGoogle.getHeading === "function"
+            ? mapaGoogle.getHeading()
+            : 0
+        ) || 0;
+
+      const diferenciaHeading =
+        Number.isFinite(
+          rumboInicialDestino
+        )
+          ? diferenciaRumboMasCorta(
+              headingInicio,
+              rumboInicialDestino
+            )
+          : 0;
 
       const centroGoogle =
         mapaGoogle.getCenter();
@@ -6962,19 +7146,36 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           zoomInicio
         );
 
+      const dxMundoInicio =
+        puntoCamionetaInicio.x -
+        puntoCentroInicio.x;
+
+      const dyMundoInicio =
+        puntoCamionetaInicio.y -
+        puntoCentroInicio.y;
+
+      const anguloInicio =
+        headingInicio *
+        Math.PI /
+        180;
+
+      /*
+        Posición REAL de la camioneta en pantalla con el heading vigente.
+        Así la animación empieza exactamente donde está, sin salto.
+      */
       const xPantallaInicio =
         anchoMapa * 0.5 +
-        (
-          puntoCamionetaInicio.x -
-          puntoCentroInicio.x
-        );
+        Math.cos(anguloInicio) *
+          dxMundoInicio +
+        Math.sin(anguloInicio) *
+          dyMundoInicio;
 
       const yPantallaInicio =
-        altoMapa * 0.5 +
-        (
-          puntoCamionetaInicio.y -
-          puntoCentroInicio.y
-        );
+        altoMapa * 0.5 -
+        Math.sin(anguloInicio) *
+          dxMundoInicio +
+        Math.cos(anguloInicio) *
+          dyMundoInicio;
 
       const xPantallaFinal =
         anchoMapa * 0.5;
@@ -6986,32 +7187,17 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       function calcularCentroParaCamionetaEnPantalla(
         zoomActual,
         xPantalla,
-        yPantalla
+        yPantalla,
+        headingActual
       ){
 
-        const puntoCamioneta =
-          mapa.project(
-            [
-              Number(posicionCamioneta.lat),
-              Number(posicionCamioneta.lng)
-            ],
-            zoomActual
-          );
-
-        return mapa.unproject(
-          [
-            puntoCamioneta.x -
-              (
-                xPantalla -
-                anchoMapa * 0.5
-              ),
-            puntoCamioneta.y -
-              (
-                yPantalla -
-                altoMapa * 0.5
-              )
-          ],
-          zoomActual
+        return calcularCentroPuntoEnPantallaConRumbo(
+          Number(posicionCamioneta.lat),
+          Number(posicionCamioneta.lng),
+          zoomActual,
+          xPantalla,
+          yPantalla,
+          headingActual
         );
       }
 
@@ -7021,7 +7207,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           zoomInicio
         );
 
-      const duracionZoomInicialMs =
+      const duracionZoomBaseMs =
         Math.max(
           1600,
           Math.min(
@@ -7029,6 +7215,26 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
             1500 +
             diferenciaZoom * 350
           )
+        );
+
+      /*
+        Si el mapa necesita girar bastante, extendemos la misma transición
+        para que la rotación sea progresiva y no pegue un pantallazo.
+      */
+      const duracionRotacionMs =
+        Math.min(
+          3600,
+          2350 +
+          Math.abs(
+            diferenciaHeading
+          ) *
+          4.2
+        );
+
+      const duracionZoomInicialMs =
+        Math.max(
+          duracionZoomBaseMs,
+          duracionRotacionMs
         );
 
       const inicioAnimacion =
@@ -7109,12 +7315,24 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           ) *
           suavizado;
 
+        const headingInterpolado =
+          headingInicio +
+          diferenciaHeading *
+          suavizado;
+
         const centroInterpolado =
           calcularCentroParaCamionetaEnPantalla(
             zoomInterpolado,
             xPantallaInterpolado,
-            yPantallaInterpolado
+            yPantallaInterpolado,
+            headingInterpolado
           );
+
+        if(
+          !centroInterpolado
+        ){
+          return;
+        }
 
         const camaraInterpolada = {
           center:{
@@ -7125,7 +7343,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               centroInterpolado.lng
             )
           },
-          zoom:zoomInterpolado
+          zoom:zoomInterpolado,
+          heading:headingInterpolado
         };
 
         /*
@@ -7158,12 +7377,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           return;
         }
 
+        const headingFinal =
+          headingInicio +
+          diferenciaHeading;
+
         const centroFinal =
           calcularCentroParaCamionetaEnPantalla(
             zoomDestino,
             xPantallaFinal,
-            yPantallaFinal
+            yPantallaFinal,
+            headingFinal
           );
+
+        if(
+          !centroFinal
+        ){
+          return;
+        }
 
         const camaraFinal = {
           center:{
@@ -7174,23 +7404,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               centroFinal.lng
             )
           },
-          zoom:zoomDestino
+          zoom:zoomDestino,
+          heading:headingFinal
         };
-
-        /*
-          La rotación ocurre UNA sola vez por carga:
-          al terminar el encuadre/transición inicial.
-          Después ni ETA, ni REFRESCAR POSICIÓN, ni los zoom manuales
-          vuelven a establecer un rumbo automático.
-        */
-        if(
-          Number.isFinite(
-            rumboInicialDestino
-          )
-        ){
-          camaraFinal.heading =
-            rumboInicialDestino;
-        }
 
         if(
           typeof mapaGoogle.moveCamera ===
@@ -7206,18 +7422,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           mapaGoogle.setZoom(
             camaraFinal.zoom
           );
-
-          if(
-            Number.isFinite(
-              rumboInicialDestino
-            ) &&
-            typeof mapaGoogle.setHeading ===
-              "function"
-          ){
-            mapaGoogle.setHeading(
-              rumboInicialDestino
-            );
-          }
         }
 
         mapaGoogle.setOptions({
@@ -10313,30 +10517,39 @@ ocultarHoraLlegada();
         );
 
       /*
-        El centro objetivo se calcula directamente PARA EL ZOOM NUEVO.
-        Así la camioneta conserva su eje visual durante todo el cambio.
+        El centro objetivo se calcula directamente PARA EL ZOOM NUEVO
+        respetando el heading actual del mapa.
       */
-      const puntoPin =
-        mapa.project(
-          [
-            latCamioneta,
-            lonCamioneta
-          ],
-          zoomDestino
-        );
-
-      const centroObjetivo =
-        mapa.unproject(
-          [
-            puntoPin.x,
-            puntoPin.y +
-              offsetY
-          ],
-          zoomDestino
-        );
-
       const mapaGoogle =
         mapa._map;
+
+      const headingActual =
+        Number(
+          mapaGoogle &&
+          typeof mapaGoogle.getHeading === "function"
+            ? mapaGoogle.getHeading()
+            : 0
+        ) || 0;
+
+      const tamanoMapa =
+        mapa.getSize();
+
+      const centroObjetivo =
+        calcularCentroPuntoEnPantallaConRumbo(
+          latCamioneta,
+          lonCamioneta,
+          zoomDestino,
+          (Number(tamanoMapa.x) || 0) * 0.5,
+          (Number(tamanoMapa.y) || 0) * 0.5 -
+            offsetY,
+          headingActual
+        );
+
+      if(
+        !centroObjetivo
+      ){
+        return;
+      }
 
       if(
         mapaGoogle &&
@@ -10437,21 +10650,36 @@ ocultarHoraLlegada();
       const zoom =
         mapa.getZoom();
 
-      const puntoPin =
-        mapa.project(
-          [lat,lon],
-          zoom
-        );
+      const mapaGoogle =
+        mapa._map;
+
+      const headingActual =
+        Number(
+          mapaGoogle &&
+          typeof mapaGoogle.getHeading === "function"
+            ? mapaGoogle.getHeading()
+            : 0
+        ) || 0;
+
+      const tamanoMapa =
+        mapa.getSize();
 
       const centroObjetivo =
-        mapa.unproject(
-          [
-            puntoPin.x,
-            puntoPin.y +
-            offsetY
-          ],
-          zoom
+        calcularCentroPuntoEnPantallaConRumbo(
+          lat,
+          lon,
+          zoom,
+          (Number(tamanoMapa.x) || 0) * 0.5,
+          (Number(tamanoMapa.y) || 0) * 0.5 -
+            offsetY,
+          headingActual
         );
+
+      if(
+        !centroObjetivo
+      ){
+        return;
+      }
 
       mapa.panTo(
         centroObjetivo,
