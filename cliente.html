@@ -5419,8 +5419,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
      R51 - CARTEL DE PROXIMIDAD
      - <= 300 m: ¡ESTAMOS MUY CERCA!
      - si vuelve a > 300 m: desaparece
-     - al alcanzar la ETA: HEMOS LLEGADO
-     - el estado final existente sigue entrando a ETA + 1 minuto
+     - hasta ETA + 3 min conserva el estado de proximidad real
+     - desde ETA + 3 min: HEMOS LLEGADO
+     - la pantalla final entra a ETA + 4 minutos
      ========================================================== */
 
   function ocultarAvisoProximidad(){
@@ -5488,13 +5489,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     /*
-      HEMOS LLEGADO depende de la misma ETA vigente del cliente.
-      No se altera la lógica existente de llegada/finalización.
+      HEMOS LLEGADO usa la misma ETA vigente del cliente,
+      pero con 3 minutos de margen para absorber pequeños errores de ETA.
+      Si Google corrige la ETA antes de cumplirse el margen,
+      este instante se desplaza automáticamente con la nueva ETA.
     */
     if(
       llegadaClienteMs &&
       Number.isFinite(llegadaClienteMs) &&
-      Date.now() >= llegadaClienteMs
+      Date.now() >=
+        llegadaClienteMs + 180000
     ){
       piocaAvisoProximidad.textContent =
         "HEMOS LLEGADO";
@@ -5569,22 +5573,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     actualizarAvisoProximidad();
 
     /*
-      Llegada visual anticipada:
-      si la ETA vigente lleva 60 segundos cumplida,
-      mostramos HEMOS LLEGADO en el cliente.
+      Cierre visual del mapa:
+      la pantalla final entra 4 minutos después de la ETA vigente.
+      El cartel HEMOS LLEGADO ya aparece desde ETA + 3 minutos,
+      por lo que se mantiene visible durante el último minuto con mapa.
 
       IMPORTANTE:
       esto NO finaliza el seguimiento en Supabase.
       El vencimiento real de seguridad sigue siendo
       client_arrival + 5 minutos, exactamente como antes.
 
-      Si Google recalcula la ETA durante este minuto de gracia,
-      llegadaClienteMs se actualiza y esta condición se desplaza
+      Si Google recalcula la ETA durante este margen,
+      llegadaClienteMs se actualiza y ambas condiciones se desplazan
       automáticamente con la nueva ETA.
     */
     if(
       ahoraMs >=
-        llegadaClienteMs + 60000
+        llegadaClienteMs + 240000
     ){
       mostrarFinalizado();
       return;
