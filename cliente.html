@@ -6737,6 +6737,75 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  /*
+    ORIENTACIÓN INICIAL ÚNICA DEL MAPA
+    Calcula el rumbo camioneta -> domicilio para que, al terminar
+    la transición inicial, el domicilio quede visualmente arriba.
+    No se vuelve a recalcular ni a aplicar durante el seguimiento.
+  */
+  function calcularRumboInicialDestino(
+    latOrigen,
+    lonOrigen,
+    latDestino,
+    lonDestino
+  ){
+
+    if(
+      !Number.isFinite(latOrigen) ||
+      !Number.isFinite(lonOrigen) ||
+      !Number.isFinite(latDestino) ||
+      !Number.isFinite(lonDestino)
+    ){
+      return null;
+    }
+
+    const rad =
+      Math.PI / 180;
+
+    const phi1 =
+      latOrigen * rad;
+
+    const phi2 =
+      latDestino * rad;
+
+    const deltaLon =
+      (
+        lonDestino -
+        lonOrigen
+      ) * rad;
+
+    const y =
+      Math.sin(deltaLon) *
+      Math.cos(phi2);
+
+    const x =
+      Math.cos(phi1) *
+      Math.sin(phi2) -
+      Math.sin(phi1) *
+      Math.cos(phi2) *
+      Math.cos(deltaLon);
+
+    const rumbo =
+      Math.atan2(
+        y,
+        x
+      ) *
+      180 /
+      Math.PI;
+
+    if(
+      !Number.isFinite(rumbo)
+    ){
+      return null;
+    }
+
+    return (
+      rumbo +
+      360
+    ) % 360;
+  }
+
+
   function aplicarZoomEtaInicialSuave(
     faltanMin
   ){
@@ -6799,6 +6868,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       const posicionCamioneta =
         marcador.getLatLng();
+
+      const rumboInicialDestino =
+        calcularRumboInicialDestino(
+          Number(posicionCamioneta.lat),
+          Number(posicionCamioneta.lng),
+          Number(destinoLat),
+          Number(destinoLon)
+        );
 
       const centroGoogle =
         mapaGoogle.getCenter();
@@ -7100,6 +7177,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           zoom:zoomDestino
         };
 
+        /*
+          La rotación ocurre UNA sola vez por carga:
+          al terminar el encuadre/transición inicial.
+          Después ni ETA, ni REFRESCAR POSICIÓN, ni los zoom manuales
+          vuelven a establecer un rumbo automático.
+        */
+        if(
+          Number.isFinite(
+            rumboInicialDestino
+          )
+        ){
+          camaraFinal.heading =
+            rumboInicialDestino;
+        }
+
         if(
           typeof mapaGoogle.moveCamera ===
             "function"
@@ -7114,6 +7206,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           mapaGoogle.setZoom(
             camaraFinal.zoom
           );
+
+          if(
+            Number.isFinite(
+              rumboInicialDestino
+            ) &&
+            typeof mapaGoogle.setHeading ===
+              "function"
+          ){
+            mapaGoogle.setHeading(
+              rumboInicialDestino
+            );
+          }
         }
 
         mapaGoogle.setOptions({
