@@ -76,7 +76,7 @@ t = service.read_text(encoding="utf-8")
 #    Si T0 ya llegó, la ETA automática queda congelada.
 # ----------------------------------------------------------
 
-pattern_pre_request = r'''(private void maybeRefreshRouteEta\(\s*long now\s*\) \{.*?\n\s*if \(\s*ending.*?\n\s*\}\n)(\s*long locationTime =)'''
+pattern_pre_request = r'''(private void maybeRefreshRouteEta\(\s*long now\s*\) \{.*?\n\s*if \(\s*ending.*?\n\s*\}\n)(\s*long remaining =)'''
 
 replacement_pre_request = r'''\1
 
