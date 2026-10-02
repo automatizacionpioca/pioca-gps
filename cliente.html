@@ -4234,15 +4234,35 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     null;
 
   /*
-    R51 - última posición REAL recibida del servidor.
-    Se usa únicamente para decidir si el aviso de proximidad
-    debe mostrarse o desaparecer.
+    R51/R52 - última posición REAL recibida del servidor.
+    R52 agrega una llegada física confirmada por distancia:
+    - <= 50 m enclava HEMOS LLEGADO y arranca reloj visual de 4 min.
+    - > 300 m durante 3 posiciones GPS distintas anula esa llegada,
+      corta el reloj y deja el ciclo listo para una nueva llegada <= 50 m.
   */
   let ultimaLatitudProximidad =
     null;
 
   let ultimaLongitudProximidad =
     null;
+
+  let ultimaLecturaProximidadId =
+    null;
+
+  let ultimaLecturaProximidadProcesada =
+    null;
+
+  let ultimaDistanciaProximidad =
+    null;
+
+  let llegadaFisicaConfirmada =
+    false;
+
+  let llegadaFisicaInicioMs =
+    null;
+
+  let comprobacionesFuera300 =
+    0;
 
   /*
     R29 - ZOOM SEGÚN ETA
@@ -5416,12 +5436,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 
   /* ==========================================================
-     R51 - CARTEL DE PROXIMIDAD
-     - <= 300 m: ¡ESTAMOS MUY CERCA!
-     - si vuelve a > 300 m: desaparece
-     - hasta ETA + 3 min conserva el estado de proximidad real
-     - desde ETA + 3 min: HEMOS LLEGADO
-     - la pantalla final entra a ETA + 4 minutos
+     R52 - CARTEL DE PROXIMIDAD POR DISTANCIA REAL
+     - > 300 m: sin cartel
+     - 300 m a > 50 m: ¡ESTAMOS MUY CERCA!
+     - <= 50 m: HEMOS LLEGADO + reloj visual de 4 min
+     - una vez enclavado, tolera ruido GPS hasta 300 m
+     - sólo 3 posiciones GPS DISTINTAS y consecutivas > 300 m
+       anulan la llegada y reinician el ciclo
      ========================================================== */
 
   function ocultarAvisoProximidad(){
@@ -5478,6 +5499,116 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  function procesarPosicionProximidad(
+    lat,
+    lon,
+    lecturaId
+  ){
+
+    if(
+      terminado ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon)
+    ){
+      return;
+    }
+
+    const id =
+      lecturaId === null ||
+      typeof lecturaId === "undefined"
+        ? ""
+        : String(lecturaId);
+
+    /*
+      Las consultas del cliente se repiten cada 1,5 s, pero una misma
+      posición GPS puede venir varias veces. Para las 3 comprobaciones
+      > 300 m contamos únicamente posiciones GPS nuevas.
+    */
+    if(
+      id &&
+      ultimaLecturaProximidadProcesada === id
+    ){
+      actualizarAvisoProximidad();
+      return;
+    }
+
+    const distanciaAlDomicilio =
+      distanciaMetros(
+        lat,
+        lon,
+        destinoLat,
+        destinoLon
+      );
+
+    if(
+      !Number.isFinite(distanciaAlDomicilio)
+    ){
+      return;
+    }
+
+    ultimaDistanciaProximidad =
+      distanciaAlDomicilio;
+
+    if(id){
+      ultimaLecturaProximidadProcesada =
+        id;
+    }
+
+    if(
+      llegadaFisicaConfirmada
+    ){
+
+      if(
+        distanciaAlDomicilio > 300
+      ){
+        comprobacionesFuera300 +=
+          1;
+
+        if(
+          comprobacionesFuera300 >= 3
+        ){
+          llegadaFisicaConfirmada =
+            false;
+
+          llegadaFisicaInicioMs =
+            null;
+
+          comprobacionesFuera300 =
+            0;
+        }
+
+      }else{
+
+        /*
+          Cualquier nueva posición <= 300 m confirma que las lecturas
+          anteriores > 300 m fueron ruido o una salida no sostenida.
+        */
+        comprobacionesFuera300 =
+          0;
+      }
+
+    }else{
+
+      comprobacionesFuera300 =
+        0;
+
+      if(
+        distanciaAlDomicilio <= 50
+      ){
+        llegadaFisicaConfirmada =
+          true;
+
+        llegadaFisicaInicioMs =
+          Date.now();
+      }
+    }
+
+    actualizarAvisoProximidad();
+  }
+
+
   function actualizarAvisoProximidad(){
 
     if(
@@ -5489,16 +5620,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     /*
-      HEMOS LLEGADO usa la misma ETA vigente del cliente,
-      pero con 3 minutos de margen para absorber pequeños errores de ETA.
-      Si Google corrige la ETA antes de cumplirse el margen,
-      este instante se desplaza automáticamente con la nueva ETA.
+      Una llegada física ya confirmada queda enclavada.
+      No sale por rebotes de 55, 80, 150 o incluso una o dos posiciones
+      > 300 m. Sólo procesarPosicionProximidad puede liberarla luego de
+      3 posiciones GPS distintas y consecutivas > 300 m.
     */
     if(
-      llegadaClienteMs &&
-      Number.isFinite(llegadaClienteMs) &&
-      Date.now() >=
-        llegadaClienteMs + 180000
+      llegadaFisicaConfirmada
     ){
       piocaAvisoProximidad.textContent =
         "HEMOS LLEGADO";
@@ -5522,12 +5650,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     const distanciaAlDomicilio =
-      distanciaMetros(
-        ultimaLatitudProximidad,
-        ultimaLongitudProximidad,
-        destinoLat,
-        destinoLon
-      );
+      Number.isFinite(ultimaDistanciaProximidad)
+        ? ultimaDistanciaProximidad
+        : distanciaMetros(
+            ultimaLatitudProximidad,
+            ultimaLongitudProximidad,
+            destinoLat,
+            destinoLon
+          );
 
     if(
       Number.isFinite(distanciaAlDomicilio) &&
@@ -5573,23 +5703,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     actualizarAvisoProximidad();
 
     /*
-      Cierre visual del mapa:
-      la pantalla final entra 4 minutos después de la ETA vigente.
-      El cartel HEMOS LLEGADO ya aparece desde ETA + 3 minutos,
-      por lo que se mantiene visible durante el último minuto con mapa.
+      Cierre visual del mapa por llegada física:
+      el reloj de 4 minutos empieza únicamente cuando una posición GPS
+      entra a <= 50 m del domicilio.
 
-      IMPORTANTE:
-      esto NO finaliza el seguimiento en Supabase.
-      El vencimiento real de seguridad sigue siendo
-      client_arrival + 5 minutos, exactamente como antes.
+      Si después aparecen 3 posiciones GPS distintas y consecutivas
+      a > 300 m, procesarPosicionProximidad anula la llegada,
+      borra llegadaFisicaInicioMs y este reloj deja de correr.
 
-      Si Google recalcula la ETA durante este margen,
-      llegadaClienteMs se actualiza y ambas condiciones se desplazan
-      automáticamente con la nueva ETA.
+      Una nueva entrada a <= 50 m vuelve a confirmar la llegada y
+      arranca un reloj NUEVO de 4 minutos desde cero.
     */
     if(
+      llegadaFisicaConfirmada &&
+      Number.isFinite(llegadaFisicaInicioMs) &&
       ahoraMs >=
-        llegadaClienteMs + 240000
+        llegadaFisicaInicioMs + 240000
     ){
       mostrarFinalizado();
       return;
@@ -7204,6 +7333,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       asegurarMarcadorDestino();
 
+      procesarPosicionProximidad(
+        ultimaLatitudProximidad,
+        ultimaLongitudProximidad,
+        ultimaLecturaProximidadId
+      );
+
       actualizarAvisoProximidad();
 
     }catch(e){
@@ -7251,6 +7386,15 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       null;
 
     ultimaLongitudProximidad =
+      null;
+
+    ultimaLecturaProximidadId =
+      null;
+
+    ultimaLecturaProximidadProcesada =
+      null;
+
+    ultimaDistanciaProximidad =
       null;
 
     if(
@@ -7575,6 +7719,24 @@ horaLlegadaBox.style.display =
 
     ultimaLongitudProximidad =
       null;
+
+    ultimaLecturaProximidadId =
+      null;
+
+    ultimaLecturaProximidadProcesada =
+      null;
+
+    ultimaDistanciaProximidad =
+      null;
+
+    llegadaFisicaConfirmada =
+      false;
+
+    llegadaFisicaInicioMs =
+      null;
+
+    comprobacionesFuera300 =
+      0;
 
     tramoZoomEtaActual =
       null;
@@ -10995,7 +11157,17 @@ if(
         ultimaLongitudProximidad =
           null;
 
-        ocultarAvisoProximidad();
+        ultimaLecturaProximidadId =
+          null;
+
+        ultimaDistanciaProximidad =
+          null;
+
+        if(
+          !llegadaFisicaConfirmada
+        ){
+          ocultarAvisoProximidad();
+        }
 
         pintarEstadoNormalEnVivo();
 
@@ -11052,7 +11224,14 @@ if(
       ultimaLongitudProximidad =
         lon;
 
-      actualizarAvisoProximidad();
+      ultimaLecturaProximidadId =
+        p.created_at;
+
+      procesarPosicionProximidad(
+        lat,
+        lon,
+        p.created_at
+      );
 
       actualizarMarcador(
         lat,
