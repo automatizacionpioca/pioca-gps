@@ -2509,10 +2509,71 @@
     );
   }
 
-  function abrirWhatsApp(){
+  function formatearEtaWhatsApp(
+    minutos
+  ){
+
+    const total =
+      Math.max(
+        1,
+        Math.ceil(
+          Number(
+            minutos
+          )
+        )
+      );
 
     if(
-      !linkCliente
+      total <= 60
+    ){
+
+      return total +
+        (
+          total === 1
+            ? " minuto"
+            : " minutos"
+        );
+    }
+
+    const horas =
+      Math.floor(
+        total / 60
+      );
+
+    const minutosResto =
+      total % 60;
+
+    let texto =
+      horas +
+      (
+        horas === 1
+          ? " hora"
+          : " horas"
+      );
+
+    if(
+      minutosResto > 0
+    ){
+
+      texto +=
+        " y " +
+        minutosResto +
+        (
+          minutosResto === 1
+            ? " minuto"
+            : " minutos"
+        );
+    }
+
+    return texto;
+  }
+
+
+  async function abrirWhatsApp(){
+
+    if(
+      !linkCliente ||
+      !trackingCode
     ){
 
       mostrarError(
@@ -2522,32 +2583,101 @@
       return;
     }
 
-    const saludo =
-      "\uD83D\uDC4B";
+    /*
+      ETA DEL MOMENTO DE COMPARTIR
 
-    const ubicacion =
-      "\uD83D\uDCCD";
+      Antes de armar el mensaje consultamos Supabase nuevamente.
+      Así el texto de WhatsApp usa la ETA vigente justo al tocar
+      COMPARTIR POR WHATSAPP, no la ETA con la que se creó el viaje.
+    */
+    try{
 
-    const saludoCliente =
-      saludo +
-      " Hola.";
+      const s =
+        await obtenerEstadoServidor();
+
+      if(
+        !s ||
+        !servidorConfirmaActivo(
+          s
+        ) ||
+        !s.client_arrival
+      ){
+
+        mostrarError(
+          "No se pudo obtener la ETA actual para compartir."
+        );
+
+        return;
+      }
+
+      llegadaClienteMs =
+        new Date(
+          s.client_arrival
+        )
+        .getTime();
+
+      if(
+        !Number.isFinite(
+          llegadaClienteMs
+        )
+      ){
+
+        mostrarError(
+          "No se pudo obtener la ETA actual para compartir."
+        );
+
+        return;
+      }
+
+      guardarServidorEnLocal(
+        s
+      );
+
+    }catch(e){
+
+      mostrarError(
+        "No se pudo actualizar la ETA para compartir por WhatsApp. Reintentá con conexión."
+      );
+
+      return;
+    }
+
+
+    const minutosEta =
+      (
+        llegadaClienteMs -
+        Date.now()
+      ) / 60000;
+
+
+    const etaTexto =
+      formatearEtaWhatsApp(
+        minutosEta
+      );
+
 
     let mensaje =
 
-      saludoCliente +
+      "\uD83D\uDC4B Hola." +
 
       "\n\n" +
 
-      "*Ya vamos en camino a tu domicilio.*" +
+      "Ya vamos en camino a tu domicilio." +
 
       "\n\n" +
 
-      ubicacion +
-      " *Seguí nuestra llegada en tiempo real:*" +
+      "\uD83D\uDD50 Estimamos llegar en " +
+      etaTexto +
+      "." +
+
+      "\n\n" +
+
+      "\uD83D\uDCCD Seguí nuestra llegada en tiempo real:" +
 
       "\n" +
 
       linkCliente;
+
 
     if(
       informacionAdicional.trim() !==
@@ -2558,24 +2688,26 @@
 
         "\n\n" +
 
-        "\u2139\uFE0F" +
-        " *Información adicional:*" +
+        "\u2139\uFE0F Información adicional:" +
 
         "\n" +
 
         informacionAdicional.trim();
     }
 
+
     mensaje +=
 
       "\n\n" +
 
-      "_Este es un mensaje automático y no hace falta responderlo._";
+      "Este es un mensaje automático y no hace falta responderlo.";
+
 
     const texto =
       encodeURIComponent(
         mensaje
       );
+
 
     /*
       WHATSAPP BUSINESS ESTRICTO
@@ -2635,10 +2767,6 @@
       confirmarSalidaABusiness
     );
 
-    /*
-      Paquete Android explícito de WhatsApp Business.
-      Nunca se apunta a com.whatsapp.
-    */
     window.location.href =
 
       "intent://send" +
@@ -2654,10 +2782,6 @@
 
       "end";
 
-    /*
-      Si Android no abre Business, el WebView queda visible.
-      Mostramos aviso y no intentamos ninguna otra app.
-    */
     setTimeout(
       function(){
 
