@@ -2829,6 +2829,64 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       }
     }
 
+
+    /* ==========================================================
+       R51 - CARTEL DE PROXIMIDAD (MÓDULO ADITIVO)
+       Sólo suma un aviso visual junto a REFRESCAR POSICIÓN.
+       No modifica GPS, ETA, mapa, seguimiento ni panel inferior.
+       ========================================================== */
+
+    #piocaAvisoProximidad{
+      display:none;
+      position:absolute;
+      z-index:1210;
+      bottom:calc(
+        var(--pioca-panel-height, 245px) +
+        max(16px, env(safe-area-inset-bottom))
+      );
+      margin:0;
+      padding:8px 11px;
+      border:1px solid rgba(255,255,255,.20);
+      border-radius:999px;
+      background:rgba(42,50,58,.78);
+      color:#38e06f;
+      box-shadow:0 4px 12px rgba(0,0,0,.16);
+      backdrop-filter:blur(7px);
+      -webkit-backdrop-filter:blur(7px);
+      font-family:Arial,sans-serif;
+      font-size:9.5px;
+      line-height:1;
+      font-weight:800;
+      text-align:center;
+      white-space:nowrap;
+      pointer-events:none;
+    }
+
+    #piocaAvisoProximidad.visible{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      animation:piocaAvisoProximidadBlink 1.05s ease-in-out infinite;
+    }
+
+    @keyframes piocaAvisoProximidadBlink{
+      0%,100%{
+        opacity:1;
+        box-shadow:0 4px 12px rgba(0,0,0,.16);
+      }
+      50%{
+        opacity:.48;
+        box-shadow:0 4px 15px rgba(56,224,111,.22);
+      }
+    }
+
+    @media(max-width:430px){
+      #piocaAvisoProximidad{
+        padding:8px 10px;
+        font-size:9px;
+      }
+    }
+
 </style>
 
 </head>
@@ -2889,6 +2947,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         type="button">
         ↻ REFRESCAR POSICIÓN
       </button>
+
+      <div
+        id="piocaAvisoProximidad"
+        aria-live="polite">
+      </div>
 
       <div id="mensajeTecnicoPanel">
         <div id="mensajeTecnicoTitulo">
@@ -3893,6 +3956,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       "btnRefrescarPosicion"
     );
 
+  const piocaAvisoProximidad =
+    document.getElementById(
+      "piocaAvisoProximidad"
+    );
+
   const btnVolverPanelPreview =
     document.getElementById(
       "btnVolverPanelPreview"
@@ -4163,6 +4231,17 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     0;
 
   let llegadaClienteMs =
+    null;
+
+  /*
+    R51 - última posición REAL recibida del servidor.
+    Se usa únicamente para decidir si el aviso de proximidad
+    debe mostrarse o desaparecer.
+  */
+  let ultimaLatitudProximidad =
+    null;
+
+  let ultimaLongitudProximidad =
     null;
 
   /*
@@ -5038,6 +5117,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       ) +
       "px"
     );
+
+    alinearAvisoProximidad();
   }
 
 
@@ -5334,6 +5415,135 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  /* ==========================================================
+     R51 - CARTEL DE PROXIMIDAD
+     - <= 300 m: ¡ESTAMOS MUY CERCA!
+     - si vuelve a > 300 m: desaparece
+     - al alcanzar la ETA: HEMOS LLEGADO
+     - el estado final existente sigue entrando a ETA + 1 minuto
+     ========================================================== */
+
+  function ocultarAvisoProximidad(){
+
+    if(
+      !piocaAvisoProximidad
+    ){
+      return;
+    }
+
+    piocaAvisoProximidad.classList.remove(
+      "visible"
+    );
+
+    piocaAvisoProximidad.textContent =
+      "";
+  }
+
+
+  function alinearAvisoProximidad(){
+
+    if(
+      !piocaAvisoProximidad ||
+      !btnRefrescarPosicion
+    ){
+      return;
+    }
+
+    const anchoRefrescar =
+      Math.ceil(
+        btnRefrescarPosicion
+          .getBoundingClientRect()
+          .width
+      );
+
+    if(
+      !Number.isFinite(anchoRefrescar) ||
+      anchoRefrescar <= 0
+    ){
+      return;
+    }
+
+    piocaAvisoProximidad.style.width =
+      anchoRefrescar +
+      "px";
+
+    piocaAvisoProximidad.style.right =
+      (
+        14 +
+        anchoRefrescar +
+        8
+      ) +
+      "px";
+  }
+
+
+  function actualizarAvisoProximidad(){
+
+    if(
+      !piocaAvisoProximidad ||
+      terminado
+    ){
+      ocultarAvisoProximidad();
+      return;
+    }
+
+    /*
+      HEMOS LLEGADO depende de la misma ETA vigente del cliente.
+      No se altera la lógica existente de llegada/finalización.
+    */
+    if(
+      llegadaClienteMs &&
+      Number.isFinite(llegadaClienteMs) &&
+      Date.now() >= llegadaClienteMs
+    ){
+      piocaAvisoProximidad.textContent =
+        "HEMOS LLEGADO";
+
+      piocaAvisoProximidad.classList.add(
+        "visible"
+      );
+
+      alinearAvisoProximidad();
+      return;
+    }
+
+    if(
+      !Number.isFinite(ultimaLatitudProximidad) ||
+      !Number.isFinite(ultimaLongitudProximidad) ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon)
+    ){
+      ocultarAvisoProximidad();
+      return;
+    }
+
+    const distanciaAlDomicilio =
+      distanciaMetros(
+        ultimaLatitudProximidad,
+        ultimaLongitudProximidad,
+        destinoLat,
+        destinoLon
+      );
+
+    if(
+      Number.isFinite(distanciaAlDomicilio) &&
+      distanciaAlDomicilio <= 300
+    ){
+      piocaAvisoProximidad.textContent =
+        "¡ESTAMOS MUY CERCA!";
+
+      piocaAvisoProximidad.classList.add(
+        "visible"
+      );
+
+      alinearAvisoProximidad();
+      return;
+    }
+
+    ocultarAvisoProximidad();
+  }
+
+
   function actualizarPanelTrayecto(){
 
     if(
@@ -5355,6 +5565,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         ahoraMs
       ) /
       60000;
+
+    actualizarAvisoProximidad();
 
     /*
       Llegada visual anticipada:
@@ -6876,6 +7088,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     ultimoIntentoDestinoMs =
       0;
+
+    ocultarAvisoProximidad();
   }
 
   async function consultarDestinoSeguimiento(){
@@ -6985,6 +7199,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       asegurarMarcadorDestino();
 
+      actualizarAvisoProximidad();
+
     }catch(e){
 
       /*
@@ -7023,6 +7239,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     terminado =
       true;
+
+    ocultarAvisoProximidad();
+
+    ultimaLatitudProximidad =
+      null;
+
+    ultimaLongitudProximidad =
+      null;
 
     if(
       encuadreInicialMapaTimer !== null
@@ -7338,6 +7562,14 @@ horaLlegadaBox.style.display =
     }
 
     mostrarEstadoSuperiorNoDisponible();
+
+    ocultarAvisoProximidad();
+
+    ultimaLatitudProximidad =
+      null;
+
+    ultimaLongitudProximidad =
+      null;
 
     tramoZoomEtaActual =
       null;
@@ -10752,6 +10984,14 @@ if(
           null
       ){
 
+        ultimaLatitudProximidad =
+          null;
+
+        ultimaLongitudProximidad =
+          null;
+
+        ocultarAvisoProximidad();
+
         pintarEstadoNormalEnVivo();
 
         mapaWrap.style.display =
@@ -10800,6 +11040,14 @@ if(
 
         return;
       }
+
+      ultimaLatitudProximidad =
+        lat;
+
+      ultimaLongitudProximidad =
+        lon;
+
+      actualizarAvisoProximidad();
 
       actualizarMarcador(
         lat,
