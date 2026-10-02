@@ -289,7 +289,7 @@
     }
 
     #controlesHora{
-      display:flex;
+      display:none;
       gap:10px;
       margin-top:12px;
     }
@@ -791,6 +791,9 @@
 
   const horaClienteTexto =
     document.getElementById("horaClienteTexto");
+
+  const horaClienteBox =
+    document.getElementById("horaClienteBox");
 
   const btnRestar5 =
     document.getElementById("btnRestar5");
@@ -1932,36 +1935,6 @@
     }catch(e){}
   }
 
-  async function recuperarSeguimientoSinCodigo(){
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.rpc(
-        "get_my_active_tracking"
-      );
-
-    if(
-      error
-    ){
-
-      throw error;
-    }
-
-    if(
-      !Array.isArray(
-        data
-      ) ||
-      data.length === 0
-    ){
-
-      return null;
-    }
-
-    return data[0];
-  }
-
   async function obtenerEstadoServidor(){
 
     if(
@@ -2042,37 +2015,48 @@
         );
     }
 
+    /*
+      ARRANQUE LIMPIO
+
+      El controlador sólo puede recuperar:
+      - el ID recibido explícitamente en ?tracking=...
+      - o el ID específico guardado localmente.
+
+      Ya NO consulta "cualquier seguimiento activo" de la cuenta.
+      Si no existe un ID concreto, vuelve limpio al panel principal.
+    */
+    if(
+      !trackingCode
+    ){
+
+      limpiarEstadoLocal();
+
+      window.location.replace(
+        "admin.html"
+      );
+
+      return false;
+    }
+
     try{
 
-      let s =
-        null;
-
-      if(
+      trackingCode =
         trackingCode
-      ){
+        .trim()
+        .toUpperCase();
 
-        trackingCode =
-          trackingCode
-          .trim()
-          .toUpperCase();
-
-        s =
-          await obtenerEstadoServidor();
-      }
+      const s =
+        await obtenerEstadoServidor();
 
       if(
         !s
       ){
 
-        s =
-          await recuperarSeguimientoSinCodigo();
-      }
+        limpiarEstadoLocal();
 
-      if(
-        !s
-      ){
-
-        negarAcceso();
+        window.location.replace(
+          "admin.html"
+        );
 
         return false;
       }
@@ -2086,6 +2070,21 @@
         mostrarFinalizado(
           s.client_name ||
           ""
+        );
+
+        return false;
+      }
+
+      if(
+        !servidorConfirmaActivo(
+          s
+        )
+      ){
+
+        limpiarEstadoLocal();
+
+        window.location.replace(
+          "admin.html"
         );
 
         return false;
@@ -2125,7 +2124,7 @@
 
       mostrarError(
 
-        "No se pudo recuperar el seguimiento desde el servidor. Reintentá con conexión antes de asumir que está detenido."
+        "No se pudo recuperar este seguimiento desde el servidor. Reintentá con conexión."
 
       );
 
@@ -2143,7 +2142,8 @@
 
     if(
       seguimientoFinalizado ||
-      reactivandoPanel
+      reactivandoPanel ||
+      !trackingCode
     ){
       return;
     }
@@ -2152,37 +2152,70 @@
       true;
 
     /*
-      Al volver de pantalla bloqueada:
-      - recalculamos ETA de inmediato;
-      - re-habilitamos controles;
-      - refrescamos transmisión;
-      - consultamos Supabase sin esperar el intervalo de 3 s.
+      REANUDACIÓN SIN ETA VIEJA
+
+      Al volver de pantalla bloqueada o segundo plano:
+      1. ocultamos momentáneamente el bloque ETA;
+      2. consultamos primero Supabase;
+      3. recién después pintamos la ETA vigente.
+
+      Así no aparece durante un instante la cuenta local vieja
+      (por ejemplo 1 min) antes de recibir la ETA real (por ejemplo 3 min).
     */
     modificandoHora =
       false;
 
-    pintarHoraCliente();
-    actualizarBotonesHora();
-    pintarEstadoTransmision();
+    if(
+      horaClienteBox
+    ){
+      horaClienteBox.style.visibility =
+        "hidden";
+    }
+
+    let sincronizado =
+      false;
 
     try{
-      await sincronizarServidor();
+
+      sincronizado =
+        await sincronizarServidor();
+
       await consultarVistaCliente();
 
-      /*
-        MENSAJES R3:
-        al volver de pantalla bloqueada o segundo plano,
-        consultamos inmediatamente por mensajes pendientes.
-        Si hay uno nuevo, consultarMensajeCliente() dispara
-        los 5 pips, vibración y abre la tarjeta.
-      */
       await consultarMensajeCliente();
 
     }catch(e){}
 
-    pintarHoraCliente();
-    actualizarBotonesHora();
-    pintarEstadoTransmision();
+    if(
+      !seguimientoFinalizado
+    ){
+
+      if(
+        sincronizado
+      ){
+
+        pintarHoraCliente();
+
+      }else{
+
+        horaCliente.textContent =
+          "-- min";
+
+        horaClienteTexto.textContent =
+          "Actualizando ETA...";
+      }
+
+      actualizarBotonesHora();
+
+      pintarEstadoTransmision();
+
+      if(
+        horaClienteBox
+      ){
+        horaClienteBox.style.visibility =
+          "visible";
+      }
+    }
 
     reactivandoPanel =
       false;
@@ -2208,7 +2241,7 @@
         !s
       ){
 
-        return;
+        return false;
       }
 
       if(
@@ -2222,7 +2255,7 @@
           nombreCliente
         );
 
-        return;
+        return false;
       }
 
       if(
@@ -2235,7 +2268,7 @@
           Respuesta transitoria/incompleta:
           conservamos el panel y esperamos la próxima sincronización.
         */
-        return;
+        return false;
       }
 
       guardarServidorEnLocal(
@@ -2247,6 +2280,8 @@
 
       ocultarError();
 
+      return true;
+
     }catch(error){
 
       /*
@@ -2254,6 +2289,7 @@
         NO borramos ni ocultamos el panel.
       */
 
+      return false;
     }
   }
 
@@ -3288,6 +3324,22 @@
   document.addEventListener(
     "visibilitychange",
     function(){
+
+      if(
+        document.visibilityState ===
+          "hidden"
+      ){
+
+        if(
+          horaClienteBox
+        ){
+          horaClienteBox.style.visibility =
+            "hidden";
+        }
+
+        return;
+      }
+
       if(
         document.visibilityState ===
           "visible"
@@ -3348,7 +3400,12 @@
     */
     setInterval(
       function(){
-        if(!seguimientoFinalizado){
+        if(
+          !seguimientoFinalizado &&
+          !reactivandoPanel &&
+          document.visibilityState ===
+            "visible"
+        ){
           pintarHoraCliente();
           pintarEstadoTransmision();
         }
