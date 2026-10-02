@@ -1,25 +1,3 @@
-<!--
-============================================================
-IMPORTANTE
-
-Cada vez que se actualice este archivo:
-
-1. Copiar TODO este mismo código.
-2. Guardarlo en un archivo llamado: index.html
-3. Subir ese index.html a:
-
-   Cloudflare
-   → Workers & Pages
-   → misty-river-903b
-   → New deployment
-
-4. El dominio activo es:
-   https://trackingpioca.com/
-
-GitHub y Cloudflare deben tener siempre el mismo código.
-============================================================
--->
-
 <!DOCTYPE html>
 <html lang="es">
 
@@ -6479,30 +6457,52 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       const centroGoogle =
         mapaGoogle.getCenter();
 
-      const centroInicio =
-        centroGoogle
-          ? {
-              lat:Number(
-                centroGoogle.lat()
-              ),
-              lng:Number(
-                centroGoogle.lng()
-              )
-            }
-          : {
-              lat:Number(
-                posicionCamioneta.lat
-              ),
-              lng:Number(
-                posicionCamioneta.lng
-              )
-            };
+      if(
+        !centroGoogle
+      ){
+        encuadreInicialMapaActivo =
+          false;
+        mapaGoogle.setZoom(
+          zoomDestino
+        );
+        recentrarPinTrasCambioZoom();
+        return;
+      }
+
+      const centroInicio = {
+        lat:Number(
+          centroGoogle.lat()
+        ),
+        lng:Number(
+          centroGoogle.lng()
+        )
+      };
 
       /*
-        Calculamos el centro final con exactamente el mismo criterio
-        visual usado por "REFRESCAR POSICIÓN": la camioneta queda
-        centrada en el área útil, descontando el panel inferior.
+        R50:
+        La cámara ya no interpola "centro contra centro" a un zoom fijo.
+        Ese método podía hacer que la camioneta se desplazara de costado,
+        incluso casi salir de pantalla, antes de terminar el acercamiento.
+
+        Ahora usamos la camioneta como ANCLA VISUAL:
+        - medimos dónde está realmente en pantalla al comenzar;
+        - definimos dónde debe terminar en el área útil;
+        - mientras cambia el zoom calculamos el centro exacto necesario
+          para que la camioneta recorra una trayectoria recta y monotónica
+          entre esos dos puntos de pantalla.
+
+        Resultado: paneo y zoom ocurren juntos, sin corrida lateral previa
+        ni sobrepaso de la posición final.
       */
+      const tamanoMapa =
+        mapa.getSize();
+
+      const anchoMapa =
+        Number(tamanoMapa.x) || 0;
+
+      const altoMapa =
+        Number(tamanoMapa.y) || 0;
+
       let altoPanel =
         0;
 
@@ -6515,9 +6515,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
             .height;
       }
 
-      const altoMapa =
-        mapa.getSize().y;
-
       const offsetY =
         Math.max(
           0,
@@ -6527,37 +6524,74 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           )
         );
 
-      const puntoPinDestino =
+      const puntoCamionetaInicio =
         mapa.project(
           [
             Number(posicionCamioneta.lat),
             Number(posicionCamioneta.lng)
           ],
-          zoomDestino
+          zoomInicio
         );
 
-      const centroObjetivo =
-        mapa.unproject(
+      const puntoCentroInicio =
+        mapa.project(
+          centroInicio,
+          zoomInicio
+        );
+
+      const xPantallaInicio =
+        anchoMapa * 0.5 +
+        (
+          puntoCamionetaInicio.x -
+          puntoCentroInicio.x
+        );
+
+      const yPantallaInicio =
+        altoMapa * 0.5 +
+        (
+          puntoCamionetaInicio.y -
+          puntoCentroInicio.y
+        );
+
+      const xPantallaFinal =
+        anchoMapa * 0.5;
+
+      const yPantallaFinal =
+        altoMapa * 0.5 -
+        offsetY;
+
+      function calcularCentroParaCamionetaEnPantalla(
+        zoomActual,
+        xPantalla,
+        yPantalla
+      ){
+
+        const puntoCamioneta =
+          mapa.project(
+            [
+              Number(posicionCamioneta.lat),
+              Number(posicionCamioneta.lng)
+            ],
+            zoomActual
+          );
+
+        return mapa.unproject(
           [
-            puntoPinDestino.x,
-            puntoPinDestino.y +
-              offsetY
+            puntoCamioneta.x -
+              (
+                xPantalla -
+                anchoMapa * 0.5
+              ),
+            puntoCamioneta.y -
+              (
+                yPantalla -
+                altoMapa * 0.5
+              )
           ],
-          zoomDestino
+          zoomActual
         );
+      }
 
-      /*
-        R46:
-        La transición inicial ya no tiene una duración fija corta.
-
-        - mínimo 1,6 s;
-        - suma tiempo según cuántos niveles de zoom haya que recorrer;
-        - máximo 3,0 s.
-
-        Funciona igual si debe ACERCARSE o ALEJARSE.
-        Si el zoom ya coincide, igualmente hace un paneo suave desde
-        el encuadre camioneta+destino hasta la camioneta.
-      */
       const diferenciaZoom =
         Math.abs(
           zoomDestino -
@@ -6576,22 +6610,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       const inicioAnimacion =
         performance.now();
-
-      /*
-        Interpolamos el centro en Mercator para que el viaje visual sea
-        uniforme incluso cuando el encuadre inicial es bastante amplio.
-      */
-      const centroInicioPx =
-        mapa.project(
-          centroInicio,
-          zoomDestino
-        );
-
-      const centroDestinoPx =
-        mapa.project(
-          centroObjetivo,
-          zoomDestino
-        );
 
       mapaGoogle.setOptions({
         isFractionalZoomEnabled:true
@@ -6652,23 +6670,27 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           ) *
           suavizado;
 
+        const xPantallaInterpolado =
+          xPantallaInicio +
+          (
+            xPantallaFinal -
+            xPantallaInicio
+          ) *
+          suavizado;
+
+        const yPantallaInterpolado =
+          yPantallaInicio +
+          (
+            yPantallaFinal -
+            yPantallaInicio
+          ) *
+          suavizado;
+
         const centroInterpolado =
-          mapa.unproject(
-            [
-              centroInicioPx.x +
-              (
-                centroDestinoPx.x -
-                centroInicioPx.x
-              ) *
-              suavizado,
-              centroInicioPx.y +
-              (
-                centroDestinoPx.y -
-                centroInicioPx.y
-              ) *
-              suavizado
-            ],
-            zoomDestino
+          calcularCentroParaCamionetaEnPantalla(
+            zoomInterpolado,
+            xPantallaInterpolado,
+            yPantallaInterpolado
           );
 
         const camaraInterpolada = {
@@ -6713,13 +6735,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           return;
         }
 
+        const centroFinal =
+          calcularCentroParaCamionetaEnPantalla(
+            zoomDestino,
+            xPantallaFinal,
+            yPantallaFinal
+          );
+
         const camaraFinal = {
           center:{
             lat:Number(
-              centroObjetivo.lat
+              centroFinal.lat
             ),
             lng:Number(
-              centroObjetivo.lng
+              centroFinal.lng
             )
           },
           zoom:zoomDestino
