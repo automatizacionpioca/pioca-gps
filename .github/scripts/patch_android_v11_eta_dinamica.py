@@ -94,9 +94,6 @@ private static final long ETA_FINAL_WINDOW_MS =
 private static final long ETA_RETRY_MS =
         15L * 1000L;
 
-private static final long ETA_LOCATION_MAX_AGE_MS =
-        30L * 1000L;
-
 private volatile double destinationLat =
         Double.NaN;
 
@@ -274,19 +271,6 @@ private void maybeRefreshRouteEta(
             || last == null
             || !Double.isFinite(destinationLat)
             || !Double.isFinite(destinationLon)
-    ) {
-
-        return;
-    }
-
-
-    long locationTime =
-            last.getTime();
-
-
-    if (
-            locationTime > 0
-            && now - locationTime > ETA_LOCATION_MAX_AGE_MS
     ) {
 
         return;
