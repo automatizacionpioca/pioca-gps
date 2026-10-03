@@ -4219,6 +4219,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let ultimoIntentoDestinoMs =
     0;
 
+  let ultimoDestinoValidoMs =
+    0;
+
+  const INTERVALO_REVALIDAR_DESTINO_MS =
+    60000;
+
   let ultimaActualizacionMs =
     null;
 
@@ -4342,245 +4348,220 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     null;
 
   /*
-    R15:
-    ETA de referencia con la que nació esta vista del cliente.
-    Sirve sólo para repartir visualmente el avance entre etapas.
-    Si desde administración se corrige la ETA, la camioneta se
-    recoloca proporcionalmente sin tocar GPS ni Supabase.
+    R55 - FUENTE DE VERDAD DEL TRAYECTO
+
+    La barra inferior NO depende de cuándo se abrió esta pestaña ni de una
+    referencia guardada por una sesión anterior. Su estado se reconstruye
+    siempre desde la ETA ABSOLUTA vigente recibida del servidor.
+
+    Consecuencia:
+    - cerrar/reabrir el link no reinicia el avance;
+    - abrirlo en una pestaña nueva no depende de una sesión previa;
+    - si la ETA se corrige hacia adelante o hacia atrás, el pin y la barra
+      se recolocan inmediatamente al porcentaje que corresponde.
   */
-  let llegadaReferenciaTrayectoMs =
-    null;
 
-  /*
-    R18:
-    Guardamos el instante real en que esta vista comenzó a seguir
-    el trayecto y los minutos que faltaban en ese momento.
-    A diferencia de R15, esta referencia NO disminuye con Date.now().
-    Así el progreso 2 -> 3 avanza realmente con el paso del tiempo.
-  */
-  let inicioTrayectoVisualMs =
-    null;
-
-  let minutosReferenciaTrayecto =
-    null;
-
-  /*
-    R19 - REFERENCIA PERSISTENTE DEL PROGRESO
-    Mantiene el origen visual aunque el cliente cierre y vuelva a abrir el link.
-  */
-  function claveProgresoTrayecto(){
-    return codigo
-      ? "pioca_trayecto_" + codigo
-      : null;
-  }
-
-  function cargarReferenciaTrayectoPersistida(){
+  function borrarPersistenciaTrayectoLegacy(){
 
     const clave =
-      claveProgresoTrayecto();
+      codigo
+        ? "pioca_trayecto_" + codigo
+        : null;
 
-    if(
-      !clave
-    ){
-      return false;
+    if(!clave){
+      return;
     }
 
     try{
+      localStorage.removeItem(clave);
+    }catch(e){}
+  }
 
+
+  /*
+    R55 - PERSISTENCIA DEL ENCLAVAMIENTO FÍSICO
+
+    El título de proximidad sigue obedeciendo la distancia GPS real:
+    >300 m / <=300 m / <=50 m.
+
+    A diferencia de la barra ETA, HEMOS LLEGADO necesita memoria porque
+    deliberadamente queda enclavado hasta confirmar una salida real con
+    3 lecturas nuevas consecutivas >300 m.
+
+    Esta persistencia evita que F5, cerrar/reabrir la página o iOS
+    descargando la pestaña borren ese enclavamiento y reinicien el reloj.
+  */
+  let estadoFisicoPersistenciaCargada =
+    false;
+
+  let ultimaClaveProximidadSinId =
+    null;
+
+  /*
+    Obliga a respetar la secuencia EN CAMINO -> MUY CERCA -> HEMOS LLEGADO.
+    Una muestra que salte de >300 m directamente a <=50 m primero activa
+    MUY CERCA; una lectura GPS nueva dentro de <=50 m confirma la llegada.
+  */
+  let zonaCercaConfirmada =
+    false;
+
+  function claveEstadoFisicoLlegada(){
+    return codigo
+      ? "pioca_estado_fisico_" + codigo
+      : null;
+  }
+
+  function guardarEstadoFisicoLlegada(){
+
+    const clave =
+      claveEstadoFisicoLlegada();
+
+    if(!clave){
+      return;
+    }
+
+    try{
+      localStorage.setItem(
+        clave,
+        JSON.stringify({
+          llegada:
+            llegadaFisicaConfirmada === true,
+          inicioMs:
+            Number.isFinite(llegadaFisicaInicioMs)
+              ? llegadaFisicaInicioMs
+              : null,
+          fuera300:
+            Number.isFinite(comprobacionesFuera300)
+              ? comprobacionesFuera300
+              : 0,
+          ultimaLecturaId:
+            ultimaLecturaProximidadProcesada || null,
+          ultimaClaveSinId:
+            ultimaClaveProximidadSinId || null,
+          zonaCerca:
+            zonaCercaConfirmada === true,
+          actualizadoMs:
+            Date.now()
+        })
+      );
+    }catch(e){}
+  }
+
+  function cargarEstadoFisicoLlegada(){
+
+    if(
+      estadoFisicoPersistenciaCargada
+    ){
+      return;
+    }
+
+    estadoFisicoPersistenciaCargada =
+      true;
+
+    const clave =
+      claveEstadoFisicoLlegada();
+
+    if(!clave){
+      return;
+    }
+
+    try{
       const bruto =
-        localStorage.getItem(
-          clave
-        );
+        localStorage.getItem(clave);
 
-      if(
-        !bruto
-      ){
-        return false;
+      if(!bruto){
+        return;
       }
 
       const datos =
-        JSON.parse(
-          bruto
-        );
+        JSON.parse(bruto);
 
-      const inicioMs =
-        Number(
-          datos.inicioMs
-        );
+      const actualizadoMs =
+        Number(datos.actualizadoMs);
 
-      const minutosRef =
-        Number(
-          datos.minutosRef
-        );
-
-      const llegadaRefMs =
-        Number(
-          datos.llegadaRefMs
-        );
-
+      /*
+        Un código de tracking no debe heredar indefinidamente un estado
+        físico viejo. 24 h es más que suficiente para tolerar suspensión
+        o reapertura sin arrastrarlo a otro día.
+      */
       if(
-        !Number.isFinite(inicioMs) ||
-        !Number.isFinite(minutosRef) ||
-        !Number.isFinite(llegadaRefMs)
-      ){
-        return false;
-      }
-
-      if(
-        Date.now() - inicioMs >
+        !Number.isFinite(actualizadoMs) ||
+        Date.now() - actualizadoMs >
           24 * 60 * 60 * 1000
       ){
-        localStorage.removeItem(
-          clave
-        );
-
-        return false;
+        localStorage.removeItem(clave);
+        return;
       }
 
-      inicioTrayectoVisualMs =
-        inicioMs;
+      zonaCercaConfirmada =
+        datos.zonaCerca === true ||
+        datos.llegada === true;
 
-      minutosReferenciaTrayecto =
-        minutosRef;
+      if(
+        datos.llegada === true
+      ){
+        llegadaFisicaConfirmada =
+          true;
 
-      llegadaReferenciaTrayectoMs =
-        llegadaRefMs;
+        const inicioMs =
+          Number(datos.inicioMs);
 
-      return true;
+        llegadaFisicaInicioMs =
+          Number.isFinite(inicioMs)
+            ? inicioMs
+            : Date.now();
 
-    }catch(e){
+        comprobacionesFuera300 =
+          Math.max(
+            0,
+            Math.min(
+              2,
+              Number(datos.fuera300) || 0
+            )
+          );
 
-      return false;
-    }
-  }
+        ultimaLecturaProximidadProcesada =
+          datos.ultimaLecturaId
+            ? String(datos.ultimaLecturaId)
+            : null;
 
-  function guardarReferenciaTrayectoPersistida(){
-
-    const clave =
-      claveProgresoTrayecto();
-
-    if(
-      !clave ||
-      !Number.isFinite(
-        inicioTrayectoVisualMs
-      ) ||
-      !Number.isFinite(
-        minutosReferenciaTrayecto
-      ) ||
-      !Number.isFinite(
-        llegadaReferenciaTrayectoMs
-      )
-    ){
-      return;
-    }
-
-    try{
-
-      localStorage.setItem(
-        clave,
-        JSON.stringify({
-          inicioMs:
-            inicioTrayectoVisualMs,
-          minutosRef:
-            minutosReferenciaTrayecto,
-          llegadaRefMs:
-            llegadaReferenciaTrayectoMs
-        })
-      );
+        ultimaClaveProximidadSinId =
+          datos.ultimaClaveSinId
+            ? String(datos.ultimaClaveSinId)
+            : null;
+      }
 
     }catch(e){}
   }
 
-  function borrarReferenciaTrayectoPersistida(){
+  function borrarEstadoFisicoLlegada(){
 
     const clave =
-      claveProgresoTrayecto();
+      claveEstadoFisicoLlegada();
 
-    if(
-      !clave
-    ){
-      return;
+    if(clave){
+      try{
+        localStorage.removeItem(clave);
+      }catch(e){}
     }
 
-    try{
-      localStorage.removeItem(
-        clave
-      );
-    }catch(e){}
-  }
+    estadoFisicoPersistenciaCargada =
+      false;
 
+    ultimaClaveProximidadSinId =
+      null;
 
-  /*
-    R20 SIMPLE:
-    Cuando ETA llega a 0 guardamos que la llegada ya ocurrió.
-    Esto hace que, si se cierra y vuelve a abrir el mismo link
-    durante los minutos posteriores, el punto 4 continúe verde.
-  */
-  function claveLlegadaCumplida(){
+    zonaCercaConfirmada =
+      false;
 
-    return codigo
-      ? "pioca_llegada_cumplida_" + codigo
-      : null;
-  }
+    llegadaFisicaConfirmada =
+      false;
 
+    llegadaFisicaInicioMs =
+      null;
 
-  function guardarLlegadaCumplida(){
-
-    const clave =
-      claveLlegadaCumplida();
-
-    if(
-      !clave
-    ){
-      return;
-    }
-
-    try{
-      localStorage.setItem(
-        clave,
-        "1"
-      );
-    }catch(e){}
-  }
-
-
-  function llegadaCumplidaGuardada(){
-
-    const clave =
-      claveLlegadaCumplida();
-
-    if(
-      !clave
-    ){
-      return false;
-    }
-
-    try{
-      return localStorage.getItem(
-        clave
-      ) === "1";
-    }catch(e){
-      return false;
-    }
-  }
-
-
-  function borrarLlegadaCumplida(){
-
-    const clave =
-      claveLlegadaCumplida();
-
-    if(
-      !clave
-    ){
-      return;
-    }
-
-    try{
-      localStorage.removeItem(
-        clave
-      );
-    }catch(e){}
+    comprobacionesFuera300 =
+      0;
   }
 
 
@@ -4685,7 +4666,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   ){
 
     if(
-      !piocaPuntoEtapa4
+      !piocaPuntoEtapa4 ||
+      !Number.isFinite(faltanMin)
     ){
       return;
     }
@@ -4693,56 +4675,28 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     const GRIS =
       "#b8bdc4";
 
-    /*
-      Mismo verde visual que "UBICACIÓN ACTUALIZADA".
-    */
     const VERDE =
       "#38e06f";
 
     let color =
       GRIS;
 
-    const yaLlego =
-      llegadaCumplidaGuardada();
-
+    /*
+      R55:
+      El color de la etapa 4 también se reconstruye desde la ETA vigente.
+      No queda una marca verde persistida por una ETA vieja.
+    */
     if(
-      yaLlego ||
-      faltanMin <= 0
-    ){
-
-      color =
-        VERDE;
-
-      if(
-        faltanMin <= 0 &&
-        !yaLlego
-      ){
-        guardarLlegadaCumplida();
-      }
-
-    }else if(
       faltanMin <= 1
     ){
-
-      /*
-        Visual final:
-        desde 1 minuto el punto 4 ya se ve completamente verde.
-        No se persiste todavía; si Google vuelve a >1 min,
-        recupera el color correspondiente.
-      */
       color =
         VERDE;
 
     }else if(
       faltanMin < 2
     ){
-
-      /*
-        Entre 2 y 1 minuto pasa progresivamente de gris a verde.
-      */
       const progreso =
-        2 -
-        faltanMin;
+        2 - faltanMin;
 
       color =
         mezclarColor(
@@ -4757,6 +4711,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       color
     );
   }
+
 
   /*
     Animación visual del marcador.
@@ -6291,6 +6246,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
+    cargarEstadoFisicoLlegada();
+
     const id =
       lecturaId === null ||
       typeof lecturaId === "undefined"
@@ -6298,13 +6255,24 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         : String(lecturaId);
 
     /*
-      Las consultas del cliente se repiten cada 1,5 s, pero una misma
-      posición GPS puede venir varias veces. Para las 3 comprobaciones
-      > 300 m contamos únicamente posiciones GPS nuevas.
+      Si created_at no estuviera disponible, usamos coordenadas redondeadas
+      como respaldo para que la misma muestra repetida por polling no pueda
+      convertirse artificialmente en 3 comprobaciones >300 m.
     */
+    const claveSinId =
+      Number(lat).toFixed(6) +
+      "," +
+      Number(lon).toFixed(6);
+
     if(
-      id &&
-      ultimaLecturaProximidadProcesada === id
+      (
+        id &&
+        ultimaLecturaProximidadProcesada === id
+      ) ||
+      (
+        !id &&
+        ultimaClaveProximidadSinId === claveSinId
+      )
     ){
       actualizarAvisoProximidad();
       return;
@@ -6330,6 +6298,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(id){
       ultimaLecturaProximidadProcesada =
         id;
+    }else{
+      ultimaClaveProximidadSinId =
+        claveSinId;
     }
 
     if(
@@ -6353,16 +6324,25 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
           comprobacionesFuera300 =
             0;
+
+          zonaCercaConfirmada =
+            false;
+
+          guardarEstadoFisicoLlegada();
+
+        }else{
+          guardarEstadoFisicoLlegada();
         }
 
       }else{
 
-        /*
-          Cualquier nueva posición <= 300 m confirma que las lecturas
-          anteriores > 300 m fueron ruido o una salida no sostenida.
-        */
         comprobacionesFuera300 =
           0;
+
+        zonaCercaConfirmada =
+          true;
+
+        guardarEstadoFisicoLlegada();
       }
 
     }else{
@@ -6371,6 +6351,25 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         0;
 
       if(
+        distanciaAlDomicilio > 300
+      ){
+        zonaCercaConfirmada =
+          false;
+
+      }else if(
+        !zonaCercaConfirmada
+      ){
+        /*
+          Primera lectura de una nueva entrada <=300 m. Aunque ya esté
+          dentro de 50 m, mostramos primero MUY CERCA y esperamos otra
+          posición GPS nueva para confirmar HEMOS LLEGADO.
+        */
+        zonaCercaConfirmada =
+          true;
+
+        guardarEstadoFisicoLlegada();
+
+      }else if(
         distanciaAlDomicilio <= 50
       ){
         llegadaFisicaConfirmada =
@@ -6378,6 +6377,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
         llegadaFisicaInicioMs =
           Date.now();
+
+        guardarEstadoFisicoLlegada();
       }
     }
 
@@ -6481,17 +6482,59 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   function actualizarPanelTrayecto(){
 
     if(
-      terminado ||
-      !llegadaClienteMs ||
-      !Number.isFinite(
-        llegadaClienteMs
-      )
+      terminado
     ){
       return;
     }
 
     const ahoraMs =
       Date.now();
+
+    actualizarAvisoProximidad();
+
+    /*
+      R55 - CIERRE FÍSICO INDEPENDIENTE DE ETA
+
+      El reloj de 4 minutos pertenece a la llegada física, no a Google.
+      Por eso se evalúa ANTES de exigir una ETA válida.
+
+      Si existen 1 o 2 lecturas >300 m pendientes de confirmar salida,
+      el cierre queda pausado. Así nunca finalizamos durante la pequeña
+      ventana en la que una tercera lectura podía demostrar que se fue.
+    */
+    if(
+      llegadaFisicaConfirmada &&
+      Number.isFinite(llegadaFisicaInicioMs) &&
+      comprobacionesFuera300 === 0 &&
+      ahoraMs >=
+        llegadaFisicaInicioMs + 240000
+    ){
+      mostrarFinalizado(false);
+      return;
+    }
+
+    if(
+      !Number.isFinite(
+        llegadaClienteMs
+      )
+    ){
+      if(piocaEtaMinutos){
+        piocaEtaMinutos.textContent =
+          "--";
+      }
+
+      if(piocaEtaHora){
+        piocaEtaHora.textContent =
+          "--:-- hs";
+
+        piocaEtaHora.classList.remove(
+          "proximo"
+        );
+      }
+
+      actualizarTituloTrayectoProximidad();
+      return;
+    }
 
     const faltanMin =
       (
@@ -6500,40 +6543,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       ) /
       60000;
 
-    actualizarAvisoProximidad();
-
-    /*
-      Cierre visual del mapa por llegada física:
-      el reloj de 4 minutos empieza únicamente cuando una posición GPS
-      entra a <= 50 m del domicilio.
-
-      Si después aparecen 3 posiciones GPS distintas y consecutivas
-      a > 300 m, procesarPosicionProximidad anula la llegada,
-      borra llegadaFisicaInicioMs y este reloj deja de correr.
-
-      Una nueva entrada a <= 50 m vuelve a confirmar la llegada y
-      arranca un reloj NUEVO de 4 minutos desde cero.
-    */
-    if(
-      llegadaFisicaConfirmada &&
-      Number.isFinite(llegadaFisicaInicioMs) &&
-      ahoraMs >=
-        llegadaFisicaInicioMs + 240000
-    ){
-      mostrarFinalizado();
-      return;
-    }
-
     actualizarZoomSegunEta(
       faltanMin
     );
 
-    /*
-      R20 SIMPLE:
-      Gris normal hasta 2 min.
-      De 2 min a 0 min cambia progresivamente a verde.
-      Desde ETA 0 queda verde y se persiste por ID.
-    */
     actualizarColorPuntoEtapa4(
       faltanMin
     );
@@ -6543,33 +6556,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         llegadaClienteMs
       );
 
-    /*
-      R40 - MINUTOS RESTANTES
-      Se calculan siempre desde la ETA vigente y Date.now().
-      No hay contador independiente: si la ETA cambia, el valor
-      y el color se corrigen automáticamente en el siguiente repintado.
-    */
     if(
       piocaEtaMinutos
     ){
-
       const minutosRestantes =
-        Math.max(
-          1,
-          Math.ceil(
-            faltanMin
-          )
-        );
+        faltanMin <= 0
+          ? 0
+          : Math.ceil(faltanMin);
 
       piocaEtaMinutos.textContent =
         minutosRestantes +
         " min";
 
-      /*
-        Verde sólo mientras la ETA vigente esté dentro de los
-        últimos 2 minutos. Si luego la ETA se extiende por encima
-        de 2 minutos, vuelve automáticamente al color original.
-      */
       piocaEtaMinutos.classList.remove(
         "proximo"
       );
@@ -6587,19 +6585,19 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       "";
 
     /*
-      R15 - AVANCE CONTINUO
+      R55 - AVANCE DETERMINÍSTICO POR ETA ACTUAL
 
-      36% = etapa 2
-      64% = etapa 3
-      92% = etapa 4
+      No existe "minuto inicial de esta pestaña".
+      Para una misma ETA, cualquier apertura dibuja exactamente lo mismo:
 
-      De etapa 2 a 3:
-      se reparte el recorrido desde la ETA de referencia hasta
-      que quedan 5 minutos.
+      >15 min       -> etapa 2, inicio del tramo
+      15 a 5 min    -> avance lineal 2 -> 3
+      5 a 2 min     -> avance lineal 3 -> 4
+      <=2 min       -> etapa 4
 
-      De etapa 3 a 4:
-      los 3 minutos comprendidos entre 5 y 2 minutos restantes
-      llenan progresivamente el último tramo.
+      De esta forma, si el cliente cierra la página y vuelve a abrirla
+      mientras la camioneta avanzó, el pin reaparece directamente donde
+      corresponde según la ETA vigente del servidor.
     */
     let etapa =
       2;
@@ -6613,7 +6611,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(
       faltanMin <= 2
     ){
-
       etapa =
         4;
 
@@ -6623,7 +6620,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }else if(
       faltanMin <= 5
     ){
-
       etapa =
         3;
 
@@ -6633,51 +6629,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           Math.min(
             1,
             (
-              5 -
-              faltanMin
-            ) /
-            3
+              5 - faltanMin
+            ) / 3
           )
         );
 
       posicion =
         64 +
-        (
-          28 *
-          progreso34
-        );
+        28 * progreso34;
 
       progresoEnCurso =
-        progreso34 <
-          1;
+        progreso34 < 1;
 
-    }else{
-
+    }else if(
+      faltanMin <= 15
+    ){
       etapa =
         2;
-
-      /*
-        Si la sesión empezó con más de 5 minutos, usamos ese
-        tiempo inicial como referencia. Si empezó ya dentro de
-        los últimos 5 minutos, este tramo queda directamente
-        completado por la lógica superior.
-      */
-      const referenciaMin =
-        Number.isFinite(
-          minutosReferenciaTrayecto
-        )
-          ? minutosReferenciaTrayecto
-          : Math.max(
-              5.25,
-              faltanMin
-            );
-
-      const duracionTramo23 =
-        Math.max(
-          0.25,
-          referenciaMin -
-          5
-        );
 
       const progreso23 =
         Math.max(
@@ -6685,23 +6653,27 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           Math.min(
             1,
             (
-              referenciaMin -
-              faltanMin
-            ) /
-            duracionTramo23
+              15 - faltanMin
+            ) / 10
           )
         );
 
       posicion =
         36 +
-        (
-          28 *
-          progreso23
-        );
+        28 * progreso23;
 
       progresoEnCurso =
-        progreso23 <
-          1;
+        progreso23 < 1;
+
+    }else{
+      etapa =
+        2;
+
+      posicion =
+        36;
+
+      progresoEnCurso =
+        true;
     }
 
     pintarEtapaTrayecto(
@@ -7084,6 +7056,27 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     horaLlegada.textContent =
       "--:--";
+
+    /*
+      R55:
+      una ETA ausente no puede dejar viva una ETA vieja en memoria.
+    */
+    llegadaClienteMs =
+      null;
+
+    if(piocaEtaMinutos){
+      piocaEtaMinutos.textContent =
+        "--";
+    }
+
+    if(piocaEtaHora){
+      piocaEtaHora.textContent =
+        "--:-- hs";
+
+      piocaEtaHora.classList.remove(
+        "proximo"
+      );
+    }
   }
 
   function mostrarHoraLlegada(
@@ -7093,30 +7086,25 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(
       !valor
     ){
-
       ocultarHoraLlegada();
-
+      actualizarPanelTrayecto();
       return;
     }
 
     const fecha =
-      new Date(
-        valor
-      );
+      new Date(valor);
 
     if(
       !Number.isFinite(
         fecha.getTime()
       )
     ){
-
       ocultarHoraLlegada();
-
+      actualizarPanelTrayecto();
       return;
     }
 
     horaLlegada.textContent =
-
       fecha.toLocaleTimeString(
         "es-AR",
         {
@@ -7125,7 +7113,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           hour12:false
         }
       ) +
-
       " hs";
 
     horaLlegadaBox.style.display =
@@ -7135,53 +7122,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       fecha.getTime();
 
     /*
-      R19:
-      Recuperamos primero la referencia original del seguimiento.
-      Si no existe, la creamos y persistimos una sola vez.
+      Limpiamos la referencia R19 de versiones anteriores para que una
+      página actualizada no siga heredando un progreso viejo por navegador.
     */
-    if(
-      !Number.isFinite(
-        inicioTrayectoVisualMs
-      ) ||
-      !Number.isFinite(
-        minutosReferenciaTrayecto
-      ) ||
-      !Number.isFinite(
-        llegadaReferenciaTrayectoMs
-      )
-    ){
-
-      const recuperada =
-        cargarReferenciaTrayectoPersistida();
-
-      if(
-        !recuperada
-      ){
-
-        llegadaReferenciaTrayectoMs =
-          llegadaClienteMs;
-
-        inicioTrayectoVisualMs =
-          Date.now();
-
-        minutosReferenciaTrayecto =
-          Math.max(
-            0,
-            (
-              llegadaClienteMs -
-              inicioTrayectoVisualMs
-            ) /
-            60000
-          );
-
-        guardarReferenciaTrayectoPersistida();
-      }
-    }
+    borrarPersistenciaTrayectoLegacy();
 
     actualizarPanelTrayecto();
 
     iniciarAnimacionTrayectoContinua();
   }
+
 
   function aplicarClasePopup(
     clase
@@ -8342,7 +8292,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     ultimoIntentoDestinoMs =
       0;
 
-    ocultarAvisoProximidad();
+    ultimoDestinoValidoMs =
+      0;
+
+    if(
+      llegadaFisicaConfirmada
+    ){
+      actualizarAvisoProximidad();
+    }else{
+      ocultarAvisoProximidad();
+    }
   }
 
   async function consultarDestinoSeguimiento(){
@@ -8350,7 +8309,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(
       terminado ||
       !codigo ||
-      destinoConsultaCompleta ||
       destinoConsultaEnCurso
     ){
       return;
@@ -8358,6 +8316,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     const ahora =
       Date.now();
+
+    /*
+      Aunque ya exista un destino válido, lo revalidamos cada 60 s.
+      Una apertura nueva lo obtiene inmediatamente y una corrección del
+      domicilio en backend no deja la sesión pegada a coordenadas viejas.
+    */
+    if(
+      destinoConsultaCompleta &&
+      ultimoDestinoValidoMs &&
+      ahora - ultimoDestinoValidoMs <
+        INTERVALO_REVALIDAR_DESTINO_MS
+    ){
+      return;
+    }
 
     /*
       Si el primer intento coincide con una pérdida momentánea de red,
@@ -8415,15 +8387,15 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         datos[0];
 
       /*
-        Una respuesta válida ya define si este seguimiento posee
-        destino. Los seguimientos legacy simplemente no muestran pin.
+        Sólo una respuesta ACTIVE con coordenadas válidas puede cerrar
+        este intento. Un estado transitorio o datos incompletos deben
+        permitir reintentos posteriores.
       */
-      destinoConsultaCompleta =
-        true;
-
       if(
         d.state !== "active"
       ){
+        destinoConsultaCompleta =
+          false;
         return;
       }
 
@@ -8441,8 +8413,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         !Number.isFinite(lat) ||
         !Number.isFinite(lon)
       ){
+        destinoConsultaCompleta =
+          false;
         return;
       }
+
+      destinoConsultaCompleta =
+        true;
+
+      ultimoDestinoValidoMs =
+        Date.now();
 
       destinoLat =
         lat;
@@ -8494,7 +8474,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
   }
 
-  function mostrarFinalizado(){
+  function mostrarFinalizado(finalDefinitivoServidor){
 
     terminado =
       true;
@@ -8530,13 +8510,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     encuadreInicialMapaActivo =
       false;
 
-    borrarReferenciaTrayectoPersistida();
+    borrarPersistenciaTrayectoLegacy();
 
     /*
-      El seguimiento ya terminó definitivamente:
-      la persistencia verde deja de ser necesaria.
+      El cierre local de 4 minutos puede ocurrir antes de que Supabase
+      cambie state a finished. En ese caso conservamos el enclavamiento
+      para que una reapertura reconstruya correctamente la pantalla.
+      Sólo el estado FINISHED del servidor limpia la memoria física.
     */
-    borrarLlegadaCumplida();
+    if(
+      finalDefinitivoServidor === true
+    ){
+      borrarEstadoFisicoLlegada();
+    }else{
+      guardarEstadoFisicoLlegada();
+    }
 
     document.body.classList.add(
       "seguimientoFinalizadoVisual"
@@ -8848,14 +8836,12 @@ horaLlegadaBox.style.display =
     ultimaDistanciaProximidad =
       null;
 
-    llegadaFisicaConfirmada =
-      false;
-
-    llegadaFisicaInicioMs =
-      null;
-
-    comprobacionesFuera300 =
-      0;
+    /*
+      R55:
+      NO borramos llegadaFisicaConfirmada ni su reloj ante una respuesta
+      momentáneamente vacía/no-activa. Ese estado sólo se libera por las
+      3 posiciones >300 m o por finalización definitiva.
+    */
 
     tramoZoomEtaActual =
       null;
@@ -12170,6 +12156,8 @@ if(
       .trim()
       .toUpperCase();
 
+    cargarEstadoFisicoLlegada();
+
     if(
       codigo.length <
         8 ||
@@ -12303,7 +12291,7 @@ if(
           "finished"
       ){
 
-        mostrarFinalizado();
+        mostrarFinalizado(true);
 
         return;
       }
@@ -12340,13 +12328,19 @@ if(
         ultimaLecturaProximidadId =
           null;
 
-        ultimaDistanciaProximidad =
-          null;
-
+        /*
+          Si había HEMOS LLEGADO enclavado, una muestra sin coordenadas
+          no constituye evidencia de salida y no borra su distancia/estado.
+        */
         if(
           !llegadaFisicaConfirmada
         ){
+          ultimaDistanciaProximidad =
+            null;
+
           ocultarAvisoProximidad();
+        }else{
+          actualizarAvisoProximidad();
         }
 
         pintarEstadoNormalEnVivo();
