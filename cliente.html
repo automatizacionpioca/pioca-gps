@@ -5760,11 +5760,24 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return false;
     }
 
+    /*
+      CORRECCIÓN R53:
+      null NO puede convertirse con Number(null), porque JavaScript lo
+      transforma en 0. Eso hacía que la cámara creyera que la camioneta
+      estaba en 0,0 (Golfo de Guinea) cuando este llamado pedía usar la
+      posición actual del marcador.
+    */
     let latCamioneta =
-      Number(latForzada);
+      latForzada === null ||
+      typeof latForzada === "undefined"
+        ? NaN
+        : Number(latForzada);
 
     let lonCamioneta =
-      Number(lonForzada);
+      lonForzada === null ||
+      typeof lonForzada === "undefined"
+        ? NaN
+        : Number(lonForzada);
 
     if(
       !Number.isFinite(latCamioneta) ||
