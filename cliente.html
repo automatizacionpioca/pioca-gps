@@ -502,6 +502,18 @@
       text-transform:uppercase;
     }
 
+    /*
+      R54 - PROXIMIDAD FÍSICA EN EL TÍTULO DEL TRAYECTO
+      Mismo tamaño y tipografía; sólo cambia a verde.
+    */
+    #piocaTrayectoTitulo.proximidadFisica{
+      color:#38e06f;
+    }
+
+    #piocaTrayectoTitulo.proximidadFisica::before{
+      color:#38e06f;
+    }
+
     #piocaTrayectoTitulo::before{
       content:"⌁";
       display:inline-block;
@@ -2947,12 +2959,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         type="button">
         ↻ REFRESCAR POSICIÓN
       </button>
-
-      <div
-        id="piocaAvisoProximidad"
-        aria-live="polite">
-      </div>
-
       <div id="mensajeTecnicoPanel">
         <div id="mensajeTecnicoTitulo">
           Dejá un mensaje al técnico en camino
@@ -6182,8 +6188,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
   /* ==========================================================
-     R52 - CARTEL DE PROXIMIDAD POR DISTANCIA REAL
-     - > 300 m: sin cartel
+     R52/R54 - PROXIMIDAD POR DISTANCIA REAL EN TÍTULO
+     - > 300 m: título normal del trayecto
      - 300 m a > 50 m: ¡ESTAMOS MUY CERCA!
      - <= 50 m: HEMOS LLEGADO + reloj visual de 4 min
      - una vez enclavado, tolera ruido GPS hasta 300 m
@@ -6355,72 +6361,101 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
-  function actualizarAvisoProximidad(){
+  function actualizarTituloTrayectoProximidad(){
 
     if(
-      !piocaAvisoProximidad ||
+      !piocaTrayectoTitulo ||
       terminado
     ){
-      ocultarAvisoProximidad();
       return;
     }
 
+    const faltanMinTitulo =
+      (
+        llegadaClienteMs &&
+        Number.isFinite(
+          llegadaClienteMs
+        )
+      )
+        ? (
+            llegadaClienteMs -
+            Date.now()
+          ) /
+          60000
+        : null;
+
     /*
-      Una llegada física ya confirmada queda enclavada.
-      No sale por rebotes de 55, 80, 150 o incluso una o dos posiciones
-      > 300 m. Sólo procesarPosicionProximidad puede liberarla luego de
-      3 posiciones GPS distintas y consecutivas > 300 m.
+      Texto normal existente:
+      - > 5 min: ESTAMOS EN CAMINO
+      - <= 5 min: ESTAMOS PRÓXIMOS A LLEGAR
+    */
+    let texto =
+      (
+        Number.isFinite(
+          faltanMinTitulo
+        ) &&
+        faltanMinTitulo <= 5
+      )
+        ? "ESTAMOS PRÓXIMOS A LLEGAR"
+        : "ESTAMOS EN CAMINO";
+
+    let proximidadFisicaActiva =
+      false;
+
+    /*
+      Se conserva EXACTAMENTE la lógica física ya existente:
+
+      - llegada confirmada <= 50 m:
+        HEMOS LLEGADO queda enclavado;
+
+      - si todavía no llegó, pero está <= 300 m:
+        ¡ESTAMOS MUY CERCA!;
+
+      - una vez enclavado, sólo procesarPosicionProximidad puede
+        liberarlo luego de 3 posiciones GPS distintas y consecutivas
+        > 300 m.
     */
     if(
       llegadaFisicaConfirmada
     ){
-      piocaAvisoProximidad.textContent =
+      texto =
         "HEMOS LLEGADO";
 
-      piocaAvisoProximidad.classList.add(
-        "visible"
-      );
+      proximidadFisicaActiva =
+        true;
 
-      alinearAvisoProximidad();
-      return;
-    }
-
-    if(
-      !Number.isFinite(ultimaLatitudProximidad) ||
-      !Number.isFinite(ultimaLongitudProximidad) ||
-      !Number.isFinite(destinoLat) ||
-      !Number.isFinite(destinoLon)
+    }else if(
+      Number.isFinite(
+        ultimaDistanciaProximidad
+      ) &&
+      ultimaDistanciaProximidad <= 300
     ){
-      ocultarAvisoProximidad();
-      return;
-    }
-
-    const distanciaAlDomicilio =
-      Number.isFinite(ultimaDistanciaProximidad)
-        ? ultimaDistanciaProximidad
-        : distanciaMetros(
-            ultimaLatitudProximidad,
-            ultimaLongitudProximidad,
-            destinoLat,
-            destinoLon
-          );
-
-    if(
-      Number.isFinite(distanciaAlDomicilio) &&
-      distanciaAlDomicilio <= 300
-    ){
-      piocaAvisoProximidad.textContent =
+      texto =
         "¡ESTAMOS MUY CERCA!";
 
-      piocaAvisoProximidad.classList.add(
-        "visible"
-      );
-
-      alinearAvisoProximidad();
-      return;
+      proximidadFisicaActiva =
+        true;
     }
 
-    ocultarAvisoProximidad();
+    piocaTrayectoTitulo.textContent =
+      texto;
+
+    piocaTrayectoTitulo.classList.toggle(
+      "proximidadFisica",
+      proximidadFisicaActiva
+    );
+  }
+
+
+  function actualizarAvisoProximidad(){
+
+    /*
+      R54:
+      El antiguo recuadro flotante fue eliminado.
+      Esta función se conserva porque ya forma parte de la lógica
+      de proximidad y ahora actualiza el título principal.
+    */
+    actualizarTituloTrayectoProximidad();
   }
 
 
@@ -6656,10 +6691,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       progresoEnCurso
     );
 
-    piocaTrayectoTitulo.textContent =
-      etapa >= 3
-        ? "ESTAMOS PRÓXIMOS A LLEGAR"
-        : "ESTAMOS EN CAMINO";
+    actualizarTituloTrayectoProximidad();
 
     requestAnimationFrame(
       actualizarAnclajeRefrescar
