@@ -5427,8 +5427,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     HISTORIAL_INTERVALOS_MAX:7,
     INTERVALO_MIN_VALIDO_MS:500,
     INTERVALO_MAX_VALIDO_MS:6500,
-    CADENCIA_MIN_USABLE_MS:850,
-    CADENCIA_MAX_USABLE_MS:3500,
+    /*
+      Calibración experimental 03/10/2026:
+      el emisor está programado a 2 s, por eso nunca aprendemos una
+      cadencia operativa menor a 2 s. Supabase mostró una mediana estable
+      ~3.993 s, por lo que el modelo puede aprender hasta 5 s. Los gaps
+      observables de hasta 6.5 s pueden medirse, pero la referencia operativa
+      nunca puede superar esos 5 s.
+    */
+    CADENCIA_MIN_USABLE_MS:2000,
+    CADENCIA_MAX_USABLE_MS:5000,
     MUESTRAS_MIN_MODELO:3,
     DISPERSION_RELATIVA_BUENA:0.08,
     DISPERSION_RELATIVA_MALA:0.38,
@@ -5438,7 +5446,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     MICROAVANCE_AUTOPISTA_MAX:PORCENTAJE_MICROAVANCE_AUTOPISTA,
     MARGEN_ALTA_MIN_MS:100,
     MARGEN_ALTA_MAX_MS:300,
-    DURACION_ALTA_MIN_ABS_MS:1050
+    DURACION_ALTA_MIN_ABS_MS:1050,
+
+    /*
+      Techos visuales adaptativos. Con cadencia histórica de 2 s los
+      techos viejos siguen mandando exactamente igual. Sólo se amplían
+      cuando 3+ muestras demuestran una cadencia real más lenta.
+    */
+    DURACION_MAX_ABS_MS:6000,
+    DURACION_RUMBO_INCIERTO_MAX_ABS_MS:5000,
+    RATIO_TECHO_BAJA:1.03,
+    RATIO_TECHO_MEDIA_BAJA:1.08,
+    RATIO_TECHO_MEDIA:1.12,
+    RATIO_TECHO_ALTA:1.20,
+    RATIO_TECHO_RUMBO_INCIERTO:0.96
   });
 
   function medianaNumeros(valores){
@@ -5794,6 +5815,72 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       Math.min(
         DURACION_CONTINUA_MIN_MS,
         e.cadenciaMs * 0.975
+      )
+    );
+  }
+
+
+  /*
+    R58 - TECHO DE DURACIÓN AUTOCALIBRADO POR CADENCIA.
+
+    Antes, aunque el modelo detectara ~4 s entre posiciones, los techos
+    históricos de 2.2 / 2.8 / 3.0 s podían hacer que el pin llegara al
+    último GPS y quedara quieto esperando el siguiente.
+
+    Regla:
+    - con cadencia de 2 s conserva exactamente los techos históricos;
+    - con una cadencia más lenta ya demostrada, permite que la animación
+      acompañe esa cadencia sin superar un máximo absoluto de seguridad;
+    - no proyecta coordenadas ni cambia ningún filtro geométrico.
+  */
+  function techoDuracionHibrido(
+    techoHistoricoMs,
+    ratioCadencia
+  ){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const e = estadoCadenciaGpsHibrido;
+
+    if(
+      e.muestras < c.MUESTRAS_MIN_MODELO ||
+      !Number.isFinite(e.cadenciaMs)
+    ){
+      return techoHistoricoMs;
+    }
+
+    return Math.max(
+      techoHistoricoMs,
+      Math.min(
+        c.DURACION_MAX_ABS_MS,
+        e.cadenciaMs * ratioCadencia
+      )
+    );
+  }
+
+
+  /*
+    Cuando el rumbo es dudoso mantenemos la filosofía R32. Si la cadencia
+    aprendida supera los techos históricos, ampliamos ese techo sólo hasta
+    ~96% de la próxima muestra esperada: con ~4 s da ~3.84 s, no 2.8 s.
+    Así queda una comprobación corta sin una pausa de más de un segundo.
+  */
+  function techoDuracionRumboInciertoHibrido(
+    techoHistoricoMs
+  ){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const e = estadoCadenciaGpsHibrido;
+
+    if(
+      e.muestras < c.MUESTRAS_MIN_MODELO ||
+      !Number.isFinite(e.cadenciaMs)
+    ){
+      return techoHistoricoMs;
+    }
+
+    return Math.max(
+      techoHistoricoMs,
+      Math.min(
+        c.DURACION_RUMBO_INCIERTO_MAX_ABS_MS,
+        e.cadenciaMs * c.RATIO_TECHO_RUMBO_INCIERTO
       )
     );
   }
@@ -10887,7 +10974,9 @@ ocultarHoraLlegada();
         return Math.max(
           650,
           Math.min(
-            DURACION_R32_MEDIA_MAX_MS,
+            techoDuracionRumboInciertoHibrido(
+              DURACION_R32_MEDIA_MAX_MS
+            ),
             intervaloAdaptado *
             factorMediaR32
           )
@@ -10902,7 +10991,9 @@ ocultarHoraLlegada();
       return Math.max(
         duracionMinimaAlta,
         Math.min(
-          DURACION_R32_ALTA_MAX_MS,
+          techoDuracionRumboInciertoHibrido(
+            DURACION_R32_ALTA_MAX_MS
+          ),
           (
             intervaloAdaptado *
             factorContinuoR32
@@ -10930,9 +11021,9 @@ ocultarHoraLlegada();
 
       >= 60 km/h:
       - factor continuo R33: 1.09 / 1.11 / 1.13;
-      - conserva el techo histórico de 3000 ms;
-      - el piso y el colchón se adaptan sólo después de aprender
-        una cadencia fiable, sin superar los valores históricos.
+      - con cadencia inicial de 2 s conserva el techo histórico;
+      - si 3+ muestras prueban una cadencia mayor, el techo visual se
+        amplía de forma acotada para no terminar antes del próximo GPS.
     */
     if(
       Number.isFinite(
@@ -10950,7 +11041,10 @@ ocultarHoraLlegada();
       return Math.max(
         duracionMinimaAlta,
         Math.min(
-          DURACION_CONTINUA_MAX_MS,
+          techoDuracionHibrido(
+            DURACION_CONTINUA_MAX_MS,
+            ALGORITMO_PIN_HIBRIDO.RATIO_TECHO_ALTA
+          ),
           (
             intervaloAdaptado *
             factorContinuo
@@ -10994,7 +11088,10 @@ ocultarHoraLlegada();
         return Math.max(
           650,
           Math.min(
-            2200,
+            techoDuracionHibrido(
+              2200,
+              ALGORITMO_PIN_HIBRIDO.RATIO_TECHO_MEDIA_BAJA
+            ),
             intervaloAdaptado *
             factorMediaBaja
           )
@@ -11013,7 +11110,10 @@ ocultarHoraLlegada();
       return Math.max(
         650,
         Math.min(
-          3000,
+          techoDuracionHibrido(
+            3000,
+            ALGORITMO_PIN_HIBRIDO.RATIO_TECHO_MEDIA
+          ),
           intervaloAdaptado *
           factorMedia
         )
@@ -11045,7 +11145,10 @@ ocultarHoraLlegada();
     return Math.max(
       650,
       Math.min(
-        2200,
+        techoDuracionHibrido(
+          2200,
+          ALGORITMO_PIN_HIBRIDO.RATIO_TECHO_BAJA
+        ),
         intervaloAdaptado *
         factorBaja
       )
@@ -12680,8 +12783,8 @@ if(
         marcador -> último punto real -> nuevo punto real.
 
         Así evitamos la diagonal directa entre dos calles y,
-        gracias a la frecuencia de 2 s, ese vértice suele quedar
-        mucho más cerca de la esquina real.
+        gracias a la cadencia GPS aprendida, ese vértice conserva el
+        último punto real antes del cambio de calle.
       */
       animarMarcadorConGiroProtegido(
         ultimoPuntoServidor.lat,
