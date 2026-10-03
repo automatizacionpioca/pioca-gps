@@ -505,46 +505,36 @@
     /*
       R54 CORREGIDA - PROXIMIDAD FÍSICA EN EL TÍTULO DEL TRAYECTO
 
-      IMPORTANTE:
-      - NO modifica font-size, font-family, font-weight, line-height,
-        posición, márgenes ni dimensiones del título original.
-      - ¡ESTAMOS MUY CERCA! conserva exactamente el color normal.
-      - HEMOS LLEGADO conserva exactamente la misma tipografía/tamaño
-        y sólo cambia a verde.
-      - Ambos estados usan un titilado suave/profesional, sin saltos.
+      Los tres estados conservan exactamente el mismo tono #202C38.
+      No se modifica font-size, font-family, font-weight, line-height,
+      posición, márgenes ni dimensiones del título original.
+
+      Sólo ¡ESTAMOS MUY CERCA! y HEMOS LLEGADO titilan.
+      El titilado no altera opacidad ni brillo de las letras:
+      usa únicamente un resplandor muy sutil alrededor del texto.
     */
     #piocaTrayectoTitulo.proximidadCerca,
     #piocaTrayectoTitulo.llegadaFisica{
+      color:#202c38;
       animation:
         piocaTituloProximidadPulse 1.55s
         cubic-bezier(.45,0,.25,1)
         infinite;
     }
 
-    #piocaTrayectoTitulo.proximidadCerca{
-      color:#202c38;
-    }
-
-    #piocaTrayectoTitulo.proximidadCerca::before{
-      color:var(--pioca-azul);
-    }
-
-    #piocaTrayectoTitulo.llegadaFisica{
-      color:#38e06f;
-    }
-
+    #piocaTrayectoTitulo.proximidadCerca::before,
     #piocaTrayectoTitulo.llegadaFisica::before{
-      color:#38e06f;
+      color:var(--pioca-azul);
     }
 
     @keyframes piocaTituloProximidadPulse{
       0%,100%{
-        opacity:1;
-        filter:brightness(1);
+        text-shadow:
+          0 0 0 rgba(32,44,56,0);
       }
       50%{
-        opacity:.64;
-        filter:brightness(1.06);
+        text-shadow:
+          0 0 7px rgba(32,44,56,.24);
       }
     }
 
