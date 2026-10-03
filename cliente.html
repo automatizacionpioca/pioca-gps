@@ -2407,11 +2407,7 @@ body.seguimientoFinalizadoVisual #estado{
   color:#249447;
 }
 
-.llegadaFinalEtapa.e4.completa .llegadaFinalPunto{
-  transform:scale(1.15);
-}
-
-.llegadaFinalEtapa.e4.completa .llegadaFinalPunto::after{
+.llegadaFinalEtapa.completa .llegadaFinalPunto::after{
   content:"✓";
   position:absolute;
   inset:0;
@@ -2419,9 +2415,18 @@ body.seguimientoFinalizadoVisual #estado{
   align-items:center;
   justify-content:center;
   color:#fff;
-  font-size:10px;
+  font-size:9px;
   line-height:1;
   font-weight:900;
+}
+
+/* La cuarta posta remata la secuencia con mayor peso visual. */
+.llegadaFinalEtapa.e4.completa .llegadaFinalPunto{
+  transform:scale(1.25);
+}
+
+.llegadaFinalEtapa.e4.completa .llegadaFinalPunto::after{
+  font-size:12px;
 }
 
 .llegadaFinalNumero{
