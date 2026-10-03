@@ -5120,11 +5120,35 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let ultimoCreatedAtProcesadoGps =
     null;
 
+  /* ==========================================================
+     R58 - ESTADO DEL ALGORITMO HÍBRIDO DE MOVIMIENTO DEL PIN
+
+     Esta memoria pertenece ÚNICAMENTE al movimiento visual del pin.
+     No participa de ETA, etapas, llegada física ni finalización.
+
+     Aprende la cadencia real de los paquetes GPS (created_at) y su
+     regularidad para que la duración visual deje de depender de una
+     suposición fija de 2 s. Los filtros geométricos duros se conservan.
+     ========================================================== */
+  let historialIntervalosGpsHibrido =
+    [];
+
+  let ultimoCreatedAtCadenciaGps =
+    null;
+
+  let estadoCadenciaGpsHibrido = {
+    cadenciaMs:2000,
+    intervaloRealMs:null,
+    confianzaModelo:0,
+    confianzaTemporal:0.50,
+    muestras:0
+  };
+
   /*
-    V9:
-    Android genera una posición aproximadamente cada 2 segundos.
-    La animación debe terminar apenas antes del siguiente punto
-    para mantener continuidad sin perseguir posiciones viejas.
+    V9 / R58:
+    2 segundos queda sólo como referencia de arranque. R58 aprende la
+    cadencia real de created_at y reajusta la duración visual en marcha.
+    La animación mantiene continuidad sin perseguir posiciones viejas.
   */
   const DURACION_ANIMACION_DEFAULT_MS =
     1750;
@@ -5384,6 +5408,395 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
   const DISTANCIA_MAXIMA_CONFIRMACION_AUTOPISTA_METROS =
     110;
+
+  /* ==========================================================
+     R58 - ALGORITMO HÍBRIDO DE FLUIDEZ / CONFIANZA GPS
+
+     PRINCIPIO:
+     - los umbrales duros existentes NO se relajan;
+     - la confianza sólo gradúa la respuesta visual dentro de ellos;
+     - una señal temporal estable permite continuidad larga;
+     - una señal irregular acorta el compromiso visual y evita arrastre;
+     - un desvío lateral dudoso nunca recibe MÁS confianza que antes.
+
+     La cadencia se estima con mediana + dispersión robusta para que un
+     paquete perdido no cambie por sí solo la frecuencia aprendida.
+     ========================================================== */
+  const ALGORITMO_PIN_HIBRIDO = Object.freeze({
+    CADENCIA_DEFAULT_MS:2000,
+    HISTORIAL_INTERVALOS_MAX:7,
+    INTERVALO_MIN_VALIDO_MS:500,
+    INTERVALO_MAX_VALIDO_MS:6500,
+    CADENCIA_MIN_USABLE_MS:850,
+    CADENCIA_MAX_USABLE_MS:3500,
+    MUESTRAS_MIN_MODELO:3,
+    DISPERSION_RELATIVA_BUENA:0.08,
+    DISPERSION_RELATIVA_MALA:0.38,
+    PESO_MAX_CADENCIA_APRENDIDA:0.80,
+    FACTOR_LATERAL_CONFIANZA_MIN:0.85,
+    MICROAVANCE_AUTOPISTA_MIN:0.55,
+    MICROAVANCE_AUTOPISTA_MAX:PORCENTAJE_MICROAVANCE_AUTOPISTA,
+    MARGEN_ALTA_MIN_MS:100,
+    MARGEN_ALTA_MAX_MS:300,
+    DURACION_ALTA_MIN_ABS_MS:1050
+  });
+
+  function medianaNumeros(valores){
+    const v = (Array.isArray(valores) ? valores : [])
+      .filter(Number.isFinite)
+      .slice()
+      .sort(function(a,b){ return a-b; });
+
+    if(v.length === 0){
+      return null;
+    }
+
+    const mitad = Math.floor(v.length / 2);
+
+    return v.length % 2
+      ? v[mitad]
+      : (v[mitad - 1] + v[mitad]) / 2;
+  }
+
+  function limitar01(valor){
+    return Math.max(0,Math.min(1,Number(valor) || 0));
+  }
+
+  function reiniciarAlgoritmoPinHibrido(){
+    historialIntervalosGpsHibrido = [];
+    ultimoCreatedAtCadenciaGps = null;
+    estadoCadenciaGpsHibrido = {
+      cadenciaMs:ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS,
+      intervaloRealMs:null,
+      confianzaModelo:0,
+      confianzaTemporal:0.50,
+      muestras:0
+    };
+  }
+
+  function recalcularModeloCadenciaGps(intervaloActualMs){
+    const c = ALGORITMO_PIN_HIBRIDO;
+
+    const mediana =
+      medianaNumeros(historialIntervalosGpsHibrido);
+
+    const cadencia =
+      Number.isFinite(mediana)
+        ? Math.max(
+            c.CADENCIA_MIN_USABLE_MS,
+            Math.min(c.CADENCIA_MAX_USABLE_MS,mediana)
+          )
+        : c.CADENCIA_DEFAULT_MS;
+
+    const desviaciones =
+      Number.isFinite(mediana)
+        ? historialIntervalosGpsHibrido.map(
+            function(v){ return Math.abs(v - mediana); }
+          )
+        : [];
+
+    const mad =
+      medianaNumeros(desviaciones);
+
+    const dispersionRelativa =
+      Number.isFinite(mad) && cadencia > 0
+        ? mad / cadencia
+        : 1;
+
+    const confianzaDispersion =
+      1 - limitar01(
+        (
+          dispersionRelativa -
+          c.DISPERSION_RELATIVA_BUENA
+        ) /
+        (
+          c.DISPERSION_RELATIVA_MALA -
+          c.DISPERSION_RELATIVA_BUENA
+        )
+      );
+
+    const confianzaMuestras =
+      limitar01(
+        historialIntervalosGpsHibrido.length /
+        c.MUESTRAS_MIN_MODELO
+      );
+
+    const confianzaModelo =
+      confianzaDispersion *
+      confianzaMuestras;
+
+    const desviacionActual =
+      Number.isFinite(intervaloActualMs) && cadencia > 0
+        ? Math.abs(intervaloActualMs - cadencia) / cadencia
+        : 1;
+
+    const confianzaActual =
+      1 - limitar01(
+        desviacionActual / 0.85
+      );
+
+    estadoCadenciaGpsHibrido = {
+      cadenciaMs:cadencia,
+      intervaloRealMs:
+        Number.isFinite(intervaloActualMs)
+          ? intervaloActualMs
+          : null,
+      confianzaModelo:limitar01(confianzaModelo),
+      confianzaTemporal:limitar01(
+        0.72 * confianzaModelo +
+        0.28 * confianzaActual
+      ),
+      muestras:historialIntervalosGpsHibrido.length
+    };
+
+    return estadoCadenciaGpsHibrido;
+  }
+
+  function registrarCadenciaGpsHibrida(createdAtNuevo){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const nuevoMs = new Date(createdAtNuevo).getTime();
+
+    if(!Number.isFinite(nuevoMs)){
+      return estadoCadenciaGpsHibrido;
+    }
+
+    let intervaloActualMs = null;
+
+    if(Number.isFinite(ultimoCreatedAtCadenciaGps)){
+      const delta = nuevoMs - ultimoCreatedAtCadenciaGps;
+
+      if(delta > 0){
+        intervaloActualMs = delta;
+
+        if(
+          delta >= c.INTERVALO_MIN_VALIDO_MS &&
+          delta <= c.INTERVALO_MAX_VALIDO_MS
+        ){
+          historialIntervalosGpsHibrido.push(delta);
+
+          while(
+            historialIntervalosGpsHibrido.length >
+            c.HISTORIAL_INTERVALOS_MAX
+          ){
+            historialIntervalosGpsHibrido.shift();
+          }
+        }
+      }
+    }
+
+    ultimoCreatedAtCadenciaGps = nuevoMs;
+
+    return recalcularModeloCadenciaGps(
+      intervaloActualMs
+    );
+  }
+
+  function obtenerIntervaloAnimacionAdaptado(intervaloRespaldoMs){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const e = estadoCadenciaGpsHibrido;
+
+    const real =
+      Number.isFinite(e.intervaloRealMs) &&
+      e.intervaloRealMs > 0
+        ? e.intervaloRealMs
+        : intervaloRespaldoMs;
+
+    if(!Number.isFinite(real) || real <= 0){
+      return c.CADENCIA_DEFAULT_MS;
+    }
+
+    if(
+      e.muestras < c.MUESTRAS_MIN_MODELO ||
+      !Number.isFinite(e.cadenciaMs)
+    ){
+      return real;
+    }
+
+    const cadencia = e.cadenciaMs;
+    const realLimitado =
+      Math.max(
+        cadencia * 0.55,
+        Math.min(cadencia * 1.80,real)
+      );
+
+    const pesoCadencia =
+      c.PESO_MAX_CADENCIA_APRENDIDA *
+      limitar01(e.confianzaModelo);
+
+    return (
+      realLimitado * (1 - pesoCadencia) +
+      cadencia * pesoCadencia
+    );
+  }
+
+  function confianzaTemporalOperativaGps(){
+    /*
+      Durante el arranque no alteramos la calibración histórica:
+      hasta reunir 3 intervalos válidos, la cadencia todavía no tiene
+      evidencia suficiente para quitar confianza al GPS.
+    */
+    if(
+      estadoCadenciaGpsHibrido.muestras <
+        ALGORITMO_PIN_HIBRIDO.MUESTRAS_MIN_MODELO
+    ){
+      return 1;
+    }
+
+    return limitar01(
+      estadoCadenciaGpsHibrido.confianzaTemporal
+    );
+  }
+
+  function calcularConfianzaGpsVisual(
+    latNuevo,
+    lonNuevo,
+    velocidadKmh
+  ){
+    const temporal =
+      confianzaTemporalOperativaGps();
+
+    if(!penultimoPuntoServidor || !ultimoPuntoServidor){
+      return Math.max(0.50,temporal);
+    }
+
+    const distanciaNueva =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(!Number.isFinite(distanciaNueva)){
+      return 0;
+    }
+
+    if(distanciaNueva <= DISTANCIA_DETENIDO_METROS){
+      return Math.max(0.70,temporal);
+    }
+
+    const rumboAnterior =
+      rumboGrados(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const rumboMemoria =
+      promedioCircularRumbos(
+        historialRumbosAltaVelocidad
+      );
+
+    const rumboEstable =
+      Number.isFinite(rumboMemoria)
+        ? rumboMemoria
+        : rumboAnterior;
+
+    const rumboNuevo =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    const diferencia =
+      diferenciaRumboGrados(rumboEstable,rumboNuevo);
+
+    let confianzaRumbo = 1;
+
+    if(diferencia <= 8){
+      confianzaRumbo = 1;
+    }else if(diferencia <= 15){
+      confianzaRumbo = interpolar(diferencia,8,1,15,0.86);
+    }else if(diferencia <= 35){
+      confianzaRumbo = interpolar(diferencia,15,0.72,35,0.36);
+    }else if(diferencia <= 60){
+      confianzaRumbo = interpolar(diferencia,35,0.26,60,0.12);
+    }else{
+      confianzaRumbo = 0.08;
+    }
+
+    /*
+      A baja velocidad una esquina real puede producir un ángulo grande.
+      No dejamos que ese ángulo reduzca demasiado la confianza porque allí
+      manda la protección específica de giro por vértice.
+    */
+    if(
+      Number.isFinite(velocidadKmh) &&
+      velocidadKmh < VELOCIDAD_FILTRO_LATERAL_DESDE_KMH
+    ){
+      confianzaRumbo = Math.max(confianzaRumbo,0.58);
+    }
+
+    return limitar01(
+      0.68 * confianzaRumbo +
+      0.32 * temporal
+    );
+  }
+
+  function factorLateralProtegidoPorConfianza(
+    factorOriginal,
+    confianzaGps
+  ){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const confianza = limitar01(confianzaGps);
+
+    /*
+      Nunca damos más paso lateral que el algoritmo anterior.
+      Con menor confianza sólo podemos volverlo hasta 15% más conservador.
+    */
+    return factorOriginal * (
+      c.FACTOR_LATERAL_CONFIANZA_MIN +
+      (1 - c.FACTOR_LATERAL_CONFIANZA_MIN) * confianza
+    );
+  }
+
+  function margenContinuidadAltaAdaptado(){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const e = estadoCadenciaGpsHibrido;
+
+    if(
+      e.muestras < c.MUESTRAS_MIN_MODELO ||
+      !Number.isFinite(e.cadenciaMs)
+    ){
+      return MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS;
+    }
+
+    const margenCadencia =
+      Math.max(
+        c.MARGEN_ALTA_MIN_MS,
+        Math.min(
+          c.MARGEN_ALTA_MAX_MS,
+          e.cadenciaMs * 0.15
+        )
+      );
+
+    return margenCadencia * (
+      0.72 + 0.28 * limitar01(e.confianzaModelo)
+    );
+  }
+
+  function duracionMinimaAltaAdaptada(){
+    const c = ALGORITMO_PIN_HIBRIDO;
+    const e = estadoCadenciaGpsHibrido;
+
+    if(
+      e.muestras < c.MUESTRAS_MIN_MODELO ||
+      !Number.isFinite(e.cadenciaMs)
+    ){
+      return DURACION_CONTINUA_MIN_MS;
+    }
+
+    return Math.max(
+      c.DURACION_ALTA_MIN_ABS_MS,
+      Math.min(
+        DURACION_CONTINUA_MIN_MS,
+        e.cadenciaMs * 0.975
+      )
+    );
+  }
 
   const iconoPioca =
     L.divIcon({
@@ -8755,6 +9168,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     ultimoCreatedAtProcesadoGps =
       null;
 
+    reiniciarAlgoritmoPinHibrido();
+
 
 
 
@@ -9052,6 +9467,8 @@ ocultarHoraLlegada();
 
     ultimoCreatedAtProcesadoGps =
       null;
+
+    reiniciarAlgoritmoPinHibrido();
 
 
 
@@ -9656,7 +10073,8 @@ ocultarHoraLlegada();
   function iniciarMicroavanceAutopista(
     rumboEstable,
     velocidadPromedioKmh,
-    createdAtNuevo
+    createdAtNuevo,
+    confianzaGps
   ){
 
     if(
@@ -9671,46 +10089,23 @@ ocultarHoraLlegada();
       return;
     }
 
-    let intervaloSegundos =
-      2;
+    let intervaloRespaldoMs =
+      ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
 
-    if(
-      ultimoCreatedAtServidor &&
-      createdAtNuevo
-    ){
+    if(ultimoCreatedAtServidor && createdAtNuevo){
+      const nuevoMs = new Date(createdAtNuevo).getTime();
+      const anteriorMs = new Date(ultimoCreatedAtServidor).getTime();
+      const delta = nuevoMs - anteriorMs;
 
-      const nuevoMs =
-        new Date(
-          createdAtNuevo
-        )
-        .getTime();
-
-      const anteriorMs =
-        new Date(
-          ultimoCreatedAtServidor
-        )
-        .getTime();
-
-      const intervaloCalculado =
-        (
-          nuevoMs -
-          anteriorMs
-        ) /
-        1000;
-
-      if(
-        Number.isFinite(
-          intervaloCalculado
-        ) &&
-        intervaloCalculado >
-          0 &&
-        intervaloCalculado <=
-          5
-      ){
-        intervaloSegundos =
-          intervaloCalculado;
+      if(Number.isFinite(delta) && delta > 0){
+        intervaloRespaldoMs = delta;
       }
     }
+
+    const intervaloSegundos =
+      obtenerIntervaloAnimacionAdaptado(
+        intervaloRespaldoMs
+      ) / 1000;
 
     const velocidadMs =
       velocidadPromedioKmh /
@@ -9720,13 +10115,28 @@ ocultarHoraLlegada();
       velocidadMs *
       intervaloSegundos;
 
+    const confianzaTemporal =
+      limitar01(
+        Number.isFinite(confianzaGps)
+          ? confianzaGps
+          : confianzaTemporalOperativaGps()
+      );
+
+    const porcentajeMicroavance =
+      ALGORITMO_PIN_HIBRIDO.MICROAVANCE_AUTOPISTA_MIN +
+      (
+        ALGORITMO_PIN_HIBRIDO.MICROAVANCE_AUTOPISTA_MAX -
+        ALGORITMO_PIN_HIBRIDO.MICROAVANCE_AUTOPISTA_MIN
+      ) *
+      confianzaTemporal;
+
     const distanciaMicroavance =
       Math.max(
         4,
         Math.min(
           DISTANCIA_MAXIMA_MICROAVANCE_AUTOPISTA_METROS,
           distanciaEsperada *
-          PORCENTAJE_MICROAVANCE_AUTOPISTA
+          porcentajeMicroavance
         )
       );
 
@@ -9746,22 +10156,26 @@ ocultarHoraLlegada();
       );
 
     /*
-      R39 - 70% DINÁMICO:
-      ante un punto brusco >35° en régimen de autopista,
-      no perseguimos el punto dudoso ni congelamos el pin.
-
-      Avanzamos sobre el último rumbo confiable un 70% de la
-      distancia esperable según:
-      velocidad promedio x intervalo real entre GPS.
-
-      Ejemplo:
-      70 km/h x 2 s = ~38,9 m esperables.
-      Microavance = ~27,2 m.
+      R58 - MICROAVANCE HÍBRIDO DE AUTOPISTA:
+      ante un punto brusco >35° no perseguimos el punto dudoso.
+      Avanzamos sobre el último rumbo confiable entre 55% y 70% de
+      la distancia esperable. Con cadencia estable conserva el 70%
+      histórico; si la entrega GPS se vuelve irregular, reduce de forma
+      conservadora el avance sin cambiar los límites duros de R39.
     */
+    const duracionMicroavance =
+      Math.max(
+        800,
+        Math.min(
+          DURACION_MICROAVANCE_AUTOPISTA_MS,
+          estadoCadenciaGpsHibrido.cadenciaMs * 0.60
+        )
+      );
+
     animarMarcadorHasta(
       destino.lat,
       destino.lon,
-      DURACION_MICROAVANCE_AUTOPISTA_MS,
+      duracionMicroavance,
       20
     );
   }
@@ -9795,7 +10209,8 @@ ocultarHoraLlegada();
   function estabilizarPuntoAltaVelocidad(
     latNuevo,
     lonNuevo,
-    velocidadKmh
+    velocidadKmh,
+    confianzaGps
   ){
 
     if(
@@ -9952,6 +10367,12 @@ ocultarHoraLlegada();
           0.45
         );
     }
+
+    factorLateral =
+      factorLateralProtegidoPorConfianza(
+        factorLateral,
+        confianzaGps
+      );
 
     return {
       lat:
@@ -10359,7 +10780,8 @@ ocultarHoraLlegada();
     lonNuevo,
     createdAtNuevo,
     velocidadInterna,
-    rumboIncierto
+    rumboIncierto,
+    confianzaGps
   ){
 
     const nuevoMs =
@@ -10408,6 +10830,23 @@ ocultarHoraLlegada();
             createdAtNuevo
           );
 
+    const confianzaVisualTiempo =
+      Number.isFinite(confianzaGps)
+        ? limitar01(confianzaGps)
+        : 1;
+
+    const intervaloAdaptado =
+      obtenerIntervaloAnimacionAdaptado(
+        intervalo
+      ) *
+      (0.94 + 0.06 * confianzaVisualTiempo);
+
+    const margenAltaAdaptado =
+      margenContinuidadAltaAdaptado();
+
+    const duracionMinimaAlta =
+      duracionMinimaAltaAdaptada();
+
     /*
       R37 - RUMBO INCIERTO DESDE 40 KM/H
 
@@ -10449,7 +10888,7 @@ ocultarHoraLlegada();
           650,
           Math.min(
             DURACION_R32_MEDIA_MAX_MS,
-            intervalo *
+            intervaloAdaptado *
             factorMediaR32
           )
         );
@@ -10461,14 +10900,14 @@ ocultarHoraLlegada();
         );
 
       return Math.max(
-        DURACION_CONTINUA_MIN_MS,
+        duracionMinimaAlta,
         Math.min(
           DURACION_R32_ALTA_MAX_MS,
           (
-            intervalo *
+            intervaloAdaptado *
             factorContinuoR32
           ) +
-          MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS
+          margenAltaAdaptado
         )
       );
     }
@@ -10491,8 +10930,9 @@ ocultarHoraLlegada();
 
       >= 60 km/h:
       - factor continuo R33: 1.09 / 1.11 / 1.13;
-      - límites 1950/3000 ms;
-      - colchón adicional de +300 ms sin cambios.
+      - conserva el techo histórico de 3000 ms;
+      - el piso y el colchón se adaptan sólo después de aprender
+        una cadencia fiable, sin superar los valores históricos.
     */
     if(
       Number.isFinite(
@@ -10508,14 +10948,14 @@ ocultarHoraLlegada();
         );
 
       return Math.max(
-        DURACION_CONTINUA_MIN_MS,
+        duracionMinimaAlta,
         Math.min(
           DURACION_CONTINUA_MAX_MS,
           (
-            intervalo *
+            intervaloAdaptado *
             factorContinuo
           ) +
-          MARGEN_CONTINUIDAD_ALTA_VELOCIDAD_MS
+          margenAltaAdaptado
         )
       );
     }
@@ -10555,7 +10995,7 @@ ocultarHoraLlegada();
           650,
           Math.min(
             2200,
-            intervalo *
+            intervaloAdaptado *
             factorMediaBaja
           )
         );
@@ -10574,7 +11014,7 @@ ocultarHoraLlegada();
         650,
         Math.min(
           3000,
-          intervalo *
+          intervaloAdaptado *
           factorMedia
         )
       );
@@ -10606,7 +11046,7 @@ ocultarHoraLlegada();
       650,
       Math.min(
         2200,
-        intervalo *
+        intervaloAdaptado *
         factorBaja
       )
     );
@@ -11863,6 +12303,11 @@ if(
       }
     }
 
+    const estadoCadenciaLectura =
+      registrarCadenciaGpsHibrida(
+        createdAt
+      );
+
     ultimoCreatedAtProcesadoGps =
       createdAt;
 
@@ -11910,6 +12355,13 @@ if(
         lat,
         lon,
         createdAt
+      );
+
+    const confianzaGpsVisual =
+      calcularConfianzaGpsVisual(
+        lat,
+        lon,
+        velocidadInterna
       );
 
     /*
@@ -11977,7 +12429,8 @@ if(
             lon,
             createdAt,
             velocidadInterna,
-            true
+            true,
+            confianzaGpsVisual
           );
 
         animarMarcadorConGiroProtegido(
@@ -12058,7 +12511,8 @@ if(
       iniciarMicroavanceAutopista(
         cambioBruscoAutopista.rumboEstable,
         velocidadPromedioAnterior,
-        createdAt
+        createdAt,
+        estadoCadenciaLectura.confianzaTemporal
       );
 
       return;
@@ -12091,7 +12545,8 @@ if(
       estabilizarPuntoAltaVelocidad(
         lat,
         lon,
-        velocidadInterna
+        velocidadInterna,
+        confianzaGpsVisual
       );
 
     const latVisual =
@@ -12116,7 +12571,8 @@ if(
         lonVisual,
         createdAt,
         velocidadInterna,
-        rumboIncierto
+        rumboIncierto,
+        confianzaGpsVisual
       );
 
     const giroProtegido =
@@ -12218,7 +12674,7 @@ if(
     ){
 
       /*
-        V9 - giro protegido con GPS cada 2 s.
+        V9 / R58 - giro protegido por vértice.
 
         El último punto confirmado funciona como vértice intermedio:
         marcador -> último punto real -> nuevo punto real.
