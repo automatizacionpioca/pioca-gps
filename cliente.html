@@ -4278,6 +4278,25 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     null;
 
   /*
+    R53 - ENCUADRE DINÁMICO DE PROXIMIDAD (ÚLTIMOS 2 MINUTOS)
+
+    Se activa únicamente con ETA <= 2 min:
+    - mantiene camioneta + domicilio dentro del área útil;
+    - acerca el zoom a medida que baja la distancia;
+    - la ETA también limita el acercamiento: si aumenta, el zoom retrocede;
+    - conserva siempre el heading actual; NO vuelve a rotar el mapa;
+    - al salir de <= 2 min, vuelve a la lógica ETA normal.
+  */
+  let encuadreProximidadActivo =
+    false;
+
+  let ultimoEncuadreProximidadMs =
+    0;
+
+  const INTERVALO_ENCUADRE_PROXIMIDAD_MS =
+    70;
+
+  /*
     R44 - ENCUADRE INICIAL CAMIONETA + DESTINO
     Se ejecuta una sola vez cuando ambos pines ya existen.
     Durante 2 segundos bloquea únicamente el zoom/recentrado automático.
@@ -5336,6 +5355,612 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  /*
+    R53 - Calcula el encuadre final sin usar fitBounds().
+    fitBounds puede alterar la orientación; acá conservamos el heading
+    que ya tenga el mapa y calculamos centro + zoom nosotros mismos.
+  */
+  function calcularDatosEncuadreProximidad(
+    latCamioneta,
+    lonCamioneta,
+    faltanMin
+  ){
+
+    if(
+      !mapa ||
+      !Number.isFinite(latCamioneta) ||
+      !Number.isFinite(lonCamioneta) ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon) ||
+      !Number.isFinite(faltanMin)
+    ){
+      return null;
+    }
+
+    const mapaGoogle =
+      mapa._map;
+
+    if(
+      !mapaGoogle
+    ){
+      return null;
+    }
+
+    const tamano =
+      mapa.getSize();
+
+    const ancho =
+      Number(tamano.x) || 0;
+
+    const alto =
+      Number(tamano.y) || 0;
+
+    if(
+      ancho <= 0 ||
+      alto <= 0
+    ){
+      return null;
+    }
+
+    let altoPanel =
+      0;
+
+    if(
+      piocaTrayectoPanel
+    ){
+      altoPanel =
+        Math.ceil(
+          piocaTrayectoPanel
+            .getBoundingClientRect()
+            .height
+        );
+    }
+
+    /*
+      Área realmente utilizable:
+      dejamos libres logo/estado arriba y panel de trayecto abajo.
+      Es el mismo concepto de seguridad usado por el encuadre inicial.
+    */
+    const margenIzquierdo =
+      38;
+
+    const margenDerecho =
+      38;
+
+    const margenSuperior =
+      Math.min(
+        160,
+        Math.max(
+          125,
+          alto * 0.20
+        )
+      );
+
+    const margenInferior =
+      Math.max(
+        54,
+        altoPanel + 38
+      );
+
+    const anchoUtil =
+      Math.max(
+        120,
+        ancho -
+        margenIzquierdo -
+        margenDerecho
+      );
+
+    const altoUtil =
+      Math.max(
+        140,
+        alto -
+        margenSuperior -
+        margenInferior
+      );
+
+    /*
+      Reserva interna para que los iconos nunca queden pegados
+      al borde aunque sus coordenadas sí entren matemáticamente.
+    */
+    const anchoDisponible =
+      Math.max(
+        80,
+        anchoUtil - 84
+      );
+
+    const altoDisponible =
+      Math.max(
+        100,
+        altoUtil - 96
+      );
+
+    const headingActual =
+      Number(
+        typeof mapaGoogle.getHeading === "function"
+          ? mapaGoogle.getHeading()
+          : 0
+      ) || 0;
+
+    const ZOOM_REFERENCIA =
+      20;
+
+    const puntoCamionetaRef =
+      mapa.project(
+        [
+          latCamioneta,
+          lonCamioneta
+        ],
+        ZOOM_REFERENCIA
+      );
+
+    const puntoDestinoRef =
+      mapa.project(
+        [
+          destinoLat,
+          destinoLon
+        ],
+        ZOOM_REFERENCIA
+      );
+
+    const dxMundo =
+      puntoDestinoRef.x -
+      puntoCamionetaRef.x;
+
+    const dyMundo =
+      puntoDestinoRef.y -
+      puntoCamionetaRef.y;
+
+    const angulo =
+      headingActual *
+      Math.PI /
+      180;
+
+    /*
+      Vector mundo -> pantalla respetando el heading vigente.
+      Así el cálculo de fit funciona aunque el mapa esté rotado.
+    */
+    const dxPantallaRef =
+      Math.cos(angulo) *
+      dxMundo +
+      Math.sin(angulo) *
+      dyMundo;
+
+    const dyPantallaRef =
+      -Math.sin(angulo) *
+      dxMundo +
+      Math.cos(angulo) *
+      dyMundo;
+
+    const spanXRef =
+      Math.abs(
+        dxPantallaRef
+      );
+
+    const spanYRef =
+      Math.abs(
+        dyPantallaRef
+      );
+
+    const factorX =
+      spanXRef > 0.01
+        ? anchoDisponible /
+          spanXRef
+        : Infinity;
+
+    const factorY =
+      spanYRef > 0.01
+        ? altoDisponible /
+          spanYRef
+        : Infinity;
+
+    const factorFit =
+      Math.min(
+        factorX,
+        factorY
+      );
+
+    let zoomPorDistancia =
+      ZOOM_REFERENCIA;
+
+    if(
+      Number.isFinite(factorFit) &&
+      factorFit > 0
+    ){
+      zoomPorDistancia =
+        ZOOM_REFERENCIA +
+        Math.log2(
+          factorFit
+        );
+    }
+
+    zoomPorDistancia =
+      Math.max(
+        3,
+        Math.min(
+          20,
+          zoomPorDistancia
+        )
+      );
+
+    /*
+      La ETA también participa:
+      2:00 min -> techo 17
+      1:00 min -> techo 18.5
+      0:00 min -> techo 20
+
+      Si Google extiende nuevamente la ETA, este techo baja.
+      Por eso la cámara puede alejarse otra vez sin estados pegados.
+    */
+    const progresoEta =
+      Math.max(
+        0,
+        Math.min(
+          1,
+          1 -
+          faltanMin /
+          2
+        )
+      );
+
+    const zoomMaximoPorEta =
+      17 +
+      3 *
+      progresoEta;
+
+    const zoomObjetivo =
+      Math.max(
+        3,
+        Math.min(
+          20,
+          zoomPorDistancia,
+          zoomMaximoPorEta
+        )
+      );
+
+    const puntoCamioneta =
+      mapa.project(
+        [
+          latCamioneta,
+          lonCamioneta
+        ],
+        zoomObjetivo
+      );
+
+    const puntoDestino =
+      mapa.project(
+        [
+          destinoLat,
+          destinoLon
+        ],
+        zoomObjetivo
+      );
+
+    const puntoMedio =
+      {
+        x:
+          (
+            puntoCamioneta.x +
+            puntoDestino.x
+          ) /
+          2,
+        y:
+          (
+            puntoCamioneta.y +
+            puntoDestino.y
+          ) /
+          2
+      };
+
+    const medioLatLng =
+      mapa.unproject(
+        [
+          puntoMedio.x,
+          puntoMedio.y
+        ],
+        zoomObjetivo
+      );
+
+    /*
+      Centro del área útil, no del rectángulo físico completo.
+      De esta manera ambos pines quedan equilibrados por encima
+      del panel inferior.
+    */
+    const xCentroUtil =
+      (
+        margenIzquierdo +
+        (
+          ancho -
+          margenDerecho
+        )
+      ) /
+      2;
+
+    const yCentroUtil =
+      (
+        margenSuperior +
+        (
+          alto -
+          margenInferior
+        )
+      ) /
+      2;
+
+    return {
+      zoomObjetivo:
+        zoomObjetivo,
+      medioLat:
+        Number(
+          medioLatLng.lat
+        ),
+      medioLon:
+        Number(
+          medioLatLng.lng
+        ),
+      xCentroUtil:
+        xCentroUtil,
+      yCentroUtil:
+        yCentroUtil,
+      heading:
+        headingActual
+    };
+  }
+
+
+  function desactivarEncuadreProximidad(){
+
+    if(
+      !encuadreProximidadActivo
+    ){
+      return;
+    }
+
+    encuadreProximidadActivo =
+      false;
+
+    ultimoEncuadreProximidadMs =
+      0;
+
+    try{
+      const mapaGoogle =
+        mapa &&
+        mapa._map;
+
+      if(
+        mapaGoogle
+      ){
+        mapaGoogle.setOptions({
+          isFractionalZoomEnabled:false
+        });
+      }
+    }catch(e){}
+  }
+
+
+  /*
+    Devuelve true cuando la cámara de proximidad tomó el control.
+    Aunque un frame se saltee por throttle, devolvemos true para impedir
+    que el recentrado normal de la camioneta pelee contra este encuadre.
+  */
+  function aplicarEncuadreProximidad(
+    faltanMin,
+    latForzada,
+    lonForzada,
+    forzar
+  ){
+
+    if(
+      encuadreInicialMapaActivo ||
+      !mapa ||
+      !marcador ||
+      !Number.isFinite(faltanMin) ||
+      faltanMin > 2 ||
+      !Number.isFinite(destinoLat) ||
+      !Number.isFinite(destinoLon)
+    ){
+      return false;
+    }
+
+    let latCamioneta =
+      Number(latForzada);
+
+    let lonCamioneta =
+      Number(lonForzada);
+
+    if(
+      !Number.isFinite(latCamioneta) ||
+      !Number.isFinite(lonCamioneta)
+    ){
+      try{
+        const posicion =
+          marcador.getLatLng();
+
+        latCamioneta =
+          Number(
+            posicion.lat
+          );
+
+        lonCamioneta =
+          Number(
+            posicion.lng
+          );
+      }catch(e){
+        return false;
+      }
+    }
+
+    if(
+      !Number.isFinite(latCamioneta) ||
+      !Number.isFinite(lonCamioneta)
+    ){
+      return false;
+    }
+
+    const ahora =
+      performance.now();
+
+    if(
+      forzar !== true &&
+      encuadreProximidadActivo &&
+      ultimoEncuadreProximidadMs > 0 &&
+      ahora -
+      ultimoEncuadreProximidadMs <
+        INTERVALO_ENCUADRE_PROXIMIDAD_MS
+    ){
+      return true;
+    }
+
+    const datos =
+      calcularDatosEncuadreProximidad(
+        latCamioneta,
+        lonCamioneta,
+        faltanMin
+      );
+
+    if(
+      !datos
+    ){
+      return false;
+    }
+
+    try{
+
+      const mapaGoogle =
+        mapa._map;
+
+      if(
+        !mapaGoogle
+      ){
+        return false;
+      }
+
+      if(
+        !encuadreProximidadActivo
+      ){
+        encuadreProximidadActivo =
+          true;
+
+        mapaGoogle.setOptions({
+          isFractionalZoomEnabled:true
+        });
+      }
+
+      const zoomActual =
+        Number(
+          mapaGoogle.getZoom()
+        );
+
+      const dt =
+        ultimoEncuadreProximidadMs > 0
+          ? Math.max(
+              16,
+              ahora -
+              ultimoEncuadreProximidadMs
+            )
+          : 180;
+
+      /*
+        Suavizado temporal:
+        no salta al zoom calculado; converge de forma progresiva.
+        Si distancia o ETA aumentan, la misma fórmula trabaja al revés.
+      */
+      const alpha =
+        forzar === true
+          ? 0.48
+          : 1 -
+            Math.exp(
+              -dt /
+              420
+            );
+
+      let zoomAplicado =
+        Number.isFinite(zoomActual)
+          ? zoomActual +
+            (
+              datos.zoomObjetivo -
+              zoomActual
+            ) *
+            alpha
+          : datos.zoomObjetivo;
+
+      if(
+        Math.abs(
+          datos.zoomObjetivo -
+          zoomAplicado
+        ) <
+        0.025
+      ){
+        zoomAplicado =
+          datos.zoomObjetivo;
+      }
+
+      zoomAplicado =
+        Math.max(
+          3,
+          Math.min(
+            20,
+            zoomAplicado
+          )
+        );
+
+      const centroObjetivo =
+        calcularCentroPuntoEnPantallaConRumbo(
+          datos.medioLat,
+          datos.medioLon,
+          zoomAplicado,
+          datos.xCentroUtil,
+          datos.yCentroUtil,
+          datos.heading
+        );
+
+      if(
+        !centroObjetivo
+      ){
+        return false;
+      }
+
+      /*
+        NO enviamos heading.
+        Se conserva exactamente la orientación que ya tenga el mapa.
+      */
+      const camara = {
+        center:{
+          lat:Number(
+            centroObjetivo.lat
+          ),
+          lng:Number(
+            centroObjetivo.lng
+          )
+        },
+        zoom:zoomAplicado
+      };
+
+      if(
+        typeof mapaGoogle.moveCamera ===
+          "function"
+      ){
+        mapaGoogle.moveCamera(
+          camara
+        );
+      }else{
+        mapaGoogle.setCenter(
+          camara.center
+        );
+        mapaGoogle.setZoom(
+          camara.zoom
+        );
+      }
+
+      ultimoEncuadreProximidadMs =
+        ahora;
+
+      return true;
+
+    }catch(e){
+      return false;
+    }
+  }
+
+
   function recentrarPinTrasCambioZoom(){
 
     if(
@@ -5368,9 +5993,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   ){
 
     /*
-      R44:
-      mientras se muestra el encuadre inicial camioneta + destino,
-      no dejamos que la lógica ETA lo reemplace antes de completar el pantallazo inicial de 3,5 segundos.
+      Mientras se muestra el encuadre inicial camioneta + destino,
+      ninguna otra cámara interviene.
     */
     if(
       encuadreInicialMapaActivo
@@ -5391,9 +6015,82 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     /*
-      Si seguimos dentro del mismo tramo ETA no hacemos nada.
-      Así el cliente puede cambiar manualmente el zoom y se respeta
-      hasta que el ETA cruce a otro tramo.
+      R53:
+      dentro de los últimos 2 minutos el tramo "proximidad" deja de ser
+      un zoom 17 fijo. La cámara se recalcula con ETA + distancia real
+      y mantiene SIEMPRE camioneta + domicilio dentro del área útil.
+    */
+    if(
+      tramo.clave ===
+        "proximidad"
+    ){
+
+      tramoZoomEtaActual =
+        tramo.clave;
+
+      if(
+        aplicarEncuadreProximidad(
+          faltanMin,
+          null,
+          null,
+          false
+        )
+      ){
+        return;
+      }
+
+      /*
+        Fallback seguro si todavía no llegó el destino:
+        conserva exactamente el comportamiento anterior.
+      */
+      try{
+        const zoomActual =
+          Number(
+            mapa.getZoom()
+          );
+
+        if(
+          !Number.isFinite(zoomActual) ||
+          zoomActual !==
+            Number(tramo.zoom)
+        ){
+          mapa.setZoom(
+            tramo.zoom,
+            {
+              animate:true
+            }
+          );
+
+          mapa.once(
+            "zoomend",
+            recentrarPinTrasCambioZoom
+          );
+
+          setTimeout(
+            recentrarPinTrasCambioZoom,
+            450
+          );
+        }
+      }catch(e){}
+
+      return;
+    }
+
+    /*
+      Si Google vuelve a extender la ETA por encima de 2 min,
+      salimos del encuadre de proximidad y recuperamos el tramo normal.
+    */
+    if(
+      encuadreProximidadActivo
+    ){
+      desactivarEncuadreProximidad();
+      tramoZoomEtaActual =
+        null;
+    }
+
+    /*
+      Fuera de proximidad queda EXACTAMENTE la libertad anterior:
+      dentro del mismo tramo no se pisa un zoom manual del cliente.
     */
     if(
       tramoZoomEtaActual ===
@@ -5414,18 +6111,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         }
       );
 
-      /*
-        Cada cambio automático de tramo recentra el pin con
-        exactamente el mismo criterio visual de REFRESCAR POSICIÓN.
-      */
       mapa.once(
         "zoomend",
         recentrarPinTrasCambioZoom
       );
 
-      /*
-        Respaldo para Safari/iPhone.
-      */
       setTimeout(
         recentrarPinTrasCambioZoom,
         450
@@ -5433,7 +6123,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     }catch(e){}
   }
-
 
   /* ==========================================================
      R52 - CARTEL DE PROXIMIDAD POR DISTANCIA REAL
@@ -6196,28 +6885,42 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                 tramoZoomEtaActual =
                   tramoRefresco.clave;
 
-                const zoomActual =
-                  Number(
-                    mapa.getZoom()
+                if(
+                  tramoRefresco.clave ===
+                    "proximidad"
+                ){
+                  aplicarEncuadreProximidad(
+                    faltanMinRefresco,
+                    Number(posicionActual.lat),
+                    Number(posicionActual.lng),
+                    true
                   );
 
-                if(
-                  Number.isFinite(zoomActual) &&
-                  zoomActual ===
-                    Number(tramoRefresco.zoom)
-                ){
-                  centrarMapaEnAreaUtil(
-                    posicionActual.lat,
-                    posicionActual.lng,
-                    {
-                      animate:true,
-                      duration:0.45
-                    }
-                  );
                 }else{
-                  aplicarZoomManualConCamionetaComoEje(
-                    tramoRefresco.zoom
-                  );
+
+                  const zoomActual =
+                    Number(
+                      mapa.getZoom()
+                    );
+
+                  if(
+                    Number.isFinite(zoomActual) &&
+                    zoomActual ===
+                      Number(tramoRefresco.zoom)
+                  ){
+                    centrarMapaEnAreaUtil(
+                      posicionActual.lat,
+                      posicionActual.lng,
+                      {
+                        animate:true,
+                        duration:0.45
+                      }
+                    );
+                  }else{
+                    aplicarZoomManualConCamionetaComoEje(
+                      tramoRefresco.zoom
+                    );
+                  }
                 }
 
               }else{
@@ -8048,6 +8751,8 @@ horaLlegadaBox.style.display =
 
     tramoZoomEtaActual =
       null;
+
+    desactivarEncuadreProximidad();
 
     mapaWrap.style.display =
       "none";
@@ -10613,6 +11318,41 @@ ocultarHoraLlegada();
     opciones =
       opciones ||
       {};
+
+    /*
+      R53:
+      las animaciones actuales siguen llamando a esta misma función.
+      En <=2 min desviamos únicamente LA CÁMARA hacia el encuadre dual.
+      El pin, sus filtros y sus coordenadas siguen intactos.
+    */
+    const faltanMinActual =
+      (
+        llegadaClienteMs &&
+        Number.isFinite(
+          llegadaClienteMs
+        )
+      )
+        ? (
+            llegadaClienteMs -
+            Date.now()
+          ) /
+          60000
+        : null;
+
+    if(
+      Number.isFinite(
+        faltanMinActual
+      ) &&
+      faltanMinActual <= 2 &&
+      aplicarEncuadreProximidad(
+        faltanMinActual,
+        lat,
+        lon,
+        opciones.forzarEncuadreProximidad === true
+      )
+    ){
+      return;
+    }
 
     let altoPanel = 0;
 
