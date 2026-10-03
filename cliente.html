@@ -4274,10 +4274,83 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let llegadaClienteMs =
     null;
 
+  let etaServidorRecibidaMs =
+    null;
+
+  let ultimaVerificacionFisicaSesionMs =
+    null;
+
+  /* ==========================================================
+     R57 - NÚCLEO MATEMÁTICO DETERMINÍSTICO DEL SEGUIMIENTO
+
+     Todos los umbrales funcionales viven en una sola definición.
+     Los filtros de ruido GPS siguen siendo deliberadamente discretos:
+     deduplicación, confirmación de entrada y 3 lecturas >300 m para salir.
+
+     Para un mismo estado S y una misma entrada I, la transición S -> S'
+     y la salida visual son siempre las mismas. Ninguna vista inventa
+     estados por su cuenta.
+     ========================================================== */
+  const ALGORITMO_SEGUIMIENTO = Object.freeze({
+    ETA_MAX_ANTIGUEDAD_MS:12000,
+    GPS_MAX_ANTIGUEDAD_CIERRE_MS:15000,
+    DISTANCIA_CERCA_M:300,
+    DISTANCIA_LLEGADA_M:50,
+    LECTURAS_SALIDA_CONFIRMADA:3,
+    GRACIA_HEMOS_LLEGADO_MS:60000,
+    CIERRE_LOCAL_MS:300000,
+    ETA_INICIO_TRAMO_MIN:15,
+    ETA_ETAPA_3_MIN:5,
+    ETA_ETAPA_4_MIN:2,
+    POS_ETAPA_2:36,
+    POS_ETAPA_3:64,
+    POS_ETAPA_4:92
+  });
+
+  function limitarNumero(valor,minimo,maximo){
+    return Math.max(
+      minimo,
+      Math.min(maximo,valor)
+    );
+  }
+
+  function obtenerFaltanMinEta(ahoraMs){
+
+    if(
+      !Number.isFinite(llegadaClienteMs) ||
+      !Number.isFinite(etaServidorRecibidaMs)
+    ){
+      return null;
+    }
+
+    const ahora =
+      Number.isFinite(ahoraMs)
+        ? ahoraMs
+        : Date.now();
+
+    const edadEta =
+      Math.max(
+        0,
+        ahora - etaServidorRecibidaMs
+      );
+
+    if(
+      edadEta >
+        ALGORITMO_SEGUIMIENTO.ETA_MAX_ANTIGUEDAD_MS
+    ){
+      return null;
+    }
+
+    return (
+      llegadaClienteMs - ahora
+    ) / 60000;
+  }
+
   /*
     R51/R52 - última posición REAL recibida del servidor.
-    R52 agrega una llegada física confirmada por distancia:
-    - <= 50 m enclava HEMOS LLEGADO y arranca reloj visual de 4 min.
+    R56 conserva la llegada física confirmada por distancia:
+    - <= 50 m confirma T0; tras 1 min muestra HEMOS LLEGADO.
+    - T0 + 5 min habilita el cierre visual local.
     - > 300 m durante 3 posiciones GPS distintas anula esa llegada,
       corta el reloj y deja el ciclo listo para una nueva llegada <= 50 m.
   */
@@ -4409,6 +4482,246 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   */
   let zonaCercaConfirmada =
     false;
+
+  /*
+    Transición física pura. Recibe el estado previo ya filtrado por una
+    lectura GPS NUEVA y devuelve el estado siguiente. No decide si una
+    muestra es ruido: esa responsabilidad permanece en los chequeos GPS.
+  */
+  function calcularTransicionFisica(
+    estadoAnterior,
+    distanciaMetrosActual,
+    ahoraMs
+  ){
+
+    const siguiente = {
+      llegada:estadoAnterior.llegada === true,
+      inicioMs:Number.isFinite(estadoAnterior.inicioMs)
+        ? estadoAnterior.inicioMs
+        : null,
+      fuera300:limitarNumero(
+        Number(estadoAnterior.fuera300) || 0,
+        0,
+        ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA - 1
+      ),
+      zonaCerca:estadoAnterior.zonaCerca === true
+    };
+
+    if(
+      siguiente.llegada
+    ){
+      if(
+        distanciaMetrosActual >
+          ALGORITMO_SEGUIMIENTO.DISTANCIA_CERCA_M
+      ){
+        siguiente.fuera300 += 1;
+
+        if(
+          siguiente.fuera300 >=
+            ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA
+        ){
+          siguiente.llegada = false;
+          siguiente.inicioMs = null;
+          siguiente.fuera300 = 0;
+          siguiente.zonaCerca = false;
+        }
+      }else{
+        siguiente.fuera300 = 0;
+        siguiente.zonaCerca = true;
+      }
+
+      return siguiente;
+    }
+
+    siguiente.fuera300 = 0;
+
+    if(
+      distanciaMetrosActual >
+        ALGORITMO_SEGUIMIENTO.DISTANCIA_CERCA_M
+    ){
+      siguiente.zonaCerca = false;
+      return siguiente;
+    }
+
+    if(
+      !siguiente.zonaCerca
+    ){
+      /*
+        Primera lectura de entrada <=300 m: siempre registra MUY CERCA.
+        Incluso si cayó directamente dentro de 50 m, una segunda lectura
+        GPS distinta debe confirmar la llegada para absorber deriva.
+      */
+      siguiente.zonaCerca = true;
+      return siguiente;
+    }
+
+    if(
+      distanciaMetrosActual <=
+        ALGORITMO_SEGUIMIENTO.DISTANCIA_LLEGADA_M
+    ){
+      siguiente.llegada = true;
+      siguiente.inicioMs = ahoraMs;
+      siguiente.zonaCerca = true;
+    }
+
+    return siguiente;
+  }
+
+  function calcularProgresoEtaDeterministico(faltanMin){
+
+    if(
+      !Number.isFinite(faltanMin)
+    ){
+      return {
+        valida:false,
+        etapa:2,
+        posicion:ALGORITMO_SEGUIMIENTO.POS_ETAPA_2,
+        progresoEnCurso:false
+      };
+    }
+
+    const c =
+      ALGORITMO_SEGUIMIENTO;
+
+    if(
+      faltanMin <= c.ETA_ETAPA_4_MIN
+    ){
+      return {
+        valida:true,
+        etapa:4,
+        posicion:c.POS_ETAPA_4,
+        progresoEnCurso:false
+      };
+    }
+
+    if(
+      faltanMin <= c.ETA_ETAPA_3_MIN
+    ){
+      const progreso = limitarNumero(
+        (c.ETA_ETAPA_3_MIN - faltanMin) /
+          (c.ETA_ETAPA_3_MIN - c.ETA_ETAPA_4_MIN),
+        0,
+        1
+      );
+
+      return {
+        valida:true,
+        etapa:3,
+        posicion:
+          c.POS_ETAPA_3 +
+          (c.POS_ETAPA_4 - c.POS_ETAPA_3) * progreso,
+        progresoEnCurso:progreso < 1
+      };
+    }
+
+    if(
+      faltanMin <= c.ETA_INICIO_TRAMO_MIN
+    ){
+      const progreso = limitarNumero(
+        (c.ETA_INICIO_TRAMO_MIN - faltanMin) /
+          (c.ETA_INICIO_TRAMO_MIN - c.ETA_ETAPA_3_MIN),
+        0,
+        1
+      );
+
+      return {
+        valida:true,
+        etapa:2,
+        posicion:
+          c.POS_ETAPA_2 +
+          (c.POS_ETAPA_3 - c.POS_ETAPA_2) * progreso,
+        progresoEnCurso:progreso < 1
+      };
+    }
+
+    return {
+      valida:true,
+      etapa:2,
+      posicion:c.POS_ETAPA_2,
+      progresoEnCurso:true
+    };
+  }
+
+  function derivarEstadoSeguimiento(ahoraMs){
+
+    const ahora =
+      Number.isFinite(ahoraMs)
+        ? ahoraMs
+        : Date.now();
+
+    const faltanMin =
+      obtenerFaltanMinEta(ahora);
+
+    const progresoEta =
+      calcularProgresoEtaDeterministico(
+        faltanMin
+      );
+
+    const transcurridoLlegadaMs =
+      llegadaFisicaConfirmada &&
+      Number.isFinite(llegadaFisicaInicioMs)
+        ? Math.max(0,ahora - llegadaFisicaInicioMs)
+        : null;
+
+    let titulo =
+      "ESTAMOS EN CAMINO";
+
+    let proximidadCercaActiva =
+      false;
+
+    let llegadaFisicaActiva =
+      false;
+
+    if(
+      llegadaFisicaConfirmada
+    ){
+      if(
+        Number.isFinite(transcurridoLlegadaMs) &&
+        transcurridoLlegadaMs >=
+          ALGORITMO_SEGUIMIENTO.GRACIA_HEMOS_LLEGADO_MS
+      ){
+        titulo = "HEMOS LLEGADO";
+        llegadaFisicaActiva = true;
+      }else{
+        titulo = "¡ESTAMOS MUY CERCA!";
+        proximidadCercaActiva = true;
+      }
+    }else if(
+      Number.isFinite(ultimaDistanciaProximidad) &&
+      ultimaDistanciaProximidad <=
+        ALGORITMO_SEGUIMIENTO.DISTANCIA_CERCA_M
+    ){
+      titulo = "¡ESTAMOS MUY CERCA!";
+      proximidadCercaActiva = true;
+    }
+
+    const gpsRecienteParaCierre =
+      Number.isFinite(ultimaVerificacionFisicaSesionMs) &&
+      ahora >= ultimaVerificacionFisicaSesionMs &&
+      ahora - ultimaVerificacionFisicaSesionMs <=
+        ALGORITMO_SEGUIMIENTO.GPS_MAX_ANTIGUEDAD_CIERRE_MS;
+
+    const puedeFinalizarLocal =
+      llegadaFisicaConfirmada &&
+      Number.isFinite(transcurridoLlegadaMs) &&
+      transcurridoLlegadaMs >=
+        ALGORITMO_SEGUIMIENTO.CIERRE_LOCAL_MS &&
+      comprobacionesFuera300 === 0 &&
+      gpsRecienteParaCierre;
+
+    return {
+      ahoraMs:ahora,
+      faltanMin:faltanMin,
+      etaValida:Number.isFinite(faltanMin),
+      progresoEta:progresoEta,
+      titulo:titulo,
+      proximidadCercaActiva:proximidadCercaActiva,
+      llegadaFisicaActiva:llegadaFisicaActiva,
+      transcurridoLlegadaMs:transcurridoLlegadaMs,
+      gpsRecienteParaCierre:gpsRecienteParaCierre,
+      puedeFinalizarLocal:puedeFinalizarLocal
+    };
+  }
 
   function claveEstadoFisicoLlegada(){
     return codigo
@@ -4567,6 +4880,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     comprobacionesFuera300 =
       0;
+
+    ultimaVerificacionFisicaSesionMs =
+      null;
   }
 
 
@@ -4671,8 +4987,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   ){
 
     if(
-      !piocaPuntoEtapa4 ||
-      !Number.isFinite(faltanMin)
+      !piocaPuntoEtapa4
     ){
       return;
     }
@@ -4684,31 +4999,29 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       "#38e06f";
 
     let color =
-      GRIS;
+      llegadaFisicaConfirmada
+        ? VERDE
+        : GRIS;
 
-    /*
-      R55:
-      El color de la etapa 4 también se reconstruye desde la ETA vigente.
-      No queda una marca verde persistida por una ETA vieja.
-    */
     if(
-      faltanMin <= 1
+      Number.isFinite(faltanMin)
     ){
-      color =
-        VERDE;
+      color = GRIS;
 
-    }else if(
-      faltanMin < 2
-    ){
-      const progreso =
-        2 - faltanMin;
+      if(
+        faltanMin <= 1
+      ){
+        color = VERDE;
 
-      color =
-        mezclarColor(
+      }else if(
+        faltanMin < 2
+      ){
+        color = mezclarColor(
           GRIS,
           VERDE,
-          progreso
+          limitarNumero(2 - faltanMin,0,1)
         );
+      }
     }
 
     piocaPuntoEtapa4.style.setProperty(
@@ -5123,6 +5436,107 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  function parsearCoordenadaServidor(
+    valor,
+    minimo,
+    maximo
+  ){
+
+    if(
+      valor === null ||
+      typeof valor === "undefined" ||
+      (
+        typeof valor === "string" &&
+        valor.trim() === ""
+      ) ||
+      (
+        typeof valor !== "number" &&
+        typeof valor !== "string"
+      )
+    ){
+      return null;
+    }
+
+    const numero =
+      Number(valor);
+
+    if(
+      !Number.isFinite(numero) ||
+      numero < minimo ||
+      numero > maximo
+    ){
+      return null;
+    }
+
+    return numero;
+  }
+
+
+  function restablecerVisualEtaSinDato(){
+
+    if(piocaEtaMinutos){
+      piocaEtaMinutos.textContent =
+        "--";
+
+      piocaEtaMinutos.classList.remove(
+        "proximo"
+      );
+    }
+
+    if(piocaEtaHora){
+      piocaEtaHora.textContent =
+        "--:-- hs";
+
+      piocaEtaHora.classList.remove(
+        "proximo"
+      );
+    }
+
+    if(piocaHoraEtapa3){
+      piocaHoraEtapa3.textContent =
+        "";
+    }
+
+    if(piocaHoraEtapa4){
+      piocaHoraEtapa4.textContent =
+        "";
+    }
+
+    tramoZoomEtaActual =
+      null;
+
+    desactivarEncuadreProximidad();
+
+    actualizarColorPuntoEtapa4(
+      NaN
+    );
+
+    /*
+      Sin ETA no inventamos progreso. Si la llegada física está confirmada
+      sí conservamos etapa 4, porque esa información ya no depende de ETA.
+    */
+    if(
+      llegadaFisicaConfirmada
+    ){
+      pintarEtapaTrayecto(
+        4,
+        92,
+        false
+      );
+    }else{
+      pintarEtapaTrayecto(
+        2,
+        36,
+        false
+      );
+    }
+
+    requestAnimationFrame(
+      actualizarAnclajeRefrescar
+    );
+  }
+
+
   function actualizarAnclajeRefrescar(){
 
     if(
@@ -5313,15 +5727,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   ){
 
     if(
-      !Number.isFinite(
-        faltanMin
-      )
+      !Number.isFinite(faltanMin)
     ){
       return null;
     }
 
     if(
-      faltanMin <= 2
+      faltanMin <=
+        ALGORITMO_SEGUIMIENTO.ETA_ETAPA_4_MIN
     ){
       return {
         clave:"proximidad",
@@ -5330,7 +5743,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     if(
-      faltanMin <= 15
+      faltanMin <=
+        ALGORITMO_SEGUIMIENTO.ETA_INICIO_TRAMO_MIN
     ){
       return {
         clave:"normal",
@@ -5939,18 +6353,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                 marcador.getLatLng();
 
               const faltanMinActual =
-                (
-                  llegadaClienteMs &&
-                  Number.isFinite(
-                    llegadaClienteMs
-                  )
-                )
-                  ? (
-                      llegadaClienteMs -
-                      Date.now()
-                    ) /
-                    60000
-                  : null;
+                obtenerFaltanMinEta();
 
               if(
                 Number.isFinite(
@@ -6175,7 +6578,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
      R52/R54 - PROXIMIDAD POR DISTANCIA REAL EN TÍTULO
      - > 300 m: título normal del trayecto
      - 300 m a > 50 m: ¡ESTAMOS MUY CERCA!
-     - <= 50 m: HEMOS LLEGADO + reloj visual de 4 min
+     - <= 50 m: confirma T0; HEMOS LLEGADO aparece tras 1 min
+     - T0 + 5 min: cierre visual local si la llegada sigue confirmada
      - una vez enclavado, tolera ruido GPS hasta 300 m
      - sólo 3 posiciones GPS DISTINTAS y consecutivas > 300 m
        anulan la llegada y reinician el ciclo
@@ -6259,16 +6663,16 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         ? ""
         : String(lecturaId);
 
-    /*
-      Si created_at no estuviera disponible, usamos coordenadas redondeadas
-      como respaldo para que la misma muestra repetida por polling no pueda
-      convertirse artificialmente en 3 comprobaciones >300 m.
-    */
     const claveSinId =
       Number(lat).toFixed(6) +
       "," +
       Number(lon).toFixed(6);
 
+    /*
+      FILTRO DE RUIDO / POLLING: una misma lectura nunca puede contarse
+      dos veces. Esto se mantiene fuera del algoritmo matemático porque
+      pertenece a la calidad de la señal de entrada GPS.
+    */
     if(
       (
         id &&
@@ -6297,95 +6701,61 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
+    const ahoraMs =
+      Date.now();
+
     ultimaDistanciaProximidad =
       distanciaAlDomicilio;
 
+    /*
+      Para el cierre local usamos la antigüedad REAL del paquete GPS cuando
+      created_at es parseable. Una lectura vieja procesada tras una recarga
+      no se vuelve artificialmente "fresca" por haber llegado ahora al JS.
+    */
+    const lecturaServidorMs =
+      id ? Date.parse(id) : NaN;
+
+    ultimaVerificacionFisicaSesionMs =
+      Number.isFinite(lecturaServidorMs)
+        ? Math.min(ahoraMs,lecturaServidorMs)
+        : ahoraMs;
+
     if(id){
-      ultimaLecturaProximidadProcesada =
-        id;
+      ultimaLecturaProximidadProcesada = id;
     }else{
-      ultimaClaveProximidadSinId =
-        claveSinId;
+      ultimaClaveProximidadSinId = claveSinId;
     }
 
-    if(
-      llegadaFisicaConfirmada
-    ){
+    const siguiente =
+      calcularTransicionFisica(
+        {
+          llegada:llegadaFisicaConfirmada,
+          inicioMs:llegadaFisicaInicioMs,
+          fuera300:comprobacionesFuera300,
+          zonaCerca:zonaCercaConfirmada
+        },
+        distanciaAlDomicilio,
+        ahoraMs
+      );
 
-      if(
-        distanciaAlDomicilio > 300
-      ){
-        comprobacionesFuera300 +=
-          1;
+    llegadaFisicaConfirmada =
+      siguiente.llegada;
 
-        if(
-          comprobacionesFuera300 >= 3
-        ){
-          llegadaFisicaConfirmada =
-            false;
+    llegadaFisicaInicioMs =
+      siguiente.inicioMs;
 
-          llegadaFisicaInicioMs =
-            null;
+    comprobacionesFuera300 =
+      siguiente.fuera300;
 
-          comprobacionesFuera300 =
-            0;
+    zonaCercaConfirmada =
+      siguiente.zonaCerca;
 
-          zonaCercaConfirmada =
-            false;
-
-          guardarEstadoFisicoLlegada();
-
-        }else{
-          guardarEstadoFisicoLlegada();
-        }
-
-      }else{
-
-        comprobacionesFuera300 =
-          0;
-
-        zonaCercaConfirmada =
-          true;
-
-        guardarEstadoFisicoLlegada();
-      }
-
-    }else{
-
-      comprobacionesFuera300 =
-        0;
-
-      if(
-        distanciaAlDomicilio > 300
-      ){
-        zonaCercaConfirmada =
-          false;
-
-      }else if(
-        !zonaCercaConfirmada
-      ){
-        /*
-          Primera lectura de una nueva entrada <=300 m. Aunque ya esté
-          dentro de 50 m, mostramos primero MUY CERCA y esperamos otra
-          posición GPS nueva para confirmar HEMOS LLEGADO.
-        */
-        zonaCercaConfirmada =
-          true;
-
-        guardarEstadoFisicoLlegada();
-
-      }else if(
-        distanciaAlDomicilio <= 50
-      ){
-        llegadaFisicaConfirmada =
-          true;
-
-        llegadaFisicaInicioMs =
-          Date.now();
-
-        guardarEstadoFisicoLlegada();
-      }
-    }
+    /*
+      Persistimos TODA lectura física aceptada. Así una salida >300 m que
+      todavía no llegó a tres comprobaciones tampoco deja localStorage con
+      un estado anterior contradictorio.
+    */
+    guardarEstadoFisicoLlegada();
 
     actualizarAvisoProximidad();
   }
@@ -6400,74 +6770,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    /*
-      R54 CORREGIDA:
-      El título ya no depende del tramo ETA para este estado.
-
-      La lógica visual queda alineada con la proximidad física:
-      - > 300 m: ESTAMOS EN CAMINO
-      - <= 300 m y > 50 m: ¡ESTAMOS MUY CERCA!
-      - <= 50 m confirmado: HEMOS LLEGADO
-
-      Si HEMOS LLEGADO estaba enclavado, conserva ese estado hasta que
-      procesarPosicionProximidad confirme 3 posiciones GPS distintas y
-      consecutivas > 300 m. Recién ahí vuelve a ESTAMOS EN CAMINO.
-    */
-    let texto =
-      "ESTAMOS EN CAMINO";
-
-    let proximidadCercaActiva =
-      false;
-
-    let llegadaFisicaActiva =
-      false;
-
-    /*
-      Se conserva EXACTAMENTE la lógica física ya existente:
-
-      - llegada confirmada <= 50 m:
-        HEMOS LLEGADO queda enclavado;
-
-      - si todavía no llegó, pero está <= 300 m:
-        ¡ESTAMOS MUY CERCA!;
-
-      - una vez enclavado, sólo procesarPosicionProximidad puede
-        liberarlo luego de 3 posiciones GPS distintas y consecutivas
-        > 300 m.
-    */
-    if(
-      llegadaFisicaConfirmada
-    ){
-      texto =
-        "HEMOS LLEGADO";
-
-      llegadaFisicaActiva =
-        true;
-
-    }else if(
-      Number.isFinite(
-        ultimaDistanciaProximidad
-      ) &&
-      ultimaDistanciaProximidad <= 300
-    ){
-      texto =
-        "¡ESTAMOS MUY CERCA!";
-
-      proximidadCercaActiva =
-        true;
-    }
+    const estadoAlgoritmo =
+      derivarEstadoSeguimiento(
+        Date.now()
+      );
 
     piocaTrayectoTitulo.textContent =
-      texto;
+      estadoAlgoritmo.titulo;
 
     piocaTrayectoTitulo.classList.toggle(
       "proximidadCerca",
-      proximidadCercaActiva
+      estadoAlgoritmo.proximidadCercaActiva
     );
 
     piocaTrayectoTitulo.classList.toggle(
       "llegadaFisica",
-      llegadaFisicaActiva
+      estadoAlgoritmo.llegadaFisicaActiva
     );
   }
 
@@ -6492,61 +6810,37 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    const ahoraMs =
-      Date.now();
+    const estadoAlgoritmo =
+      derivarEstadoSeguimiento(
+        Date.now()
+      );
 
     actualizarAvisoProximidad();
 
-    /*
-      R55 - CIERRE FÍSICO INDEPENDIENTE DE ETA
-
-      El reloj de 4 minutos pertenece a la llegada física, no a Google.
-      Por eso se evalúa ANTES de exigir una ETA válida.
-
-      Si existen 1 o 2 lecturas >300 m pendientes de confirmar salida,
-      el cierre queda pausado. Así nunca finalizamos durante la pequeña
-      ventana en la que una tercera lectura podía demostrar que se fue.
-    */
     if(
-      llegadaFisicaConfirmada &&
-      Number.isFinite(llegadaFisicaInicioMs) &&
-      comprobacionesFuera300 === 0 &&
-      ahoraMs >=
-        llegadaFisicaInicioMs + 240000
+      estadoAlgoritmo.puedeFinalizarLocal
     ){
       mostrarFinalizado(false);
       return;
     }
 
     if(
-      !Number.isFinite(
-        llegadaClienteMs
-      )
+      !estadoAlgoritmo.etaValida
     ){
-      if(piocaEtaMinutos){
-        piocaEtaMinutos.textContent =
-          "--";
+      if(
+        Number.isFinite(llegadaClienteMs)
+      ){
+        llegadaClienteMs = null;
+        etaServidorRecibidaMs = null;
       }
 
-      if(piocaEtaHora){
-        piocaEtaHora.textContent =
-          "--:-- hs";
-
-        piocaEtaHora.classList.remove(
-          "proximo"
-        );
-      }
-
+      restablecerVisualEtaSinDato();
       actualizarTituloTrayectoProximidad();
       return;
     }
 
     const faltanMin =
-      (
-        llegadaClienteMs -
-        ahoraMs
-      ) /
-      60000;
+      estadoAlgoritmo.faltanMin;
 
     actualizarZoomSegunEta(
       faltanMin
@@ -6561,17 +6855,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         llegadaClienteMs
       );
 
-    if(
-      piocaEtaMinutos
-    ){
+    if(piocaEtaMinutos){
       const minutosRestantes =
         faltanMin <= 0
           ? 0
           : Math.ceil(faltanMin);
 
       piocaEtaMinutos.textContent =
-        minutosRestantes +
-        " min";
+        minutosRestantes + " min";
 
       piocaEtaMinutos.classList.remove(
         "proximo"
@@ -6579,112 +6870,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
       piocaEtaHora.classList.toggle(
         "proximo",
-        faltanMin <= 2
+        faltanMin <=
+          ALGORITMO_SEGUIMIENTO.ETA_ETAPA_4_MIN
       );
     }
 
-    piocaHoraEtapa3.textContent =
-      "";
-
-    piocaHoraEtapa4.textContent =
-      "";
-
-    /*
-      R55 - AVANCE DETERMINÍSTICO POR ETA ACTUAL
-
-      No existe "minuto inicial de esta pestaña".
-      Para una misma ETA, cualquier apertura dibuja exactamente lo mismo:
-
-      >15 min       -> etapa 2, inicio del tramo
-      15 a 5 min    -> avance lineal 2 -> 3
-      5 a 2 min     -> avance lineal 3 -> 4
-      <=2 min       -> etapa 4
-
-      De esta forma, si el cliente cierra la página y vuelve a abrirla
-      mientras la camioneta avanzó, el pin reaparece directamente donde
-      corresponde según la ETA vigente del servidor.
-    */
-    let etapa =
-      2;
-
-    let posicion =
-      36;
-
-    let progresoEnCurso =
-      false;
-
-    if(
-      faltanMin <= 2
-    ){
-      etapa =
-        4;
-
-      posicion =
-        92;
-
-    }else if(
-      faltanMin <= 5
-    ){
-      etapa =
-        3;
-
-      const progreso34 =
-        Math.max(
-          0,
-          Math.min(
-            1,
-            (
-              5 - faltanMin
-            ) / 3
-          )
-        );
-
-      posicion =
-        64 +
-        28 * progreso34;
-
-      progresoEnCurso =
-        progreso34 < 1;
-
-    }else if(
-      faltanMin <= 15
-    ){
-      etapa =
-        2;
-
-      const progreso23 =
-        Math.max(
-          0,
-          Math.min(
-            1,
-            (
-              15 - faltanMin
-            ) / 10
-          )
-        );
-
-      posicion =
-        36 +
-        28 * progreso23;
-
-      progresoEnCurso =
-        progreso23 < 1;
-
-    }else{
-      etapa =
-        2;
-
-      posicion =
-        36;
-
-      progresoEnCurso =
-        true;
-    }
+    piocaHoraEtapa3.textContent = "";
+    piocaHoraEtapa4.textContent = "";
 
     pintarEtapaTrayecto(
-      etapa,
-      posicion,
-      progresoEnCurso
+      estadoAlgoritmo.progresoEta.etapa,
+      estadoAlgoritmo.progresoEta.posicion,
+      estadoAlgoritmo.progresoEta.progresoEnCurso
     );
 
     actualizarTituloTrayectoProximidad();
@@ -6722,53 +6919,35 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    function pasoTrayecto(
-      ahoraFrame
-    ){
+    function pasoTrayecto(ahoraFrame){
 
-      if(
-        terminado
-      ){
+      if(terminado){
         detenerAnimacionTrayectoContinua();
         return;
       }
 
       if(
         document.visibilityState === "visible" &&
-        llegadaClienteMs &&
-        Number.isFinite(
-          llegadaClienteMs
+        (
+          Number.isFinite(llegadaClienteMs) ||
+          llegadaFisicaConfirmada
         )
       ){
-
-        /*
-          Recalculamos por tiempo absoluto.
-          Si iOS omitió frames o congeló la pestaña, al volver
-          salta directamente al porcentaje correcto.
-        */
         if(
           !ultimoRepintadoTrayectoMs ||
-          ahoraFrame -
-            ultimoRepintadoTrayectoMs >=
-              250
+          ahoraFrame - ultimoRepintadoTrayectoMs >= 250
         ){
-          ultimoRepintadoTrayectoMs =
-            ahoraFrame;
-
+          ultimoRepintadoTrayectoMs = ahoraFrame;
           actualizarPanelTrayecto();
         }
       }
 
       animacionTrayectoRafId =
-        requestAnimationFrame(
-          pasoTrayecto
-        );
+        requestAnimationFrame(pasoTrayecto);
     }
 
     animacionTrayectoRafId =
-      requestAnimationFrame(
-        pasoTrayecto
-      );
+      requestAnimationFrame(pasoTrayecto);
   }
 
 
@@ -6942,18 +7121,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                 marcador.getLatLng();
 
               const faltanMinRefresco =
-                (
-                  llegadaClienteMs &&
-                  Number.isFinite(
-                    llegadaClienteMs
-                  )
-                )
-                  ? (
-                      llegadaClienteMs -
-                      Date.now()
-                    ) /
-                    60000
-                  : null;
+                obtenerFaltanMinEta();
 
               const tramoRefresco =
                 Number.isFinite(
@@ -7069,19 +7237,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     llegadaClienteMs =
       null;
 
-    if(piocaEtaMinutos){
-      piocaEtaMinutos.textContent =
-        "--";
-    }
+    etaServidorRecibidaMs =
+      null;
 
-    if(piocaEtaHora){
-      piocaEtaHora.textContent =
-        "--:-- hs";
-
-      piocaEtaHora.classList.remove(
-        "proximo"
-      );
-    }
+    restablecerVisualEtaSinDato();
   }
 
   function mostrarHoraLlegada(
@@ -7125,6 +7284,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     llegadaClienteMs =
       fecha.getTime();
+
+    etaServidorRecibidaMs =
+      Date.now();
 
     /*
       Limpiamos la referencia R19 de versiones anteriores para que una
@@ -7219,8 +7381,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     if(
       terminado ||
-      !llegadaClienteMs ||
-      !Number.isFinite(llegadaClienteMs)
+      !Number.isFinite(
+        obtenerFaltanMinEta()
+      )
     ){
       return;
     }
@@ -7329,18 +7492,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
+    const faltanMinActualCalculado =
+      obtenerFaltanMinEta();
+
     const faltanMinActual =
-      (
-        llegadaClienteMs &&
-        Number.isFinite(
-          llegadaClienteMs
-        )
-      )
-        ? (
-            llegadaClienteMs -
-            Date.now()
-          ) /
-          60000
+      Number.isFinite(faltanMinActualCalculado)
+        ? faltanMinActualCalculado
         : Infinity;
 
     const tramoEta =
@@ -7476,22 +7633,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                 null;
 
               const faltanMinDespues =
-                (
-                  llegadaClienteMs &&
-                  Number.isFinite(
-                    llegadaClienteMs
-                  )
-                )
-                  ? (
-                      llegadaClienteMs -
-                      Date.now()
-                    ) /
-                    60000
-                  : faltanMinActual;
+                obtenerFaltanMinEta();
 
-              aplicarZoomEtaInicialSuave(
-                faltanMinDespues
-              );
+              if(
+                Number.isFinite(faltanMinDespues)
+              ){
+                aplicarZoomEtaInicialSuave(
+                  faltanMinDespues
+                );
+              }else{
+                encuadreInicialMapaActivo =
+                  false;
+
+                recentrarPinTrasCambioZoom();
+              }
 
             },
             3500
@@ -8405,18 +8560,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       }
 
       const lat =
-        Number(
-          d.destination_latitude
+        parsearCoordenadaServidor(
+          d.destination_latitude,
+          -90,
+          90
         );
 
       const lon =
-        Number(
-          d.destination_longitude
+        parsearCoordenadaServidor(
+          d.destination_longitude,
+          -180,
+          180
         );
 
       if(
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lon)
+        lat === null ||
+        lon === null
       ){
         destinoConsultaCompleta =
           false;
@@ -8518,7 +8677,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     borrarPersistenciaTrayectoLegacy();
 
     /*
-      El cierre local de 4 minutos puede ocurrir antes de que Supabase
+      El cierre local de 5 minutos puede ocurrir antes de que Supabase
       cambie state a finished. En ese caso conservamos el enclavamiento
       para que una reapertura reconstruya correctamente la pantalla.
       Sólo el estado FINISHED del servidor limpia la memoria física.
@@ -8899,7 +9058,13 @@ ocultarHoraLlegada();
 
 
 
-    detenerReloj();
+    if(
+      llegadaFisicaConfirmada
+    ){
+      iniciarReloj();
+    }else{
+      detenerReloj();
+    }
 
     detenerAnimacionMarcador();
 
@@ -11423,18 +11588,7 @@ ocultarHoraLlegada();
       El pin, sus filtros y sus coordenadas siguen intactos.
     */
     const faltanMinActual =
-      (
-        llegadaClienteMs &&
-        Number.isFinite(
-          llegadaClienteMs
-        )
-      )
-        ? (
-            llegadaClienteMs -
-            Date.now()
-          ) /
-          60000
-        : null;
+      obtenerFaltanMinEta();
 
     if(
       Number.isFinite(
@@ -11563,18 +11717,12 @@ if(
       !mapa
     ){
 
+      const faltanMinCrearCalculado =
+        obtenerFaltanMinEta();
+
       const faltanMinAlCrearMapa =
-        (
-          llegadaClienteMs &&
-          Number.isFinite(
-            llegadaClienteMs
-          )
-        )
-          ? (
-              llegadaClienteMs -
-              Date.now()
-            ) /
-            60000
+        Number.isFinite(faltanMinCrearCalculado)
+          ? faltanMinCrearCalculado
           : Infinity;
 
       const tramoZoomInicial =
@@ -12315,11 +12463,23 @@ if(
 
       consultarDestinoSeguimiento();
 
+      const lat =
+        parsearCoordenadaServidor(
+          p.latitude,
+          -90,
+          90
+        );
+
+      const lon =
+        parsearCoordenadaServidor(
+          p.longitude,
+          -180,
+          180
+        );
+
       if(
-        p.latitude ===
-          null ||
-        p.longitude ===
-          null
+        lat === null ||
+        lon === null
       ){
 
         ultimaLatitudProximidad =
@@ -12366,31 +12526,15 @@ if(
         ultimaVelocidadValidaKmh =
           null;
 
-        detenerReloj();
+        if(
+          llegadaFisicaConfirmada
+        ){
+          iniciarReloj();
+        }else{
+          detenerReloj();
+        }
 
         detenerAnimacionMarcador();
-
-        return;
-      }
-
-      const lat =
-        Number(
-          p.latitude
-        );
-
-      const lon =
-        Number(
-          p.longitude
-        );
-
-      if(
-        !Number.isFinite(
-          lat
-        ) ||
-        !Number.isFinite(
-          lon
-        )
-      ){
 
         return;
       }
