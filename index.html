@@ -852,6 +852,20 @@
   let clienteUltimaVistaMs = null;
 
   /*
+    V11 - COORDINACIÓN DE OPERACIONES ASÍNCRONAS
+
+    Evita consultas superpuestas, respuestas fuera de orden y dobles
+    ejecuciones por pulsaciones rápidas o por varios eventos de reanudación.
+  */
+  let sincronizacionEnCurso = null;
+  let revisionEstado = 0;
+  let consultaMensajesEnCurso = null;
+  let revisionMensajes = 0;
+  let consultaVistaEnCurso = null;
+  let abriendoWhatsApp = false;
+  let reactivandoGps = false;
+
+  /*
     V9 - monitor visual de transmisión real.
     Se alimenta exclusivamente de last_position_at recibido desde Supabase.
   */
@@ -1258,130 +1272,188 @@
 
 
   async function consultarMensajeCliente(){
-    if(seguimientoFinalizado || !trackingCode){ return; }
+    if(seguimientoFinalizado || !trackingCode){ return false; }
+
+    /*
+      Si ya hay una consulta en curso, todos los disparadores comparten
+      la misma promesa en lugar de abrir otra llamada a Supabase.
+    */
+    if(consultaMensajesEnCurso){
+      return consultaMensajesEnCurso;
+    }
+
+    const revisionAlIniciar =
+      revisionMensajes;
+
+    consultaMensajesEnCurso =
+      (async function(){
+
+        try{
+          const {data,error} = await supabaseClient.rpc(
+            "get_unread_tracking_message",
+            {p_code:trackingCode}
+          );
+
+          if(error){
+            throw error;
+          }
+
+          /*
+            Si mientras esperábamos cambió el estado de mensajes
+            (por ejemplo, se marcó uno como leído), esta respuesta ya
+            no tiene permiso para volver a pintar información anterior.
+          */
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionMensajes
+          ){
+            return false;
+          }
+
+          const r =
+            Array.isArray(data) && data.length
+              ? data[0]
+              : null;
+
+          if(!r || !r.message_id){
+
+            mensajeClienteActualId = null;
+
+            btnAbrirMensajes.classList.remove(
+              "nuevo"
+            );
+
+            mensajeClienteSinNuevos.style.display =
+              "block";
+
+            mensajeClienteSinNuevos.textContent =
+              "Sin mensajes nuevos.";
+
+            mensajeClienteTexto.textContent =
+              "";
+
+            mensajeClienteHora.textContent =
+              "";
+
+            btnMensajeLeido.style.display =
+              "none";
+
+            return true;
+          }
+
+          mensajeClienteActualId =
+            r.message_id;
+
+          mensajeClienteSinNuevos.style.display =
+            "none";
+
+          mensajeClienteTexto.textContent =
+            r.message_text || "";
+
+          mensajeClienteHora.textContent =
+            r.created_at
+              ? "Recibido " +
+                new Date(r.created_at)
+                .toLocaleTimeString(
+                  "es-AR",
+                  {
+                    hour:"2-digit",
+                    minute:"2-digit"
+                  }
+                )
+              : "";
+
+          btnMensajeLeido.style.display =
+            "block";
+
+          btnAbrirMensajes.classList.add(
+            "nuevo"
+          );
+
+          if(
+            mensajeClienteUltimoAvisadoId !==
+              r.message_id
+          ){
+            mensajeClienteUltimoAvisadoId =
+              r.message_id;
+
+            sonidoMensajeCliente();
+
+            /*
+              Si llega uno nuevo, abrimos la tarjeta automáticamente.
+            */
+            mensajeClienteBox.classList.add(
+              "visible"
+            );
+          }
+
+          return true;
+
+        }catch(e){
+
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionMensajes
+          ){
+            return false;
+          }
+
+          /*
+            La función deja un diagnóstico visible sólo si el usuario
+            abre MENSAJES. No afecta el resto del panel.
+          */
+          mensajeClienteSinNuevos.style.display =
+            "block";
+
+          mensajeClienteSinNuevos.textContent =
+            "No se pudo consultar mensajes.";
+
+          mensajeClienteTexto.textContent =
+            "";
+
+          mensajeClienteHora.textContent =
+            "";
+
+          btnMensajeLeido.style.display =
+            "none";
+
+          return false;
+        }
+      })();
 
     try{
-      const {data,error} = await supabaseClient.rpc(
-        "get_unread_tracking_message",
-        {p_code:trackingCode}
-      );
-
-      if(error){
-        throw error;
-      }
-
-      const r =
-        Array.isArray(data) && data.length
-          ? data[0]
-          : null;
-
-      if(!r || !r.message_id){
-
-        mensajeClienteActualId = null;
-
-        btnAbrirMensajes.classList.remove(
-          "nuevo"
-        );
-
-        mensajeClienteSinNuevos.style.display =
-          "block";
-
-        mensajeClienteSinNuevos.textContent =
-          "Sin mensajes nuevos.";
-
-        mensajeClienteTexto.textContent =
-          "";
-
-        mensajeClienteHora.textContent =
-          "";
-
-        btnMensajeLeido.style.display =
-          "none";
-
-        return;
-      }
-
-      mensajeClienteActualId =
-        r.message_id;
-
-      mensajeClienteSinNuevos.style.display =
-        "none";
-
-      mensajeClienteTexto.textContent =
-        r.message_text || "";
-
-      mensajeClienteHora.textContent =
-        r.created_at
-          ? "Recibido " +
-            new Date(r.created_at)
-            .toLocaleTimeString(
-              "es-AR",
-              {
-                hour:"2-digit",
-                minute:"2-digit"
-              }
-            )
-          : "";
-
-      btnMensajeLeido.style.display =
-        "block";
-
-      btnAbrirMensajes.classList.add(
-        "nuevo"
-      );
-
-      if(
-        mensajeClienteUltimoAvisadoId !==
-          r.message_id
-      ){
-        mensajeClienteUltimoAvisadoId =
-          r.message_id;
-
-        sonidoMensajeCliente();
-
-        /*
-          Si llega uno nuevo, abrimos la tarjeta automáticamente.
-        */
-        mensajeClienteBox.classList.add(
-          "visible"
-        );
-      }
-
-    }catch(e){
-
-      /*
-        La función deja un diagnóstico visible sólo si el usuario
-        abre MENSAJES. No afecta el resto del panel.
-      */
-      mensajeClienteSinNuevos.style.display =
-        "block";
-
-      mensajeClienteSinNuevos.textContent =
-        "No se pudo consultar mensajes.";
-
-      mensajeClienteTexto.textContent =
-        "";
-
-      mensajeClienteHora.textContent =
-        "";
-
-      btnMensajeLeido.style.display =
-        "none";
+      return await consultaMensajesEnCurso;
+    }finally{
+      consultaMensajesEnCurso = null;
     }
   }
 
   async function marcarMensajeClienteLeido(){
     if(!trackingCode || !mensajeClienteActualId){ return; }
+
+    const idMarcado =
+      mensajeClienteActualId;
+
+    /*
+      Invalida cualquier lectura de mensajes iniciada antes del toque.
+    */
+    revisionMensajes++;
+
     btnMensajeLeido.disabled = true;
+
     try{
       const {data,error} = await supabaseClient.rpc(
         "mark_tracking_message_read",
         {
           p_code:trackingCode,
-          p_message_id:mensajeClienteActualId
+          p_message_id:idMarcado
         }
       );
+
       if(error){ throw error; }
+
+      if(seguimientoFinalizado){ return; }
+
       mensajeClienteActualId = null;
 
       btnAbrirMensajes.classList.remove(
@@ -1402,6 +1474,19 @@
 
       btnMensajeLeido.style.display =
         "none";
+
+      /*
+        Si había una consulta vieja en vuelo, esperamos que termine y
+        luego consultamos de nuevo para mostrar el siguiente mensaje,
+        si existe, sin que el anterior pueda reaparecer.
+      */
+      if(consultaMensajesEnCurso){
+        try{ await consultaMensajesEnCurso; }catch(e){}
+        consultaMensajesEnCurso = null;
+      }
+
+      await consultarMensajeCliente();
+
     }catch(e){
       mostrarError("No se pudo confirmar la lectura del mensaje.");
     }finally{
@@ -1410,17 +1495,47 @@
   }
 
   async function consultarVistaCliente(){
-    if(seguimientoFinalizado || !trackingCode){ return; }
+    if(seguimientoFinalizado || !trackingCode){ return false; }
+
+    if(consultaVistaEnCurso){
+      return consultaVistaEnCurso;
+    }
+
+    consultaVistaEnCurso =
+      (async function(){
+        try{
+          const {data,error} = await supabaseClient.rpc(
+            "get_client_view_status",
+            {p_code:trackingCode}
+          );
+
+          if(error){ throw error; }
+          if(seguimientoFinalizado){ return false; }
+
+          const r =
+            Array.isArray(data) && data.length
+              ? data[0]
+              : null;
+
+          if(!r){ return false; }
+
+          pintarVistaCliente(
+            r.view_state,
+            r.client_last_seen
+          );
+
+          return true;
+
+        }catch(e){
+          return false;
+        }
+      })();
+
     try{
-      const {data,error} = await supabaseClient.rpc(
-        "get_client_view_status",
-        {p_code:trackingCode}
-      );
-      if(error){ throw error; }
-      const r = Array.isArray(data) && data.length ? data[0] : null;
-      if(!r){ return; }
-      pintarVistaCliente(r.view_state,r.client_last_seen);
-    }catch(e){}
+      return await consultaVistaEnCurso;
+    }finally{
+      consultaVistaEnCurso = null;
+    }
   }
 
   function negarAcceso(){
@@ -1689,7 +1804,7 @@
         minutosActuales === null
           ? "--"
           : Math.max(
-              1,
+              0,
               minutosActuales
             )
       ) +
@@ -1708,6 +1823,18 @@
   function guardarServidorEnLocal(
     s
   ){
+
+    /*
+      Una respuesta que llegue tarde nunca puede revivir un seguimiento
+      que ya fue finalizado localmente.
+    */
+    if(
+      seguimientoFinalizado ||
+      !s ||
+      typeof s !== "object"
+    ){
+      return false;
+    }
 
     trackingCode =
       String(
@@ -1810,14 +1937,26 @@
       trackingCode;
 
     if(
-      s.client_arrival
+      Object.prototype.hasOwnProperty.call(
+        s,
+        "client_arrival"
+      )
     ){
 
-      llegadaClienteMs =
-        new Date(
-          s.client_arrival
-        )
-        .getTime();
+      if(s.client_arrival){
+        const nuevaLlegadaMs =
+          new Date(
+            s.client_arrival
+          )
+          .getTime();
+
+        llegadaClienteMs =
+          Number.isFinite(nuevaLlegadaMs)
+            ? nuevaLlegadaMs
+            : null;
+      }else{
+        llegadaClienteMs = null;
+      }
 
       pintarHoraCliente();
     }
@@ -1894,7 +2033,7 @@
         "function"
     ){
 
-      return;
+      return false;
     }
 
     try{
@@ -1906,33 +2045,38 @@
         .getSession();
 
       if(
-        data &&
-        data.session
+        !data ||
+        !data.session
       ){
-
-        window.PiocaNative
-        .startTracking(
-
-          trackingCode,
-
-          String(
-            data.session.access_token ||
-            ""
-          ),
-
-          String(
-            data.session.refresh_token ||
-            ""
-          ),
-
-          nombreCliente,
-
-          s.expires_at ||
-          ""
-        );
+        return false;
       }
 
-    }catch(e){}
+      window.PiocaNative
+      .startTracking(
+
+        trackingCode,
+
+        String(
+          data.session.access_token ||
+          ""
+        ),
+
+        String(
+          data.session.refresh_token ||
+          ""
+        ),
+
+        nombreCliente,
+
+        s.expires_at ||
+        ""
+      );
+
+      return true;
+
+    }catch(e){
+      return false;
+    }
   }
 
   async function obtenerEstadoServidor(){
@@ -2154,17 +2298,13 @@
     /*
       REANUDACIÓN SIN ETA VIEJA
 
-      Al volver de pantalla bloqueada o segundo plano:
-      1. ocultamos momentáneamente el bloque ETA;
-      2. consultamos primero Supabase;
-      3. recién después pintamos la ETA vigente.
-
-      Así no aparece durante un instante la cuenta local vieja
-      (por ejemplo 1 min) antes de recibir la ETA real (por ejemplo 3 min).
+      sincronizarServidor() ya actualiza tracking, vista del cliente y
+      mensajes. No repetimos esas consultas al volver de segundo plano.
     */
-    modificandoHora =
-      false;
-
+    /*
+      No alteramos modificandoHora al reanudar: si un ajuste de ETA está
+      realmente en curso, conserva su bloqueo hasta que termine su RPC.
+    */
     if(
       horaClienteBox
     ){
@@ -2176,49 +2316,47 @@
       false;
 
     try{
-
       sincronizado =
         await sincronizarServidor();
 
-      await consultarVistaCliente();
+    }catch(e){
+      sincronizado = false;
 
-      await consultarMensajeCliente();
-
-    }catch(e){}
-
-    if(
-      !seguimientoFinalizado
-    ){
+    }finally{
 
       if(
-        sincronizado
+        !seguimientoFinalizado
       ){
 
-        pintarHoraCliente();
+        if(
+          sincronizado
+        ){
+          pintarHoraCliente();
 
-      }else{
+        }else if(
+          !modificandoHora
+        ){
+          horaCliente.textContent =
+            "-- min";
 
-        horaCliente.textContent =
-          "-- min";
+          horaClienteTexto.textContent =
+            "Actualizando ETA...";
+        }
 
-        horaClienteTexto.textContent =
-          "Actualizando ETA...";
+        actualizarBotonesHora();
+        pintarEstadoTransmision();
+
+        if(
+          horaClienteBox
+        ){
+          horaClienteBox.style.visibility =
+            "visible";
+        }
       }
 
-      actualizarBotonesHora();
-
-      pintarEstadoTransmision();
-
-      if(
-        horaClienteBox
-      ){
-        horaClienteBox.style.visibility =
-          "visible";
-      }
+      reactivandoPanel =
+        false;
     }
-
-    reactivandoPanel =
-      false;
   }
 
 
@@ -2228,70 +2366,111 @@
       seguimientoFinalizado ||
       !trackingCode
     ){
-
-      return;
-    }
-
-    try{
-
-      const s =
-        await obtenerEstadoServidor();
-
-      if(
-        !s
-      ){
-
-        return false;
-      }
-
-      if(
-        servidorConfirmaFinalizado(
-          s
-        )
-      ){
-
-        mostrarFinalizado(
-          s.client_name ||
-          nombreCliente
-        );
-
-        return false;
-      }
-
-      if(
-        !servidorConfirmaActivo(
-          s
-        )
-      ){
-
-        /*
-          Respuesta transitoria/incompleta:
-          conservamos el panel y esperamos la próxima sincronización.
-        */
-        return false;
-      }
-
-      guardarServidorEnLocal(
-        s
-      );
-
-      await consultarVistaCliente();
-      await consultarMensajeCliente();
-
-      ocultarError();
-
-      return true;
-
-    }catch(error){
-
-      /*
-        Si falla temporalmente la consulta,
-        NO borramos ni ocultamos el panel.
-      */
-
       return false;
     }
+
+    /*
+      Una sola sincronización puede estar activa. Los intervalos, focus,
+      pageshow y visibilitychange comparten esta misma operación.
+    */
+    if(sincronizacionEnCurso){
+      return sincronizacionEnCurso;
+    }
+
+    const revisionAlIniciar =
+      revisionEstado;
+
+    sincronizacionEnCurso =
+      (async function(){
+
+        try{
+
+          const s =
+            await obtenerEstadoServidor();
+
+          /*
+            Si durante la espera hubo una modificación de ETA o un cierre,
+            esta respuesta pertenece a un estado anterior y se descarta.
+          */
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionEstado
+          ){
+            return false;
+          }
+
+          if(
+            !s
+          ){
+            return false;
+          }
+
+          if(
+            servidorConfirmaFinalizado(
+              s
+            )
+          ){
+
+            mostrarFinalizado(
+              s.client_name ||
+              nombreCliente
+            );
+
+            return false;
+          }
+
+          if(
+            !servidorConfirmaActivo(
+              s
+            )
+          ){
+            /*
+              Respuesta transitoria/incompleta:
+              conservamos el panel y esperamos la próxima sincronización.
+            */
+            return false;
+          }
+
+          guardarServidorEnLocal(
+            s
+          );
+
+          /*
+            Son consultas independientes: en paralelo reducen latencia sin
+            generar duplicados porque cada una tiene su propio single-flight.
+          */
+          await Promise.all([
+            consultarVistaCliente(),
+            consultarMensajeCliente()
+          ]);
+
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionEstado
+          ){
+            return false;
+          }
+
+          ocultarError();
+
+          return true;
+
+        }catch(error){
+          /*
+            Si falla temporalmente la consulta, NO borramos ni ocultamos
+            el panel ni el estado que ya estaba confirmado.
+          */
+          return false;
+        }
+      })();
+
+    try{
+      return await sincronizacionEnCurso;
+    }finally{
+      sincronizacionEnCurso = null;
+    }
   }
+
 
   async function moverHoraCliente(
     minutos
@@ -2308,6 +2487,11 @@
 
     modificandoHora =
       true;
+
+    /*
+      Toda sincronización que haya empezado antes de este toque queda vieja.
+    */
+    revisionEstado++;
 
     btnRestar5.disabled =
       true;
@@ -2378,11 +2562,21 @@
         );
       }
 
+      if(seguimientoFinalizado){
+        return;
+      }
+
       llegadaClienteMs =
         new Date(
           r.client_arrival
         )
         .getTime();
+
+      if(!Number.isFinite(llegadaClienteMs)){
+        throw new Error(
+          "ETA inválida devuelta por el servidor."
+        );
+      }
 
       /*
         La nueva ETA devuelta por el servidor pasa a ser
@@ -2423,14 +2617,14 @@
 
     }finally{
 
-      btnRestar5.disabled =
-        false;
-
-      btnSumar5.disabled =
-        false;
-
       modificandoHora =
         false;
+
+      /*
+        Recalcula el estado matemático real de ambos botones.
+        No fuerza RESTAR a habilitado cuando la ETA ya está en cero.
+      */
+      actualizarBotonesHora();
     }
   }
 
@@ -2572,6 +2766,12 @@
   async function abrirWhatsApp(){
 
     if(
+      abriendoWhatsApp
+    ){
+      return;
+    }
+
+    if(
       !linkCliente ||
       !trackingCode
     ){
@@ -2583,17 +2783,38 @@
       return;
     }
 
+    abriendoWhatsApp = true;
+    btnWhatsapp.disabled = true;
+    btnWhatsapp.textContent =
+      "ABRIENDO WHATSAPP BUSINESS...";
+
+    const liberarWhatsapp =
+      function(){
+        abriendoWhatsApp = false;
+        btnWhatsapp.disabled = false;
+        btnWhatsapp.textContent =
+          "💬 COMPARTIR POR WHATSAPP";
+      };
+
+    ocultarError();
+
     /*
       ETA DEL MOMENTO DE COMPARTIR
 
-      Antes de armar el mensaje consultamos Supabase nuevamente.
-      Así el texto de WhatsApp usa la ETA vigente justo al tocar
-      COMPARTIR POR WHATSAPP, no la ETA con la que se creó el viaje.
+      Se conserva la consulta de Supabase antes de construir el mensaje,
+      pero el primer toque queda bloqueado y muestra respuesta inmediata.
     */
     try{
 
       const s =
         await obtenerEstadoServidor();
+
+      if(
+        seguimientoFinalizado
+      ){
+        liberarWhatsapp();
+        return;
+      }
 
       if(
         !s ||
@@ -2607,6 +2828,7 @@
           "No se pudo obtener la ETA actual para compartir."
         );
 
+        liberarWhatsapp();
         return;
       }
 
@@ -2626,6 +2848,7 @@
           "No se pudo obtener la ETA actual para compartir."
         );
 
+        liberarWhatsapp();
         return;
       }
 
@@ -2639,6 +2862,7 @@
         "No se pudo actualizar la ETA para compartir por WhatsApp. Reintentá con conexión."
       );
 
+      liberarWhatsapp();
       return;
     }
 
@@ -2732,6 +2956,7 @@
         "WhatsApp Business no está disponible en este dispositivo."
       );
 
+      liberarWhatsapp();
       return;
     }
 
@@ -2786,31 +3011,36 @@
       function(){
 
         if(
-          controlFinalizado
+          !controlFinalizado
         ){
-          return;
-        }
-
-        document.removeEventListener(
-          "visibilitychange",
-          confirmarSalidaABusiness
-        );
-
-        if(
-          !businessAbierto &&
-          document.visibilityState ===
-            "visible"
-        ){
-
-          window.alert(
-            "La aplicación WhatsApp Business no está instalada."
+          document.removeEventListener(
+            "visibilitychange",
+            confirmarSalidaABusiness
           );
+
+          if(
+            !businessAbierto &&
+            document.visibilityState ===
+              "visible"
+          ){
+
+            window.alert(
+              "La aplicación WhatsApp Business no está instalada."
+            );
+          }
         }
+
+        /*
+          Se libera siempre: si Business abrió, puede quedar habilitado
+          nuevamente al regresar; si no abrió, permite reintentar.
+        */
+        liberarWhatsapp();
 
       },
       1800
     );
   }
+
 
   async function enviarPosicion(
     posicion,
@@ -2903,6 +3133,8 @@
           "Seguimiento no disponible."
         );
       }
+
+      envios++;
 
       enviando =
         false;
@@ -3239,6 +3471,13 @@
       return;
     }
 
+    /*
+      Desde este instante ninguna sincronización iniciada antes del cierre
+      puede volver a escribir el estado anterior.
+    */
+    revisionEstado++;
+    revisionMensajes++;
+
     btnFinalizar.disabled =
       true;
 
@@ -3378,38 +3617,73 @@
     async function(){
 
       if(
-        usaGpsNativo
+        reactivandoGps ||
+        seguimientoFinalizado
       ){
-        try{
+        return;
+      }
+
+      reactivandoGps = true;
+      btnReactivar.disabled = true;
+
+      try{
+
+        if(
+          usaGpsNativo
+        ){
+
           const s =
             await obtenerEstadoServidor();
 
           if(
-            s &&
-            s.state === "active" &&
-            s.status === "active"
+            !s ||
+            !servidorConfirmaActivo(s)
           ){
+            mostrarError(
+              "No se pudo confirmar un seguimiento activo para reactivar el GPS."
+            );
+            return;
+          }
+
+          const iniciado =
             await iniciarNativoConServidor(
               s
             );
 
-            estado.textContent =
-              "🟢 GPS NATIVO ACTIVO";
-
-            estado.style.background =
-              "#dff5e1";
-
-            btnReactivar.style.display =
-              "none";
+          if(!iniciado){
+            mostrarError(
+              "No se pudo reactivar el GPS nativo. Reintentá con conexión."
+            );
+            return;
           }
-        }catch(e){}
 
-        return;
+          estado.textContent =
+            "🟢 GPS NATIVO ACTIVO";
+
+          estado.style.background =
+            "#dff5e1";
+
+          btnReactivar.style.display =
+            "none";
+
+          ocultarError();
+          return;
+        }
+
+        iniciarGPS();
+
+      }catch(e){
+        mostrarError(
+          "No se pudo reactivar el GPS. Reintentá con conexión."
+        );
+
+      }finally{
+        reactivandoGps = false;
+        btnReactivar.disabled = false;
       }
-
-      iniciarGPS();
     }
   );
+
 
   btnRestar5.addEventListener(
     "click",
@@ -3469,11 +3743,6 @@
           "visible"
       ){
         reactivarPanelAhora();
-
-        setTimeout(
-          consultarMensajeCliente,
-          700
-        );
       }
     }
   );
@@ -3482,11 +3751,6 @@
     "pageshow",
     function(){
       reactivarPanelAhora();
-
-      setTimeout(
-        consultarMensajeCliente,
-        700
-      );
     }
   );
 
@@ -3494,11 +3758,6 @@
     "focus",
     function(){
       reactivarPanelAhora();
-
-      setTimeout(
-        consultarMensajeCliente,
-        700
-      );
     }
   );
 
@@ -3512,8 +3771,10 @@
 
     iniciarGPS();
 
-    await consultarVistaCliente();
-    await consultarMensajeCliente();
+    await Promise.all([
+      consultarVistaCliente(),
+      consultarMensajeCliente()
+    ]);
 
     actualizarBotonesHora();
 
