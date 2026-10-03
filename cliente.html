@@ -503,15 +503,49 @@
     }
 
     /*
-      R54 - PROXIMIDAD FÍSICA EN EL TÍTULO DEL TRAYECTO
-      Mismo tamaño y tipografía; sólo cambia a verde.
+      R54 CORREGIDA - PROXIMIDAD FÍSICA EN EL TÍTULO DEL TRAYECTO
+
+      IMPORTANTE:
+      - NO modifica font-size, font-family, font-weight, line-height,
+        posición, márgenes ni dimensiones del título original.
+      - ¡ESTAMOS MUY CERCA! conserva exactamente el color normal.
+      - HEMOS LLEGADO conserva exactamente la misma tipografía/tamaño
+        y sólo cambia a verde.
+      - Ambos estados usan un titilado suave/profesional, sin saltos.
     */
-    #piocaTrayectoTitulo.proximidadFisica{
+    #piocaTrayectoTitulo.proximidadCerca,
+    #piocaTrayectoTitulo.llegadaFisica{
+      animation:
+        piocaTituloProximidadPulse 1.55s
+        cubic-bezier(.45,0,.25,1)
+        infinite;
+    }
+
+    #piocaTrayectoTitulo.proximidadCerca{
+      color:#202c38;
+    }
+
+    #piocaTrayectoTitulo.proximidadCerca::before{
+      color:var(--pioca-azul);
+    }
+
+    #piocaTrayectoTitulo.llegadaFisica{
       color:#38e06f;
     }
 
-    #piocaTrayectoTitulo.proximidadFisica::before{
+    #piocaTrayectoTitulo.llegadaFisica::before{
       color:#38e06f;
+    }
+
+    @keyframes piocaTituloProximidadPulse{
+      0%,100%{
+        opacity:1;
+        filter:brightness(1);
+      }
+      50%{
+        opacity:.64;
+        filter:brightness(1.06);
+      }
     }
 
     #piocaTrayectoTitulo::before{
@@ -6370,36 +6404,26 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    const faltanMinTitulo =
-      (
-        llegadaClienteMs &&
-        Number.isFinite(
-          llegadaClienteMs
-        )
-      )
-        ? (
-            llegadaClienteMs -
-            Date.now()
-          ) /
-          60000
-        : null;
-
     /*
-      Texto normal existente:
-      - > 5 min: ESTAMOS EN CAMINO
-      - <= 5 min: ESTAMOS PRÓXIMOS A LLEGAR
+      R54 CORREGIDA:
+      El título ya no depende del tramo ETA para este estado.
+
+      La lógica visual queda alineada con la proximidad física:
+      - > 300 m: ESTAMOS EN CAMINO
+      - <= 300 m y > 50 m: ¡ESTAMOS MUY CERCA!
+      - <= 50 m confirmado: HEMOS LLEGADO
+
+      Si HEMOS LLEGADO estaba enclavado, conserva ese estado hasta que
+      procesarPosicionProximidad confirme 3 posiciones GPS distintas y
+      consecutivas > 300 m. Recién ahí vuelve a ESTAMOS EN CAMINO.
     */
     let texto =
-      (
-        Number.isFinite(
-          faltanMinTitulo
-        ) &&
-        faltanMinTitulo <= 5
-      )
-        ? "ESTAMOS PRÓXIMOS A LLEGAR"
-        : "ESTAMOS EN CAMINO";
+      "ESTAMOS EN CAMINO";
 
-    let proximidadFisicaActiva =
+    let proximidadCercaActiva =
+      false;
+
+    let llegadaFisicaActiva =
       false;
 
     /*
@@ -6421,7 +6445,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       texto =
         "HEMOS LLEGADO";
 
-      proximidadFisicaActiva =
+      llegadaFisicaActiva =
         true;
 
     }else if(
@@ -6433,7 +6457,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       texto =
         "¡ESTAMOS MUY CERCA!";
 
-      proximidadFisicaActiva =
+      proximidadCercaActiva =
         true;
     }
 
@@ -6441,8 +6465,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       texto;
 
     piocaTrayectoTitulo.classList.toggle(
-      "proximidadFisica",
-      proximidadFisicaActiva
+      "proximidadCerca",
+      proximidadCercaActiva
+    );
+
+    piocaTrayectoTitulo.classList.toggle(
+      "llegadaFisica",
+      llegadaFisicaActiva
     );
   }
 
