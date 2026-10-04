@@ -5111,6 +5111,33 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let animacionMarcadorId =
     null;
 
+  /* ==========================================================
+     R62 - REANUDACIÓN PROTEGIDA DESPUÉS DE SUSPENSIÓN
+
+     Cuando Safari / iPhone deja la página en segundo plano o el teléfono
+     queda bloqueado, requestAnimationFrame puede quedar congelado mientras
+     la camioneta real sigue avanzando. Al volver, NO permitimos que el pin
+     recorra en animación todos los metros acumulados desde la posición visual
+     antigua. Una suspensión suficientemente larga arma una resincronización:
+
+     - se cancela cualquier animación visual vieja;
+     - se descartan vértices / cuarentenas visuales que pertenecían al tramo viejo;
+     - la primera posición válida recibida al volver se adopta de forma directa;
+     - el mapa se recentra SIN animación;
+     - desde el GPS siguiente vuelve a mandar íntegramente R61.
+
+     No modifica ETA, llegada física, HEMOS LLEGADO, cierre de 5 minutos,
+     cadencia aprendida ni comportamiento normal con la pantalla visible.
+     ========================================================== */
+  let paginaOcultaDesdeMs =
+    null;
+
+  let reanudacionVisualProtegidaPendiente =
+    false;
+
+  const REANUDACION_PROTEGIDA_MIN_MS =
+    8000;
+
 
   let ultimoCreatedAtServidor =
     null;
@@ -7024,7 +7051,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     faltanMin,
     latForzada,
     lonForzada,
-    forzar
+    forzar,
+    sinAnimacionReanudacion
   ){
 
     if(
@@ -7192,6 +7220,56 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               zoomActual
             )
           : Infinity;
+
+      /*
+        R62 FINAL - REANUDACIÓN DENTRO DEL ENCUADRE DE <= 2 MIN
+
+        Si esta llamada proviene del desbloqueo / regreso desde segundo plano,
+        la cámara adopta centro + zoom de forma INSTANTÁNEA. No usa panTo(),
+        no programa el reafirmado animado de 450 ms y no arrastra el mapa para
+        recuperar la distancia recorrida mientras Safari estuvo suspendido.
+
+        Las llamadas normales del seguimiento conservan exactamente la
+        transición R53/R60 existente.
+      */
+      if(
+        sinAnimacionReanudacion === true
+      ){
+        if(
+          typeof mapaGoogle.moveCamera ===
+            "function"
+        ){
+          mapaGoogle.moveCamera({
+            center:{
+              lat:Number(
+                centroObjetivo.lat
+              ),
+              lng:Number(
+                centroObjetivo.lng
+              )
+            },
+            zoom:zoomObjetivo
+          });
+
+        }else{
+          mapa.setView(
+            [
+              Number(
+                centroObjetivo.lat
+              ),
+              Number(
+                centroObjetivo.lng
+              )
+            ],
+            zoomObjetivo
+          );
+        }
+
+        ultimoEncuadreProximidadMs =
+          ahora;
+
+        return true;
+      }
 
       if(
         diferenciaZoom >
@@ -8123,6 +8201,233 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         null;
     }
   }
+
+
+  function marcarPaginaSuspendidaR62(){
+
+    if(
+      paginaOcultaDesdeMs === null
+    ){
+      paginaOcultaDesdeMs =
+        Date.now();
+    }
+
+    /*
+      Cancelamos sólo el movimiento visual en curso. No tocamos el estado
+      físico ni la lógica del seguimiento mientras la página está oculta.
+    */
+    detenerAnimacionMarcador();
+  }
+
+
+  function evaluarReanudacionProtegidaR62(){
+
+    if(
+      paginaOcultaDesdeMs === null
+    ){
+      return false;
+    }
+
+    const ahora =
+      Date.now();
+
+    const tiempoOcultaMs =
+      Math.max(
+        0,
+        ahora - paginaOcultaDesdeMs
+      );
+
+    paginaOcultaDesdeMs =
+      null;
+
+    const cadenciaAprendidaMs =
+      estadoCadenciaGpsHibrido &&
+      Number.isFinite(
+        estadoCadenciaGpsHibrido.cadenciaMs
+      )
+        ? estadoCadenciaGpsHibrido.cadenciaMs
+        : ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
+
+    const umbralReanudacionMs =
+      Math.max(
+        REANUDACION_PROTEGIDA_MIN_MS,
+        cadenciaAprendidaMs * 2
+      );
+
+    if(
+      tiempoOcultaMs <
+        umbralReanudacionMs ||
+      !marcador ||
+      !mapa
+    ){
+      return false;
+    }
+
+    reanudacionVisualProtegidaPendiente =
+      true;
+
+    detenerAnimacionMarcador();
+
+    /*
+      Estas memorias son exclusivamente VISUALES y quedaron asociadas a un
+      tramo que el cliente no vio. No deben obligar al pin a recorrerlo al
+      desbloquear. La memoria física de llegada queda intacta.
+    */
+    limpiarColaVerticesVisuales();
+
+    puntoGeometricoPendiente =
+      null;
+
+    puntoAltaVelocidadPendiente =
+      null;
+
+    historialRumbosAltaVelocidad =
+      [];
+
+    desviosAltaVelocidadConsecutivos =
+      0;
+
+    retrocesosVisualesConsecutivos =
+      0;
+
+    veniaDeRegimenDesde30 =
+      false;
+
+    protegerEntradaBajaVelocidad =
+      false;
+
+    historialVelocidadesAutopista =
+      [];
+
+    return true;
+  }
+
+
+  function aplicarReanudacionVisualProtegidaR62(
+    lat,
+    lon,
+    createdAt
+  ){
+
+    if(
+      reanudacionVisualProtegidaPendiente !== true ||
+      !marcador ||
+      !mapa ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return null;
+    }
+
+    detenerAnimacionMarcador();
+
+    /*
+      La posición actual se adopta directamente. No existe transición A -> B,
+      por lo que nunca aparece el efecto de "camioneta volando" después de
+      varios minutos con el teléfono bloqueado.
+    */
+    marcador.setLatLng(
+      [lat, lon]
+    );
+
+    /*
+      El mapa acompaña el mismo salto de forma instantánea. En particular,
+      no usamos pan animado para recuperar kilómetros acumulados en autopista.
+    */
+    centrarMapaEnAreaUtil(
+      lat,
+      lon,
+      {
+        animate:false,
+        forzarEncuadreProximidad:true,
+        sinAnimacionEncuadreProximidad:true
+      }
+    );
+
+    const createdMs =
+      new Date(
+        createdAt
+      )
+      .getTime();
+
+    /*
+      Rebasamos la memoria geométrica al punto actual. La cadencia aprendida
+      NO se reinicia: sólo evitamos que los minutos de suspensión parezcan un
+      intervalo normal entre dos GPS visualizados por el cliente.
+    */
+    penultimoPuntoServidor =
+      null;
+
+    ultimoPuntoServidor = {
+      lat:lat,
+      lon:lon
+    };
+
+    ultimoCreatedAtServidor =
+      createdAt;
+
+    ultimoCreatedAtProcesadoGps =
+      createdAt;
+
+    if(
+      Number.isFinite(createdMs)
+    ){
+      ultimoCreatedAtCadenciaGps =
+        createdMs;
+
+      estadoCadenciaGpsHibrido = {
+        cadenciaMs:
+          Number.isFinite(
+            estadoCadenciaGpsHibrido.cadenciaMs
+          )
+            ? estadoCadenciaGpsHibrido.cadenciaMs
+            : ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS,
+        intervaloRealMs:null,
+        confianzaModelo:
+          Number.isFinite(
+            estadoCadenciaGpsHibrido.confianzaModelo
+          )
+            ? estadoCadenciaGpsHibrido.confianzaModelo
+            : 0,
+        confianzaTemporal:
+          Number.isFinite(
+            estadoCadenciaGpsHibrido.confianzaTemporal
+          )
+            ? estadoCadenciaGpsHibrido.confianzaTemporal
+            : 0.50,
+        muestras:
+          Number.isFinite(
+            estadoCadenciaGpsHibrido.muestras
+          )
+            ? estadoCadenciaGpsHibrido.muestras
+            : 0
+      };
+    }
+
+    ultimaVelocidadValidaKmh =
+      null;
+
+    lecturasGeometricasConfirmadas =
+      1;
+
+    puntoGeometricoPendiente =
+      null;
+
+    puntoAltaVelocidadPendiente =
+      null;
+
+    limpiarColaVerticesVisuales();
+
+    reanudacionVisualProtegidaPendiente =
+      false;
+
+    return {
+      procesada:true,
+      aceptada:true,
+      reanudacionProtegida:true
+    };
+  }
+
 
   function ocultarHoraLlegada(){
 
@@ -14052,7 +14357,8 @@ ocultarHoraLlegada();
         faltanMinActual,
         lat,
         lon,
-        opciones.forzarEncuadreProximidad === true
+        opciones.forzarEncuadreProximidad === true,
+        opciones.sinAnimacionEncuadreProximidad === true
       )
     ){
       return;
@@ -15182,7 +15488,15 @@ if(
         return;
       }
 
+      const resultadoReanudacionR62 =
+        aplicarReanudacionVisualProtegidaR62(
+          lat,
+          lon,
+          p.created_at
+        );
+
       const resultadoMovimiento =
+        resultadoReanudacionR62 ||
         actualizarMarcador(
           lat,
           lon,
@@ -15385,10 +15699,20 @@ if(
 
       if(
         document.visibilityState ===
+          "hidden"
+      ){
+        marcarPaginaSuspendidaR62();
+        return;
+      }
+
+      if(
+        document.visibilityState ===
           "visible" &&
         !terminado &&
         codigo
       ){
+
+        evaluarReanudacionProtegidaR62();
 
         iniciarCicloConsultas();
 
@@ -15405,6 +15729,17 @@ if(
     }
   );
 
+  /*
+    Respaldo Safari/iOS: pagehide/pageshow cubre casos donde el bloqueo o la
+    restauración de la pestaña no entrega la secuencia visibilitychange ideal.
+  */
+  window.addEventListener(
+    "pagehide",
+    function(){
+      marcarPaginaSuspendidaR62();
+    }
+  );
+
   window.addEventListener(
     "pageshow",
     function(){
@@ -15413,6 +15748,8 @@ if(
         !terminado &&
         codigo
       ){
+
+        evaluarReanudacionProtegidaR62();
 
         iniciarCicloConsultas();
 
