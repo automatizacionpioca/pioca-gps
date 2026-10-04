@@ -4411,6 +4411,42 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     70;
 
   /*
+    R60 - HISTÉRESIS / ENCLAVAMIENTO DEL ENCUADRE FINAL
+
+    El encuadre camioneta + destino entra cuando la ETA confirma <= 2 min,
+    pero ya no puede apagarse por una corrección pequeña de ETA (2:01, 2:06,
+    etc.). Para liberarlo exigimos una salida inequívoca y sostenida:
+
+    - ETA >= 3,5 min; Y
+    - distancia física >= 650 m; Y
+    - 3 lecturas GPS CONFIRMADAS consecutivas cumpliendo ambas condiciones.
+
+    La zona gris reinicia la cuenta cuando el vehículo vuelve claramente
+    cerca (ETA <= 3 min o distancia <= 500 m). De esta forma una vuelta
+    alrededor del domicilio o un recálculo breve de ruta no produce ping-pong.
+  */
+  let encuadreProximidadEnclavado =
+    false;
+
+  let lecturasSalidaEncuadreProximidad =
+    0;
+
+  let ultimaLecturaSalidaEncuadreEvaluada =
+    null;
+
+  let ultimoFaltanMinEncuadreValido =
+    null;
+
+  const ALGORITMO_ENCUADRE_PROXIMIDAD = Object.freeze({
+    ETA_ENTRADA_MIN:2,
+    ETA_SALIDA_FUERTE_MIN:3.5,
+    DISTANCIA_SALIDA_FUERTE_M:650,
+    LECTURAS_SALIDA_FUERTE:3,
+    ETA_REARME_MARGEN_MIN:3.0,
+    DISTANCIA_REARME_MARGEN_M:500
+  });
+
+  /*
     R44 - ENCUADRE INICIAL CAMIONETA + DESTINO
     Se ejecuta una sola vez cuando ambos pines ya existen.
     Durante 2 segundos bloquea únicamente el zoom/recentrado automático.
@@ -5180,8 +5216,35 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     DISTANCIA_SALTO_DETENIDO_PROXIMIDAD_M:8,
 
     DURACION_REENGANCHE_RAPIDO_MS:1100,
-    RADIO_VERTICE_CONSUMIDO_M:4.5,
-    COLA_VERTICES_MAX:10
+
+    /*
+      R60 - precisión de vértices urbanos.
+      La cola deja de considerar una esquina "consumida" a 4,5 m:
+      esperamos hasta 2,5 m para no cortar el último tramo antes de tiempo.
+    */
+    RADIO_VERTICE_CONSUMIDO_M:2.5,
+    COLA_VERTICES_MAX:10,
+
+    /*
+      Consolidación geométrica inmediata del vértice.
+      Si el nuevo punto ya demuestra que el vehículo salió lateralmente
+      de la calle anterior, adelantamos el vértice sobre el rumbo entrante
+      sólo la componente longitudinal demostrada por la geometría.
+
+      Límites deliberadamente conservadores:
+      - sólo giros urbanos claros (38° a 92°);
+      - tramos reales >= 7 m a ambos lados;
+      - nunca corregimos más de 18 m ni más del 80% del tramo nuevo;
+      - aplicamos sólo el 90% de la proyección calculada para no sobrepasar
+        una esquina real por ruido GPS.
+    */
+    ANGULO_VERTICE_CONSOLIDADO_MIN_GRADOS:38,
+    ANGULO_VERTICE_CONSOLIDADO_MAX_GRADOS:92,
+    DISTANCIA_MIN_TRAMO_VERTICE_M:7,
+    AJUSTE_VERTICE_MIN_M:2.5,
+    AJUSTE_VERTICE_MAX_M:18,
+    FACTOR_AJUSTE_VERTICE_PROYECCION:0.90,
+    FACTOR_AJUSTE_VERTICE_TRAMO:0.80
   });
 
   /* ==========================================================
@@ -6067,9 +6130,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     tramoZoomEtaActual =
-      null;
+      encuadreProximidadEnclavado
+        ? "proximidad"
+        : null;
 
-    desactivarEncuadreProximidad();
+    /*
+      R60:
+      una pérdida transitoria de ETA no desarma un encuadre final ya
+      confirmado. La cámara conserva el último estado válido y recupera
+      el cálculo dinámico apenas vuelve la ETA.
+    */
+    if(
+      !encuadreProximidadEnclavado
+    ){
+      desactivarEncuadreProximidad();
+    }
 
     actualizarColorPuntoEtapa4(
       NaN
@@ -6704,6 +6779,149 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  function reiniciarEnclavamientoEncuadreProximidad(){
+    encuadreProximidadEnclavado = false;
+    lecturasSalidaEncuadreProximidad = 0;
+    ultimaLecturaSalidaEncuadreEvaluada = null;
+    ultimoFaltanMinEncuadreValido = null;
+    desactivarEncuadreProximidad();
+  }
+
+
+  function debeMantenerEncuadreProximidad(
+    faltanMin
+  ){
+
+    const c =
+      ALGORITMO_ENCUADRE_PROXIMIDAD;
+
+    if(
+      Number.isFinite(faltanMin)
+    ){
+      ultimoFaltanMinEncuadreValido =
+        faltanMin;
+    }
+
+    if(
+      !encuadreProximidadEnclavado
+    ){
+      if(
+        Number.isFinite(faltanMin) &&
+        faltanMin <=
+          c.ETA_ENTRADA_MIN
+      ){
+        encuadreProximidadEnclavado =
+          true;
+
+        lecturasSalidaEncuadreProximidad =
+          0;
+
+        ultimaLecturaSalidaEncuadreEvaluada =
+          ultimaLecturaProximidadId
+            ? String(ultimaLecturaProximidadId)
+            : null;
+      }
+
+      return encuadreProximidadEnclavado;
+    }
+
+    /*
+      Sólo una lectura GPS CONFIRMADA nueva puede sumar evidencia de salida.
+      Los frames de animación, polling repetido y recálculos de ETA no cuentan.
+    */
+    const lecturaActualId =
+      ultimaLecturaProximidadId
+        ? String(ultimaLecturaProximidadId)
+        : null;
+
+    if(
+      lecturaActualId &&
+      lecturaActualId !==
+        ultimaLecturaSalidaEncuadreEvaluada
+    ){
+      ultimaLecturaSalidaEncuadreEvaluada =
+        lecturaActualId;
+
+      const salidaFuerte =
+        Number.isFinite(faltanMin) &&
+        faltanMin >=
+          c.ETA_SALIDA_FUERTE_MIN &&
+        Number.isFinite(
+          ultimaDistanciaProximidad
+        ) &&
+        ultimaDistanciaProximidad >=
+          c.DISTANCIA_SALIDA_FUERTE_M;
+
+      if(
+        salidaFuerte
+      ){
+        lecturasSalidaEncuadreProximidad++;
+
+      }else if(
+        (
+          Number.isFinite(faltanMin) &&
+          faltanMin <=
+            c.ETA_REARME_MARGEN_MIN
+        ) ||
+        (
+          Number.isFinite(
+            ultimaDistanciaProximidad
+          ) &&
+          ultimaDistanciaProximidad <=
+            c.DISTANCIA_REARME_MARGEN_M
+        )
+      ){
+        lecturasSalidaEncuadreProximidad =
+          0;
+      }
+
+      if(
+        lecturasSalidaEncuadreProximidad >=
+          c.LECTURAS_SALIDA_FUERTE
+      ){
+        encuadreProximidadEnclavado =
+          false;
+
+        lecturasSalidaEncuadreProximidad =
+          0;
+
+        ultimaLecturaSalidaEncuadreEvaluada =
+          null;
+
+        ultimoFaltanMinEncuadreValido =
+          null;
+
+        desactivarEncuadreProximidad();
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+
+  function faltanMinParaEncuadreProximidad(
+    faltanMin
+  ){
+    if(
+      Number.isFinite(faltanMin)
+    ){
+      return faltanMin;
+    }
+
+    if(
+      Number.isFinite(
+        ultimoFaltanMinEncuadreValido
+      )
+    ){
+      return ultimoFaltanMinEncuadreValido;
+    }
+
+    return ALGORITMO_ENCUADRE_PROXIMIDAD.ETA_ENTRADA_MIN;
+  }
+
+
   /*
     Devuelve true cuando la cámara de proximidad tomó el control.
     Aunque un frame se saltee por throttle, devolvemos true para impedir
@@ -6720,13 +6938,19 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       encuadreInicialMapaActivo ||
       !mapa ||
       !marcador ||
-      !Number.isFinite(faltanMin) ||
-      faltanMin > 2 ||
       !Number.isFinite(destinoLat) ||
-      !Number.isFinite(destinoLon)
+      !Number.isFinite(destinoLon) ||
+      !debeMantenerEncuadreProximidad(
+        faltanMin
+      )
     ){
       return false;
     }
+
+    const faltanMinEncuadre =
+      faltanMinParaEncuadreProximidad(
+        faltanMin
+      );
 
     /*
       CORRECCIÓN R53:
@@ -6794,7 +7018,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       calcularDatosEncuadreProximidad(
         latCamioneta,
         lonCamioneta,
-        faltanMin
+        faltanMinEncuadre
       );
 
     if(
@@ -6920,10 +7144,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                 obtenerFaltanMinEta();
 
               if(
-                Number.isFinite(
+                debeMantenerEncuadreProximidad(
                   faltanMinActual
-                ) &&
-                faltanMinActual <= 2
+                )
               ){
                 aplicarEncuadreProximidad(
                   faltanMinActual,
@@ -7016,31 +7239,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    const tramo =
-      obtenerTramoZoomEta(
+    /*
+      R60:
+      el encuadre final se decide ANTES del tramo ETA normal. Una vez que
+      <=2 min lo confirma, una oscilación pequeña de ETA ya no puede
+      apagarlo. Sólo la salida fuerte y sostenida definida arriba lo libera.
+    */
+    const mantenerEncuadreFinal =
+      debeMantenerEncuadreProximidad(
         faltanMin
       );
 
     if(
-      !tramo ||
-      !mapa
+      mantenerEncuadreFinal
     ){
-      return;
-    }
-
-    /*
-      R53:
-      dentro de los últimos 2 minutos el tramo "proximidad" deja de ser
-      un zoom 17 fijo. La cámara se recalcula con ETA + distancia real
-      y mantiene SIEMPRE camioneta + domicilio dentro del área útil.
-    */
-    if(
-      tramo.clave ===
-        "proximidad"
-    ){
-
       tramoZoomEtaActual =
-        tramo.clave;
+        "proximidad";
 
       if(
         aplicarEncuadreProximidad(
@@ -7054,9 +7268,40 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       }
 
       /*
-        Fallback seguro si todavía no llegó el destino:
-        conserva exactamente el comportamiento anterior.
+        Si el destino faltara transitoriamente pero el encuadre ya estaba
+        activo, no lo desmontamos por ese hueco de datos. Conservamos la
+        cámara vigente hasta recuperar la información necesaria.
       */
+      if(
+        encuadreProximidadActivo
+      ){
+        return;
+      }
+    }
+
+    const tramo =
+      obtenerTramoZoomEta(
+        faltanMin
+      );
+
+    if(
+      !tramo ||
+      !mapa
+    ){
+      return;
+    }
+
+    /*
+      Fallback seguro si el modo final ya corresponde por ETA pero todavía
+      no pudo armarse (por ejemplo, destino aún no disponible).
+    */
+    if(
+      tramo.clave ===
+        "proximidad"
+    ){
+      tramoZoomEtaActual =
+        tramo.clave;
+
       try{
         const zoomActual =
           Number(
@@ -7090,10 +7335,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       return;
     }
 
-    /*
-      Si Google vuelve a extender la ETA por encima de 2 min,
-      salimos del encuadre de proximidad y recuperamos el tramo normal.
-    */
     if(
       encuadreProximidadActivo
     ){
@@ -7703,9 +7944,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                   tramoRefresco.clave;
 
                 if(
-                  tramoRefresco.clave ===
-                    "proximidad"
+                  debeMantenerEncuadreProximidad(
+                    faltanMinRefresco
+                  )
                 ){
+                  tramoZoomEtaActual =
+                    "proximidad";
+
                   aplicarEncuadreProximidad(
                     faltanMinRefresco,
                     Number(posicionActual.lat),
@@ -9582,7 +9827,7 @@ horaLlegadaBox.style.display =
     tramoZoomEtaActual =
       null;
 
-    desactivarEncuadreProximidad();
+    reiniciarEnclavamientoEncuadreProximidad();
 
     mapaWrap.style.display =
       "none";
@@ -10851,6 +11096,180 @@ ocultarHoraLlegada();
         break;
       }
     }
+  }
+
+
+  function calcularVerticeVisualConsolidado(
+    latNuevo,
+    lonNuevo,
+    velocidadKmh
+  ){
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    const fallback =
+      ultimoPuntoServidor
+        ? {
+            lat:ultimoPuntoServidor.lat,
+            lon:ultimoPuntoServidor.lon,
+            ajustado:false,
+            ajusteMetros:0
+          }
+        : null;
+
+    if(
+      !fallback ||
+      !penultimoPuntoServidor ||
+      !Number.isFinite(velocidadKmh) ||
+      velocidadKmh >=
+        VELOCIDAD_GIRO_PROTEGIDO_KMH
+    ){
+      return fallback;
+    }
+
+    const distanciaEntrada =
+      distanciaMetros(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const distanciaSalida =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(distanciaEntrada) ||
+      !Number.isFinite(distanciaSalida) ||
+      distanciaEntrada <
+        c.DISTANCIA_MIN_TRAMO_VERTICE_M ||
+      distanciaSalida <
+        c.DISTANCIA_MIN_TRAMO_VERTICE_M
+    ){
+      return fallback;
+    }
+
+    const rumboEntrada =
+      rumboGrados(
+        penultimoPuntoServidor.lat,
+        penultimoPuntoServidor.lon,
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon
+      );
+
+    const rumboSalida =
+      rumboGrados(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    const angulo =
+      diferenciaRumboGrados(
+        rumboEntrada,
+        rumboSalida
+      );
+
+    if(
+      !Number.isFinite(angulo) ||
+      angulo <
+        c.ANGULO_VERTICE_CONSOLIDADO_MIN_GRADOS ||
+      angulo >
+        c.ANGULO_VERTICE_CONSOLIDADO_MAX_GRADOS
+    ){
+      return fallback;
+    }
+
+    /*
+      Componente del tramo nuevo que todavía pertenece al avance sobre
+      la calle entrante. En una esquina aproximadamente ortogonal equivale
+      a cuánto faltaba desde el último GPS hasta la esquina real.
+    */
+    const proyeccionLongitudinal =
+      distanciaSalida *
+      Math.cos(
+        angulo *
+        Math.PI /
+        180
+      );
+
+    if(
+      !Number.isFinite(proyeccionLongitudinal) ||
+      proyeccionLongitudinal <=
+        c.AJUSTE_VERTICE_MIN_M
+    ){
+      return fallback;
+    }
+
+    const techoPorTramo =
+      distanciaSalida *
+      c.FACTOR_AJUSTE_VERTICE_TRAMO;
+
+    const ajusteMetros =
+      Math.min(
+        c.AJUSTE_VERTICE_MAX_M,
+        techoPorTramo,
+        proyeccionLongitudinal *
+          c.FACTOR_AJUSTE_VERTICE_PROYECCION
+      );
+
+    if(
+      !Number.isFinite(ajusteMetros) ||
+      ajusteMetros <
+        c.AJUSTE_VERTICE_MIN_M
+    ){
+      return fallback;
+    }
+
+    const consolidado =
+      proyectarPuntoPorRumbo(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        rumboEntrada,
+        ajusteMetros
+      );
+
+    if(
+      !consolidado ||
+      !Number.isFinite(consolidado.lat) ||
+      !Number.isFinite(consolidado.lon)
+    ){
+      return fallback;
+    }
+
+    /*
+      Último cinturón: la corrección jamás puede quedar más lejos del punto
+      nuevo que el recorrido ya observado. Si no cumple, usamos R59 puro.
+    */
+    const distanciaConsolidadoSalida =
+      distanciaMetros(
+        consolidado.lat,
+        consolidado.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(distanciaConsolidadoSalida) ||
+      distanciaConsolidadoSalida >
+        distanciaSalida * 1.05
+    ){
+      return fallback;
+    }
+
+    return {
+      lat:consolidado.lat,
+      lon:consolidado.lon,
+      ajustado:true,
+      ajusteMetros:ajusteMetros
+    };
   }
 
 
@@ -13450,10 +13869,9 @@ ocultarHoraLlegada();
       obtenerFaltanMinEta();
 
     if(
-      Number.isFinite(
+      debeMantenerEncuadreProximidad(
         faltanMinActual
       ) &&
-      faltanMinActual <= 2 &&
       aplicarEncuadreProximidad(
         faltanMinActual,
         lat,
@@ -14230,12 +14648,25 @@ if(
         ultimoPuntoServidor
       ){
         /*
-          El último punto confirmado pasa a ser vértice REAL pendiente.
-          No depende de que el pin haya llegado visualmente a él todavía.
+          R60 - VÉRTICE CONSOLIDADO:
+          R59 ya conserva la esquina pendiente. R60 afina dónde cae esa
+          esquina usando la componente longitudinal demostrada por el primer
+          punto de salida. Si la geometría no es inequívoca, vuelve exactamente
+          al último punto confirmado de R59.
         */
+        const verticeVisual =
+          calcularVerticeVisualConsolidado(
+            lat,
+            lon,
+            velocidadInterna
+          ) || {
+            lat:ultimoPuntoServidor.lat,
+            lon:ultimoPuntoServidor.lon
+          };
+
         agregarVerticeVisualPendiente(
-          ultimoPuntoServidor.lat,
-          ultimoPuntoServidor.lon
+          verticeVisual.lat,
+          verticeVisual.lon
         );
       }
 
@@ -14244,7 +14675,7 @@ if(
           0
       ){
         /*
-          R59 - COLA REAL DE VÉRTICES:
+          R60 - COLA REAL DE VÉRTICES + VÉRTICE CONSOLIDADO:
           un GPS nuevo puede actualizar el destino final, pero jamás borrar
           una esquina que el pin todavía no recorrió.
         */
