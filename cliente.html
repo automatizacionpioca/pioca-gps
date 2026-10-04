@@ -5120,6 +5120,70 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let ultimoCreatedAtProcesadoGps =
     null;
 
+  /*
+    R59 - PROTECCIÓN GEOMÉTRICA GENERAL + COLA DE VÉRTICES
+
+    Objetivos:
+    - un único punto GPS aberrante nunca puede sacar el pin varias cuadras;
+    - una lectura dudosa queda en cuarentena y NO contamina memoria confirmada;
+    - los saltos extremos exigen más evidencia antes de reenganchar;
+    - los vértices pendientes se conservan aunque llegue otro GPS antes
+      de que el pin visual haya alcanzado la esquina anterior;
+    - la cadencia R58 sigue aprendiendo de created_at aun si la geometría
+      de una lectura es descartada.
+  */
+  let puntoGeometricoPendiente =
+    null;
+
+  let lecturasGeometricasConfirmadas =
+    0;
+
+  let verticesVisualesPendientes =
+    [];
+
+  const ALGORITMO_PROTECCION_GEOMETRICA = Object.freeze({
+    VELOCIDAD_PISO_REFERENCIA_KMH:18,
+    VELOCIDAD_SOSPECHA_MIN_KMH:85,
+    VELOCIDAD_HARD_MAX_KMH:190,
+    VELOCIDAD_EXTREMA_KMH:220,
+    VELOCIDAD_REENGANCHE_MAX_KMH:170,
+
+    DISTANCIA_MIN_CUARENTENA_M:75,
+    DISTANCIA_ARRANQUE_CUARENTENA_M:80,
+    DISTANCIA_EXTREMA_M:180,
+    MARGEN_HARD_DISTANCIA_M:35,
+
+    FACTOR_DISTANCIA_ESPERADA:2.10,
+    MARGEN_DISTANCIA_ESPERADA_M:25,
+    FACTOR_VELOCIDAD_HISTORICA:2.40,
+    MARGEN_VELOCIDAD_HISTORICA_KMH:28,
+
+    ANGULO_REVERSA_CUARENTENA_GRADOS:125,
+    DISTANCIA_MIN_REVERSA_CUARENTENA_M:8,
+
+    ANGULO_DESVIO_GRANDE_GRADOS:70,
+    DISTANCIA_MIN_DESVIO_GRANDE_M:55,
+    FACTOR_DISTANCIA_DESVIO:1.40,
+    MARGEN_DISTANCIA_DESVIO_M:18,
+
+    LECTURAS_ARRANQUE_PRUDENTE:3,
+    RADIO_CONFIRMACION_ESTACIONARIA_M:12,
+    ANGULO_CONFIRMACION_CONTINUIDAD_GRADOS:55,
+    DISTANCIA_MAX_CONFIRMACION_TRAMO_M:220,
+    CONFIRMACIONES_NORMAL:2,
+    CONFIRMACIONES_EXTREMO:3,
+    GAP_REENGANCHE_EXTREMO_MS:12000,
+
+    DISTANCIA_PROXIMIDAD_MANIOBRA_M:300,
+    VELOCIDAD_MANIOBRA_KMH:30,
+    VELOCIDAD_DETENIDO_PROXIMIDAD_KMH:3,
+    DISTANCIA_SALTO_DETENIDO_PROXIMIDAD_M:8,
+
+    DURACION_REENGANCHE_RAPIDO_MS:1100,
+    RADIO_VERTICE_CONSUMIDO_M:4.5,
+    COLA_VERTICES_MAX:10
+  });
+
   /* ==========================================================
      R58 - ESTADO DEL ALGORITMO HÍBRIDO DE MOVIMIENTO DEL PIN
 
@@ -9255,6 +9319,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     ultimoCreatedAtProcesadoGps =
       null;
 
+    puntoGeometricoPendiente =
+      null;
+
+    lecturasGeometricasConfirmadas =
+      0;
+
+    limpiarColaVerticesVisuales();
+
     reiniciarAlgoritmoPinHibrido();
 
 
@@ -9554,6 +9626,14 @@ ocultarHoraLlegada();
 
     ultimoCreatedAtProcesadoGps =
       null;
+
+    puntoGeometricoPendiente =
+      null;
+
+    lecturasGeometricasConfirmadas =
+      0;
+
+    limpiarColaVerticesVisuales();
 
     reiniciarAlgoritmoPinHibrido();
 
@@ -10676,6 +10756,804 @@ ocultarHoraLlegada();
     return 0.70;
   }
 
+  function limpiarColaVerticesVisuales(){
+    verticesVisualesPendientes = [];
+  }
+
+
+  function agregarVerticeVisualPendiente(
+    lat,
+    lon
+  ){
+
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    if(
+      marcador
+    ){
+      const actual =
+        marcador.getLatLng();
+
+      const distanciaActual =
+        distanciaMetros(
+          Number(actual.lat),
+          Number(actual.lng),
+          lat,
+          lon
+        );
+
+      if(
+        Number.isFinite(distanciaActual) &&
+        distanciaActual <=
+          c.RADIO_VERTICE_CONSUMIDO_M
+      ){
+        return;
+      }
+    }
+
+    if(
+      verticesVisualesPendientes.length >
+        0
+    ){
+      const ultimo =
+        verticesVisualesPendientes[
+          verticesVisualesPendientes.length - 1
+        ];
+
+      const distanciaUltimo =
+        distanciaMetros(
+          ultimo.lat,
+          ultimo.lon,
+          lat,
+          lon
+        );
+
+      if(
+        Number.isFinite(distanciaUltimo) &&
+        distanciaUltimo <=
+          c.RADIO_VERTICE_CONSUMIDO_M
+      ){
+        return;
+      }
+    }
+
+    verticesVisualesPendientes.push({
+      lat:lat,
+      lon:lon
+    });
+
+    while(
+      verticesVisualesPendientes.length >
+        c.COLA_VERTICES_MAX
+    ){
+      /*
+        Conservamos siempre el vértice más antiguo pendiente y los más
+        recientes. Si excepcionalmente la cola se llenara, quitamos el
+        segundo elemento para no perder ni la próxima esquina ni la última.
+      */
+      if(
+        verticesVisualesPendientes.length >
+          2
+      ){
+        verticesVisualesPendientes.splice(
+          1,
+          1
+        );
+      }else{
+        break;
+      }
+    }
+  }
+
+
+  function modoManiobraGeometricaActivo(
+    velocidadReferenciaKmh
+  ){
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    return (
+      (
+        Number.isFinite(
+          ultimaDistanciaProximidad
+        ) &&
+        ultimaDistanciaProximidad <=
+          c.DISTANCIA_PROXIMIDAD_MANIOBRA_M
+      ) ||
+      (
+        Number.isFinite(
+          velocidadReferenciaKmh
+        ) &&
+        velocidadReferenciaKmh <
+          c.VELOCIDAD_MANIOBRA_KMH
+      )
+    );
+  }
+
+
+  function clasificarLecturaGeometrica(
+    latNuevo,
+    lonNuevo,
+    createdAtNuevo
+  ){
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    const respuesta = {
+      sospechosa:false,
+      extrema:false,
+      razones:[],
+      distancia:0,
+      velocidadKmh:0,
+      intervaloMs:0,
+      diferenciaRumbo:null,
+      limiteDistancia:null,
+      limiteVelocidad:null,
+      modoManiobra:false
+    };
+
+    if(
+      !ultimoPuntoServidor ||
+      !ultimoCreatedAtServidor
+    ){
+      return respuesta;
+    }
+
+    const nuevoMs =
+      new Date(
+        createdAtNuevo
+      )
+      .getTime();
+
+    const anteriorMs =
+      new Date(
+        ultimoCreatedAtServidor
+      )
+      .getTime();
+
+    const intervaloMs =
+      nuevoMs -
+      anteriorMs;
+
+    if(
+      !Number.isFinite(intervaloMs) ||
+      intervaloMs <= 0
+    ){
+      respuesta.sospechosa = true;
+      respuesta.razones.push(
+        "TIEMPO_NO_MONOTONO"
+      );
+      return respuesta;
+    }
+
+    const intervaloSegundos =
+      intervaloMs /
+      1000;
+
+    const distancia =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(distancia)
+    ){
+      respuesta.sospechosa = true;
+      respuesta.extrema = true;
+      respuesta.razones.push(
+        "DISTANCIA_INVALIDA"
+      );
+      return respuesta;
+    }
+
+    const velocidadCalculada =
+      (
+        distancia /
+        intervaloSegundos
+      ) *
+      3.6;
+
+    const velocidadReferencia =
+      Number.isFinite(
+        ultimaVelocidadValidaKmh
+      )
+        ? Math.max(
+            0,
+            ultimaVelocidadValidaKmh
+          )
+        : c.VELOCIDAD_PISO_REFERENCIA_KMH;
+
+    const velocidadBase =
+      Math.max(
+        c.VELOCIDAD_PISO_REFERENCIA_KMH,
+        velocidadReferencia
+      );
+
+    const distanciaEsperada =
+      (
+        velocidadBase /
+        3.6
+      ) *
+      intervaloSegundos;
+
+    const limiteDistancia =
+      Math.max(
+        c.DISTANCIA_MIN_CUARENTENA_M,
+        distanciaEsperada *
+          c.FACTOR_DISTANCIA_ESPERADA +
+          c.MARGEN_DISTANCIA_ESPERADA_M
+      );
+
+    const limiteVelocidad =
+      Math.max(
+        c.VELOCIDAD_SOSPECHA_MIN_KMH,
+        velocidadReferencia *
+          c.FACTOR_VELOCIDAD_HISTORICA +
+          c.MARGEN_VELOCIDAD_HISTORICA_KMH
+      );
+
+    const limiteHardDistancia =
+      (
+        c.VELOCIDAD_HARD_MAX_KMH /
+        3.6
+      ) *
+      intervaloSegundos +
+      c.MARGEN_HARD_DISTANCIA_M;
+
+    respuesta.distancia =
+      distancia;
+
+    respuesta.velocidadKmh =
+      velocidadCalculada;
+
+    respuesta.intervaloMs =
+      intervaloMs;
+
+    respuesta.limiteDistancia =
+      limiteDistancia;
+
+    respuesta.limiteVelocidad =
+      limiteVelocidad;
+
+    respuesta.modoManiobra =
+      modoManiobraGeometricaActivo(
+        velocidadReferencia
+      );
+
+    if(
+      velocidadCalculada >
+        c.VELOCIDAD_HARD_MAX_KMH ||
+      distancia >
+        limiteHardDistancia
+    ){
+      respuesta.sospechosa = true;
+      respuesta.razones.push(
+        "SALTO_FISICAMENTE_IMPROBABLE"
+      );
+    }
+
+    if(
+      distancia >
+        limiteDistancia &&
+      velocidadCalculada >
+        limiteVelocidad
+    ){
+      respuesta.sospechosa = true;
+      respuesta.razones.push(
+        "ACELERACION_DISTANCIA_INCOHERENTE"
+      );
+    }
+
+    if(
+      lecturasGeometricasConfirmadas <
+        c.LECTURAS_ARRANQUE_PRUDENTE &&
+      distancia >
+        c.DISTANCIA_ARRANQUE_CUARENTENA_M
+    ){
+      respuesta.sospechosa = true;
+      respuesta.razones.push(
+        "ARRANQUE_PRUDENTE"
+      );
+    }
+
+    if(
+      penultimoPuntoServidor
+    ){
+      const distanciaAnterior =
+        distanciaMetros(
+          penultimoPuntoServidor.lat,
+          penultimoPuntoServidor.lon,
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon
+        );
+
+      if(
+        Number.isFinite(distanciaAnterior) &&
+        distanciaAnterior >=
+          DISTANCIA_MINIMA_GIRO_METROS &&
+        distancia >=
+          c.DISTANCIA_MIN_REVERSA_CUARENTENA_M
+      ){
+        const rumboAnterior =
+          rumboGrados(
+            penultimoPuntoServidor.lat,
+            penultimoPuntoServidor.lon,
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon
+          );
+
+        const rumboNuevo =
+          rumboGrados(
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon,
+            latNuevo,
+            lonNuevo
+          );
+
+        const diferencia =
+          diferenciaRumboGrados(
+            rumboAnterior,
+            rumboNuevo
+          );
+
+        respuesta.diferenciaRumbo =
+          diferencia;
+
+        /*
+          Un cambio casi opuesto NO se prohíbe: se exige una segunda
+          lectura coherente. Así una marcha atrás o una vuelta real
+          termina siendo aceptada, mientras un ping-pong GPS aislado
+          nunca mueve el pin.
+        */
+        if(
+          diferencia >=
+            c.ANGULO_REVERSA_CUARENTENA_GRADOS
+        ){
+          respuesta.sospechosa = true;
+          respuesta.razones.push(
+            "REVERSA_REQUIERE_CONFIRMACION"
+          );
+        }
+
+        const limiteDistanciaDesvio =
+          Math.max(
+            c.DISTANCIA_MIN_DESVIO_GRANDE_M,
+            distanciaEsperada *
+              c.FACTOR_DISTANCIA_DESVIO +
+              c.MARGEN_DISTANCIA_DESVIO_M
+          );
+
+        if(
+          diferencia >=
+            c.ANGULO_DESVIO_GRANDE_GRADOS &&
+          distancia >
+            limiteDistanciaDesvio
+        ){
+          respuesta.sospechosa = true;
+          respuesta.razones.push(
+            "DESVIO_GRANDE_INCOHERENTE"
+          );
+        }
+      }
+
+      /*
+        Cerca del domicilio, cuando veníamos realmente detenidos,
+        un único salto de 8+ m no tiene autoridad para mover el pin.
+        Si el vehículo arrancó o puso marcha atrás de verdad, la siguiente
+        lectura lo confirma y el movimiento se habilita.
+      */
+      const distanciaAnteriorDetenido =
+        distanciaMetros(
+          penultimoPuntoServidor.lat,
+          penultimoPuntoServidor.lon,
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon
+        );
+
+      if(
+        Number.isFinite(
+          ultimaDistanciaProximidad
+        ) &&
+        ultimaDistanciaProximidad <=
+          c.DISTANCIA_PROXIMIDAD_MANIOBRA_M &&
+        Number.isFinite(
+          ultimaVelocidadValidaKmh
+        ) &&
+        ultimaVelocidadValidaKmh <=
+          c.VELOCIDAD_DETENIDO_PROXIMIDAD_KMH &&
+        Number.isFinite(
+          distanciaAnteriorDetenido
+        ) &&
+        distanciaAnteriorDetenido <=
+          DISTANCIA_DETENIDO_METROS &&
+        distancia >=
+          c.DISTANCIA_SALTO_DETENIDO_PROXIMIDAD_M
+      ){
+        respuesta.sospechosa = true;
+        respuesta.razones.push(
+          "SALTO_DESDE_DETENIDO_PROXIMIDAD"
+        );
+      }
+    }
+
+    if(
+      velocidadCalculada >
+        c.VELOCIDAD_EXTREMA_KMH ||
+      distancia >
+        c.DISTANCIA_EXTREMA_M
+    ){
+      respuesta.extrema = true;
+    }
+
+    return respuesta;
+  }
+
+
+  function evaluarProteccionGeometrica(
+    latNuevo,
+    lonNuevo,
+    createdAtNuevo
+  ){
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    if(
+      !ultimoPuntoServidor ||
+      !ultimoCreatedAtServidor
+    ){
+      puntoGeometricoPendiente =
+        null;
+
+      return {
+        aceptar:true,
+        cuarentena:false,
+        recuperacion:false,
+        reengancheConfirmado:false,
+        clasificacion:null
+      };
+    }
+
+    const clasificacion =
+      clasificarLecturaGeometrica(
+        latNuevo,
+        lonNuevo,
+        createdAtNuevo
+      );
+
+    if(
+      puntoGeometricoPendiente
+    ){
+      const pendiente =
+        puntoGeometricoPendiente;
+
+      /*
+        Si la nueva lectura vuelve a ser coherente respecto del último
+        punto CONFIRMADO, la lectura pendiente era el error. Se descarta
+        sin tocar mapa, rumbo, velocidad ni proximidad.
+      */
+      if(
+        clasificacion.sospechosa !== true
+      ){
+        puntoGeometricoPendiente =
+          null;
+
+        return {
+          aceptar:true,
+          cuarentena:false,
+          recuperacion:true,
+          reengancheConfirmado:false,
+          clasificacion:clasificacion
+        };
+      }
+
+      const ultimoPendienteLat =
+        Number.isFinite(
+          pendiente.ultimaLat
+        )
+          ? pendiente.ultimaLat
+          : pendiente.lat;
+
+      const ultimoPendienteLon =
+        Number.isFinite(
+          pendiente.ultimaLon
+        )
+          ? pendiente.ultimaLon
+          : pendiente.lon;
+
+      const ultimoPendienteMs =
+        Number.isFinite(
+          pendiente.ultimoMs
+        )
+          ? pendiente.ultimoMs
+          : pendiente.createdMs;
+
+      const nuevoMs =
+        new Date(
+          createdAtNuevo
+        )
+        .getTime();
+
+      const distanciaDesdePendiente =
+        distanciaMetros(
+          ultimoPendienteLat,
+          ultimoPendienteLon,
+          latNuevo,
+          lonNuevo
+        );
+
+      const intervaloPendienteMs =
+        nuevoMs -
+        ultimoPendienteMs;
+
+      let continuidadPendiente =
+        false;
+
+      let estacionarioSobrePendiente =
+        Number.isFinite(
+          distanciaDesdePendiente
+        ) &&
+        distanciaDesdePendiente <=
+          c.RADIO_CONFIRMACION_ESTACIONARIA_M;
+
+      if(
+        !estacionarioSobrePendiente &&
+        Number.isFinite(
+          distanciaDesdePendiente
+        ) &&
+        Number.isFinite(
+          intervaloPendienteMs
+        ) &&
+        intervaloPendienteMs > 0
+      ){
+        const velocidadPendiente =
+          (
+            distanciaDesdePendiente /
+            (
+              intervaloPendienteMs /
+              1000
+            )
+          ) *
+          3.6;
+
+        if(
+          velocidadPendiente <=
+            c.VELOCIDAD_REENGANCHE_MAX_KMH &&
+          distanciaDesdePendiente <=
+            c.DISTANCIA_MAX_CONFIRMACION_TRAMO_M
+        ){
+          const rumboInicioPendiente =
+            rumboGrados(
+              ultimoPuntoServidor.lat,
+              ultimoPuntoServidor.lon,
+              pendiente.lat,
+              pendiente.lon
+            );
+
+          const rumboPendienteNuevo =
+            rumboGrados(
+              ultimoPendienteLat,
+              ultimoPendienteLon,
+              latNuevo,
+              lonNuevo
+            );
+
+          continuidadPendiente =
+            diferenciaRumboGrados(
+              rumboInicioPendiente,
+              rumboPendienteNuevo
+            ) <=
+              c.ANGULO_CONFIRMACION_CONTINUIDAD_GRADOS;
+        }
+      }
+
+      if(
+        estacionarioSobrePendiente ||
+        continuidadPendiente
+      ){
+        pendiente.confirmaciones =
+          (
+            Number(
+              pendiente.confirmaciones
+            ) ||
+            1
+          ) +
+          1;
+
+        pendiente.ultimaLat =
+          latNuevo;
+
+        pendiente.ultimaLon =
+          lonNuevo;
+
+        pendiente.ultimoMs =
+          nuevoMs;
+
+        pendiente.extrema =
+          pendiente.extrema === true ||
+          clasificacion.extrema === true;
+
+        const confirmacionesNecesarias =
+          pendiente.extrema
+            ? c.CONFIRMACIONES_EXTREMO
+            : c.CONFIRMACIONES_NORMAL;
+
+        const anteriorMs =
+          new Date(
+            ultimoCreatedAtServidor
+          )
+          .getTime();
+
+        const intervaloTotalMs =
+          nuevoMs -
+          anteriorMs;
+
+        const distanciaTotal =
+          distanciaMetros(
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon,
+            latNuevo,
+            lonNuevo
+          );
+
+        const velocidadTotal =
+          (
+            Number.isFinite(
+              intervaloTotalMs
+            ) &&
+            intervaloTotalMs > 0 &&
+            Number.isFinite(
+              distanciaTotal
+            )
+          )
+            ? (
+                distanciaTotal /
+                (
+                  intervaloTotalMs /
+                  1000
+                )
+              ) *
+              3.6
+            : Infinity;
+
+        const extremoYaPlausible =
+          pendiente.extrema !== true ||
+          velocidadTotal <=
+            c.VELOCIDAD_REENGANCHE_MAX_KMH ||
+          intervaloTotalMs >=
+            c.GAP_REENGANCHE_EXTREMO_MS;
+
+        if(
+          pendiente.confirmaciones >=
+            confirmacionesNecesarias &&
+          extremoYaPlausible
+        ){
+          puntoGeometricoPendiente =
+            null;
+
+          return {
+            aceptar:true,
+            cuarentena:false,
+            recuperacion:true,
+            reengancheConfirmado:true,
+            verticeConfirmado:
+              pendiente.extrema === true
+                ? null
+                : {
+                    lat:pendiente.lat,
+                    lon:pendiente.lon
+                  },
+            clasificacion:clasificacion
+          };
+        }
+
+        puntoGeometricoPendiente =
+          pendiente;
+
+        return {
+          aceptar:false,
+          cuarentena:true,
+          recuperacion:false,
+          reengancheConfirmado:false,
+          clasificacion:clasificacion
+        };
+      }
+
+      /*
+        La nueva lectura tampoco confirma el pendiente anterior.
+        El anterior se descarta y esta nueva lectura pasa a ser la única
+        candidata en cuarentena. Nunca se arma una cadena de puntos malos.
+      */
+      puntoGeometricoPendiente = {
+        lat:latNuevo,
+        lon:lonNuevo,
+        createdAt:createdAtNuevo,
+        createdMs:
+          new Date(
+            createdAtNuevo
+          )
+          .getTime(),
+        ultimaLat:latNuevo,
+        ultimaLon:lonNuevo,
+        ultimoMs:
+          new Date(
+            createdAtNuevo
+          )
+          .getTime(),
+        confirmaciones:1,
+        extrema:
+          clasificacion.extrema === true,
+        razones:
+          clasificacion.razones.slice()
+      };
+
+      return {
+        aceptar:false,
+        cuarentena:true,
+        recuperacion:false,
+        reengancheConfirmado:false,
+        clasificacion:clasificacion
+      };
+    }
+
+    if(
+      clasificacion.sospechosa === true
+    ){
+      puntoGeometricoPendiente = {
+        lat:latNuevo,
+        lon:lonNuevo,
+        createdAt:createdAtNuevo,
+        createdMs:
+          new Date(
+            createdAtNuevo
+          )
+          .getTime(),
+        ultimaLat:latNuevo,
+        ultimaLon:lonNuevo,
+        ultimoMs:
+          new Date(
+            createdAtNuevo
+          )
+          .getTime(),
+        confirmaciones:1,
+        extrema:
+          clasificacion.extrema === true,
+        razones:
+          clasificacion.razones.slice()
+      };
+
+      return {
+        aceptar:false,
+        cuarentena:true,
+        recuperacion:false,
+        reengancheConfirmado:false,
+        clasificacion:clasificacion
+      };
+    }
+
+    return {
+      aceptar:true,
+      cuarentena:false,
+      recuperacion:false,
+      reengancheConfirmado:false,
+      clasificacion:clasificacion
+    };
+  }
+
+
   function calcularVelocidadInterna(
     latNuevo,
     lonNuevo,
@@ -11167,6 +12045,33 @@ ocultarHoraLlegada();
       return;
     }
 
+    /*
+      R59 - MODO MANIOBRA DE PROXIMIDAD
+
+      Dentro de los últimos 300 m, a menos de 30 km/h, una marcha atrás,
+      un sobrepaso del domicilio o una vuelta corta son maniobras normales.
+      La geometría general ya exige confirmación cuando el cambio es dudoso,
+      por lo que aquí no arrastramos la protección anti-retroceso del
+      régimen rápido.
+    */
+    if(
+      velocidadKmh <
+        ALGORITMO_PROTECCION_GEOMETRICA.VELOCIDAD_MANIOBRA_KMH &&
+      Number.isFinite(
+        ultimaDistanciaProximidad
+      ) &&
+      ultimaDistanciaProximidad <=
+        ALGORITMO_PROTECCION_GEOMETRICA.DISTANCIA_PROXIMIDAD_MANIOBRA_M
+    ){
+      veniaDeRegimenDesde30 =
+        false;
+
+      protegerEntradaBajaVelocidad =
+        false;
+
+      return;
+    }
+
     if(
       velocidadKmh >=
         VELOCIDAD_ANTI_RETROCESO_VISUAL_DESDE_KMH
@@ -11562,26 +12467,15 @@ ocultarHoraLlegada();
         lonDestino
       );
 
-    if(
-      distancia >
-        DISTANCIA_MAXIMA_ANIMACION_METROS
-    ){
+    /*
+      R59:
+      ya NO existe el antiguo comportamiento
+      "distancia > 120 m => teletransportar marcador".
 
-      marcador.setLatLng(
-        [latDestino, lonDestino]
-      );
-
-      centrarMapaEnAreaUtil(
-        latDestino,
-        lonDestino,
-        {
-          animate:true,
-          duration:0.8
-        }
-      );
-
-      return;
-    }
+      Toda lectura llega aquí después de la protección geométrica general.
+      Si una distancia grande fue confirmada como real, se interpola;
+      si era un salto aislado, nunca alcanza esta función.
+    */
 
     if(
       distancia <
@@ -11936,6 +12830,428 @@ ocultarHoraLlegada();
     animacionMarcadorId =
       requestAnimationFrame(
         primerTramo
+      );
+  }
+
+
+  function animarMarcadorConColaVertices(
+    latDestino,
+    lonDestino,
+    duracionTotalMs,
+    velocidadKmh
+  ){
+
+    if(
+      !mapa ||
+      !marcador
+    ){
+      return;
+    }
+
+    const c =
+      ALGORITMO_PROTECCION_GEOMETRICA;
+
+    detenerAnimacionMarcador();
+
+    const inicioLatLng =
+      marcador.getLatLng();
+
+    const inicio = {
+      lat:Number(inicioLatLng.lat),
+      lon:Number(inicioLatLng.lng)
+    };
+
+    /*
+      Quitamos únicamente vértices que el pin YA alcanzó.
+      Los demás sobreviven a nuevos paquetes GPS.
+    */
+    while(
+      verticesVisualesPendientes.length >
+        0
+    ){
+      const primero =
+        verticesVisualesPendientes[0];
+
+      const distanciaPrimero =
+        distanciaMetros(
+          inicio.lat,
+          inicio.lon,
+          primero.lat,
+          primero.lon
+        );
+
+      if(
+        Number.isFinite(distanciaPrimero) &&
+        distanciaPrimero <=
+          c.RADIO_VERTICE_CONSUMIDO_M
+      ){
+        verticesVisualesPendientes.shift();
+      }else{
+        break;
+      }
+    }
+
+    const verticesRuta =
+      verticesVisualesPendientes.map(
+        function(p){
+          return {
+            lat:p.lat,
+            lon:p.lon
+          };
+        }
+      );
+
+    const verticesRutaUtiles =
+      [];
+
+    const puntos = [
+      inicio
+    ];
+
+    verticesRuta.forEach(
+      function(p){
+        const anterior =
+          puntos[
+            puntos.length - 1
+          ];
+
+        const distancia =
+          distanciaMetros(
+            anterior.lat,
+            anterior.lon,
+            p.lat,
+            p.lon
+          );
+
+        if(
+          !Number.isFinite(distancia) ||
+          distancia >
+            1.5
+        ){
+          puntos.push(p);
+          verticesRutaUtiles.push(p);
+        }
+      }
+    );
+
+    const ultimoRuta =
+      puntos[
+        puntos.length - 1
+      ];
+
+    const distanciaFinal =
+      distanciaMetros(
+        ultimoRuta.lat,
+        ultimoRuta.lon,
+        latDestino,
+        lonDestino
+      );
+
+    if(
+      !Number.isFinite(distanciaFinal) ||
+      distanciaFinal >
+        1.5
+    ){
+      puntos.push({
+        lat:latDestino,
+        lon:lonDestino
+      });
+    }
+
+    if(
+      puntos.length <
+        2
+    ){
+      marcador.setLatLng(
+        [latDestino, lonDestino]
+      );
+
+      limpiarColaVerticesVisuales();
+      return;
+    }
+
+    const segmentos =
+      [];
+
+    let distanciaTotal =
+      0;
+
+    for(
+      let i = 0;
+      i < puntos.length - 1;
+      i++
+    ){
+      const distancia =
+        distanciaMetros(
+          puntos[i].lat,
+          puntos[i].lon,
+          puntos[i + 1].lat,
+          puntos[i + 1].lon
+        );
+
+      const segura =
+        Number.isFinite(distancia)
+          ? Math.max(0,distancia)
+          : 0;
+
+      segmentos.push({
+        desde:puntos[i],
+        hasta:puntos[i + 1],
+        distancia:segura,
+        acumuladaInicio:distanciaTotal,
+        acumuladaFin:
+          distanciaTotal + segura
+      });
+
+      distanciaTotal +=
+        segura;
+    }
+
+    if(
+      !Number.isFinite(distanciaTotal) ||
+      distanciaTotal <
+        2
+    ){
+      marcador.setLatLng(
+        [latDestino, lonDestino]
+      );
+
+      limpiarColaVerticesVisuales();
+      return;
+    }
+
+    const distanciaDirecta =
+      distanciaMetros(
+        inicio.lat,
+        inicio.lon,
+        latDestino,
+        lonDestino
+      );
+
+    const factorRuta =
+      Number.isFinite(distanciaDirecta) &&
+      distanciaDirecta >
+        1
+        ? Math.max(
+            1,
+            Math.min(
+              1.12,
+              distanciaTotal /
+              distanciaDirecta
+            )
+          )
+        : 1;
+
+    const duracionRuta =
+      Math.max(
+        650,
+        Math.min(
+          ALGORITMO_PIN_HIBRIDO.DURACION_MAX_ABS_MS,
+          (
+            Number.isFinite(duracionTotalMs)
+              ? duracionTotalMs
+              : DURACION_ANIMACION_DEFAULT_MS
+          ) *
+          factorRuta
+        )
+      );
+
+    const inicioMs =
+      performance.now();
+
+    let verticesConsumidos =
+      0;
+
+    function pasoRuta(
+      ahora
+    ){
+
+      const progreso =
+        Math.min(
+          1,
+          (
+            ahora -
+            inicioMs
+          ) /
+          duracionRuta
+        );
+
+      const t =
+        (
+          Number.isFinite(
+            velocidadKmh
+          ) &&
+          velocidadKmh >= 30
+        )
+          ? progreso
+          : (
+              progreso *
+              progreso *
+              (
+                3 -
+                2 *
+                progreso
+              )
+            );
+
+      const recorrida =
+        distanciaTotal *
+        t;
+
+      let segmento =
+        segmentos[
+          segmentos.length - 1
+        ];
+
+      for(
+        let i = 0;
+        i < segmentos.length;
+        i++
+      ){
+        if(
+          recorrida <=
+            segmentos[i].acumuladaFin ||
+          i ===
+            segmentos.length - 1
+        ){
+          segmento =
+            segmentos[i];
+          break;
+        }
+      }
+
+      const tramo =
+        Math.max(
+          0.0001,
+          segmento.distancia
+        );
+
+      const progresoTramo =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            (
+              recorrida -
+              segmento.acumuladaInicio
+            ) /
+            tramo
+          )
+        );
+
+      const latActual =
+        segmento.desde.lat +
+        (
+          segmento.hasta.lat -
+          segmento.desde.lat
+        ) *
+        progresoTramo;
+
+      const lonActual =
+        segmento.desde.lon +
+        (
+          segmento.hasta.lon -
+          segmento.desde.lon
+        ) *
+        progresoTramo;
+
+      marcador.setLatLng(
+        [latActual, lonActual]
+      );
+
+      centrarMapaEnAreaUtil(
+        latActual,
+        lonActual,
+        {
+          animate:false
+        }
+      );
+
+      /*
+        Cada vértice local que ya quedó atrás se elimina también de
+        la cola global. Así un GPS nuevo retoma sólo las esquinas que
+        todavía faltan, nunca vuelve a una esquina ya recorrida.
+      */
+      while(
+        verticesConsumidos <
+          verticesRutaUtiles.length
+      ){
+        let acumuladaVertice =
+          0;
+
+        for(
+          let j = 0;
+          j <= verticesConsumidos;
+          j++
+        ){
+          acumuladaVertice +=
+            segmentos[j]
+              ? segmentos[j].distancia
+              : 0;
+        }
+
+        if(
+          recorrida + 0.5 >=
+            acumuladaVertice
+        ){
+          if(
+            verticesVisualesPendientes.length >
+              0
+          ){
+            const globalPrimero =
+              verticesVisualesPendientes[0];
+
+            const localVertice =
+              verticesRutaUtiles[
+                verticesConsumidos
+              ];
+
+            const coincide =
+              distanciaMetros(
+                globalPrimero.lat,
+                globalPrimero.lon,
+                localVertice.lat,
+                localVertice.lon
+              );
+
+            if(
+              Number.isFinite(coincide) &&
+              coincide <=
+                c.RADIO_VERTICE_CONSUMIDO_M
+            ){
+              verticesVisualesPendientes.shift();
+            }
+          }
+
+          verticesConsumidos++;
+        }else{
+          break;
+        }
+      }
+
+      if(
+        progreso <
+          1
+      ){
+        animacionMarcadorId =
+          requestAnimationFrame(
+            pasoRuta
+          );
+      }else{
+        marcador.setLatLng(
+          [latDestino, lonDestino]
+        );
+
+        limpiarColaVerticesVisuales();
+
+        animacionMarcadorId =
+          null;
+      }
+    }
+
+    animacionMarcadorId =
+      requestAnimationFrame(
+        pasoRuta
       );
   }
 
@@ -12402,7 +13718,11 @@ if(
         createdMs <=
           ultimoProcesadoMs
       ){
-        return;
+        return {
+          procesada:false,
+          aceptada:false,
+          duplicada:true
+        };
       }
     }
 
@@ -12448,9 +13768,43 @@ if(
       ultimoCreatedAtProcesadoGps =
         createdAt;
 
+      lecturasGeometricasConfirmadas =
+        1;
+
+      puntoGeometricoPendiente =
+        null;
+
       intentarEncuadreInicialMapa();
 
-      return;
+      return {
+        procesada:true,
+        aceptada:true,
+        inicial:true
+      };
+    }
+
+    const proteccionGeometrica =
+      evaluarProteccionGeometrica(
+        lat,
+        lon,
+        createdAt
+      );
+
+    if(
+      !proteccionGeometrica ||
+      proteccionGeometrica.aceptar !== true
+    ){
+      /*
+        R59:
+        la lectura existe y mantiene viva la cadencia R58, pero no tiene
+        autoridad geométrica. No mueve pin, cámara, zoom, rumbo, velocidad,
+        proximidad ni memoria confirmada.
+      */
+      return {
+        procesada:true,
+        aceptada:false,
+        cuarentena:true
+      };
     }
 
     const velocidadInterna =
@@ -12536,12 +13890,16 @@ if(
             confianzaGpsVisual
           );
 
-        animarMarcadorConGiroProtegido(
+        agregarVerticeVisualPendiente(
           pendiente.lat,
-          pendiente.lon,
+          pendiente.lon
+        );
+
+        animarMarcadorConColaVertices(
           lat,
           lon,
-          duracionConfirmacion
+          duracionConfirmacion,
+          velocidadInterna
         );
 
         penultimoPuntoServidor = {
@@ -12560,7 +13918,13 @@ if(
         ultimaVelocidadValidaKmh =
           velocidadInterna;
 
-        return;
+        lecturasGeometricasConfirmadas++;
+
+        return {
+          procesada:true,
+          aceptada:true,
+          recuperacion:true
+        };
 
       }else{
 
@@ -12618,7 +13982,11 @@ if(
         estadoCadenciaLectura.confianzaTemporal
       );
 
-      return;
+      return {
+        procesada:true,
+        aceptada:false,
+        cuarentena:true
+      };
     }
 
     /*
@@ -12716,6 +14084,94 @@ if(
         : Infinity;
 
     if(
+      proteccionGeometrica.reengancheConfirmado ===
+        true
+    ){
+      /*
+        Una trayectoria previamente dudosa quedó confirmada.
+        Borramos esquinas viejas y recuperamos el punto real con una
+        transición corta. Nunca hacemos el antiguo teletransporte por >120 m.
+      */
+      limpiarColaVerticesVisuales();
+
+      if(
+        proteccionGeometrica.verticeConfirmado &&
+        Number.isFinite(
+          proteccionGeometrica.verticeConfirmado.lat
+        ) &&
+        Number.isFinite(
+          proteccionGeometrica.verticeConfirmado.lon
+        )
+      ){
+        agregarVerticeVisualPendiente(
+          proteccionGeometrica.verticeConfirmado.lat,
+          proteccionGeometrica.verticeConfirmado.lon
+        );
+      }
+
+      const posicionActual =
+        marcador.getLatLng();
+
+      const distanciaReenganche =
+        distanciaMetros(
+          Number(posicionActual.lat),
+          Number(posicionActual.lng),
+          latVisual,
+          lonVisual
+        );
+
+      if(
+        Number.isFinite(distanciaReenganche) &&
+        distanciaReenganche >
+          ALGORITMO_PROTECCION_GEOMETRICA.DISTANCIA_EXTREMA_M
+      ){
+        /*
+          Si tras varias confirmaciones el desplazamiento sigue siendo enorme,
+          la posición ya fue validada como real. Reubicamos una sola vez sin
+          animar cientos de metros a través de manzanas.
+        */
+        detenerAnimacionMarcador();
+
+        marcador.setLatLng(
+          [latVisual, lonVisual]
+        );
+
+        centrarMapaEnAreaUtil(
+          latVisual,
+          lonVisual,
+          {
+            animate:false
+          }
+        );
+
+      }else{
+        const duracionReenganche =
+          Math.min(
+            duracion,
+            ALGORITMO_PROTECCION_GEOMETRICA.DURACION_REENGANCHE_RAPIDO_MS
+          );
+
+        if(
+          verticesVisualesPendientes.length >
+            0
+        ){
+          animarMarcadorConColaVertices(
+            latVisual,
+            lonVisual,
+            duracionReenganche,
+            velocidadInterna
+          );
+        }else{
+          animarMarcadorHasta(
+            latVisual,
+            lonVisual,
+            duracionReenganche,
+            velocidadInterna
+          );
+        }
+      }
+
+    }else if(
       retrocesoRuido ||
       retrocesoVisual
     ){
@@ -12728,9 +14184,8 @@ if(
         - porque durante una desaceleración el pin visual quedó
           por delante del nuevo punto recibido.
 
-        No descartamos el timestamp ni la memoria real del servidor.
-        Sólo evitamos dibujar la marcha atrás artificial.
-        Al bajar de 30 km/h la corrección vuelve a quedar libre.
+        R59 añade una cuarentena PREVIA para retrocesos relevantes.
+        Este bloque queda como última defensa de pocos metros.
       */
       detenerAnimacionMarcador();
 
@@ -12752,71 +14207,66 @@ if(
     ){
 
       /*
-        R39:
-        El punto anterior fue descartado como deriva.
-        Recuperamos inmediatamente la posición válida actual para
-        no arrastrar 2-3 segundos de retraso adicional.
+        R59:
+        si un punto de autopista fue descartado, recuperamos el punto
+        válido actual con transición breve en vez de un salto seco.
       */
-      detenerAnimacionMarcador();
+      limpiarColaVerticesVisuales();
 
-      marcador.setLatLng(
-        [latVisual, lonVisual]
-      );
-
-      centrarMapaEnAreaUtil(
+      animarMarcadorHasta(
         latVisual,
         lonVisual,
-        {
-          animate:false
-        }
-      );
-
-    }else if(
-      giroProtegido &&
-      ultimoPuntoServidor
-    ){
-
-      /*
-        V9 / R58 - giro protegido por vértice.
-
-        El último punto confirmado funciona como vértice intermedio:
-        marcador -> último punto real -> nuevo punto real.
-
-        Así evitamos la diagonal directa entre dos calles y,
-        gracias a la cadencia GPS aprendida, ese vértice conserva el
-        último punto real antes del cambio de calle.
-      */
-      animarMarcadorConGiroProtegido(
-        ultimoPuntoServidor.lat,
-        ultimoPuntoServidor.lon,
-        lat,
-        lon,
-        duracion
+        Math.min(
+          duracion,
+          ALGORITMO_PROTECCION_GEOMETRICA.DURACION_REENGANCHE_RAPIDO_MS
+        ),
+        velocidadInterna
       );
 
     }else{
 
-      /*
-        R36 / R37:
-        Con rumbo estable conserva la continuidad larga R36.
+      if(
+        giroProtegido &&
+        ultimoPuntoServidor
+      ){
+        /*
+          El último punto confirmado pasa a ser vértice REAL pendiente.
+          No depende de que el pin haya llegado visualmente a él todavía.
+        */
+        agregarVerticeVisualPendiente(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon
+        );
+      }
 
-        Si el filtro lateral marcó rumbo incierto, la duración de este
-        tramo ya fue reducida temporalmente a los valores R32:
-        el pin llega antes al destino visual filtrado y puede reaparecer
-        una pequeña pausa natural hasta el siguiente GPS.
+      if(
+        verticesVisualesPendientes.length >
+          0
+      ){
+        /*
+          R59 - COLA REAL DE VÉRTICES:
+          un GPS nuevo puede actualizar el destino final, pero jamás borrar
+          una esquina que el pin todavía no recorrió.
+        */
+        animarMarcadorConColaVertices(
+          latVisual,
+          lonVisual,
+          duracion,
+          velocidadInterna
+        );
 
-        En ambos casos:
-        - interpolación lineal desde 30 km/h;
-        - el nuevo punto corrige el objetivo en vuelo;
-        - nunca reinicia desde el último GPS, sino desde el punto
-          visual exacto donde estaba el marcador.
-      */
-      animarMarcadorHasta(
-        latVisual,
-        lonVisual,
-        duracion,
-        velocidadInterna
-      );
+      }else{
+        /*
+          Tramo sin vértices pendientes: conserva exactamente la continuidad
+          R58 que funcionó bien en recta.
+        */
+        animarMarcadorHasta(
+          latVisual,
+          lonVisual,
+          duracion,
+          velocidadInterna
+        );
+      }
     }
 
     penultimoPuntoServidor =
@@ -12836,6 +14286,15 @@ if(
 
     ultimoCreatedAtServidor =
       createdAt;
+
+    lecturasGeometricasConfirmadas++;
+
+    return {
+      procesada:true,
+      aceptada:true,
+      recuperacion:
+        proteccionGeometrica.recuperacion === true
+    };
   }
 
   async function consultar(
@@ -13085,6 +14544,14 @@ if(
         ultimaVelocidadValidaKmh =
           null;
 
+        puntoGeometricoPendiente =
+          null;
+
+        lecturasGeometricasConfirmadas =
+          0;
+
+        limpiarColaVerticesVisuales();
+
         if(
           llegadaFisicaConfirmada
         ){
@@ -13098,36 +14565,52 @@ if(
         return;
       }
 
-      ultimaLatitudProximidad =
-        lat;
+      const resultadoMovimiento =
+        actualizarMarcador(
+          lat,
+          lon,
+          p.created_at
+        );
 
-      ultimaLongitudProximidad =
-        lon;
+      /*
+        R59:
+        proximidad física y T0 sólo reciben geometría confirmada.
+        Un outlier descartado no puede:
+        - activar llegada;
+        - cancelar una llegada;
+        - sumar lecturas >300 m;
+        - alterar el zoom de proximidad.
+      */
+      if(
+        resultadoMovimiento &&
+        resultadoMovimiento.aceptada ===
+          true
+      ){
+        ultimaLatitudProximidad =
+          lat;
 
-      ultimaLecturaProximidadId =
-        p.created_at;
+        ultimaLongitudProximidad =
+          lon;
 
-      procesarPosicionProximidad(
-        lat,
-        lon,
-        p.created_at
-      );
+        ultimaLecturaProximidadId =
+          p.created_at;
 
-      actualizarMarcador(
-        lat,
-        lon,
-        p.created_at
-      );
+        procesarPosicionProximidad(
+          lat,
+          lon,
+          p.created_at
+        );
+
+        ultimaActualizacionMs =
+          new Date(
+            p.created_at
+          )
+          .getTime();
+      }
 
       pintarEstadoNormalEnVivo();
 
       actualizarEstadoLlegada();
-
-      ultimaActualizacionMs =
-        new Date(
-          p.created_at
-        )
-        .getTime();
 
       iniciarReloj();
 
