@@ -4520,6 +4520,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     false;
 
   /*
+    R61 - HISTÉRESIS REFORZADA DESPUÉS DE "HEMOS LLEGADO"
+
+    Antes de que transcurra el minuto de gracia conservamos la salida
+    histórica de R57 (3 lecturas consecutivas >300 m), para que una llegada
+    todavía no consolidada pueda corregirse con rapidez.
+
+    Una vez que "HEMOS LLEGADO" ya tuvo autoridad para mostrarse, la salida
+    se vuelve deliberadamente más exigente: hacen falta 10 lecturas GPS
+    CONFIRMADAS y consecutivas >300 m. Cualquier lectura <=300 m reinicia
+    la cuenta. Así una oscilación o una ráfaga de precisión mala no puede
+    degradar momentáneamente el estado final.
+  */
+  const LECTURAS_SALIDA_HEMOS_LLEGADO_ENCLAVADO =
+    10;
+
+  /*
     Transición física pura. Recibe el estado previo ya filtrado por una
     lectura GPS NUEVA y devuelve el estado siguiente. No decide si una
     muestra es ruido: esa responsabilidad permanece en los chequeos GPS.
@@ -4538,7 +4554,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       fuera300:limitarNumero(
         Number(estadoAnterior.fuera300) || 0,
         0,
-        ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA - 1
+        Math.max(
+          ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA,
+          LECTURAS_SALIDA_HEMOS_LLEGADO_ENCLAVADO
+        ) - 1
       ),
       zonaCerca:estadoAnterior.zonaCerca === true
     };
@@ -4546,6 +4565,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(
       siguiente.llegada
     ){
+      const hemosLlegadoYaVisible =
+        Number.isFinite(
+          siguiente.inicioMs
+        ) &&
+        Number.isFinite(
+          ahoraMs
+        ) &&
+        ahoraMs - siguiente.inicioMs >=
+          ALGORITMO_SEGUIMIENTO.GRACIA_HEMOS_LLEGADO_MS;
+
+      const lecturasSalidaNecesarias =
+        hemosLlegadoYaVisible
+          ? LECTURAS_SALIDA_HEMOS_LLEGADO_ENCLAVADO
+          : ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA;
+
       if(
         distanciaMetrosActual >
           ALGORITMO_SEGUIMIENTO.DISTANCIA_CERCA_M
@@ -4554,7 +4588,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
         if(
           siguiente.fuera300 >=
-            ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA
+            lecturasSalidaNecesarias
         ){
           siguiente.llegada = false;
           siguiente.inicioMs = null;
@@ -4869,7 +4903,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           Math.max(
             0,
             Math.min(
-              2,
+              Math.max(
+                ALGORITMO_SEGUIMIENTO.LECTURAS_SALIDA_CONFIRMADA,
+                LECTURAS_SALIDA_HEMOS_LLEGADO_ENCLAVADO
+              ) - 1,
               Number(datos.fuera300) || 0
             )
           );
@@ -5213,7 +5250,27 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     DISTANCIA_PROXIMIDAD_MANIOBRA_M:300,
     VELOCIDAD_MANIOBRA_KMH:30,
     VELOCIDAD_DETENIDO_PROXIMIDAD_KMH:3,
-    DISTANCIA_SALTO_DETENIDO_PROXIMIDAD_M:8,
+
+    /*
+      R61 - salida desde detenido cerca del domicilio.
+      El test R60 mostró una lectura de ~5,5 m que salió lateralmente y
+      regresó en la muestra siguiente. Bajamos el umbral de 8 m a 5 m:
+      el primer movimiento después de estar quietos necesita una segunda
+      lectura coherente antes de tener autoridad geométrica.
+    */
+    DISTANCIA_SALTO_DETENIDO_PROXIMIDAD_M:5,
+
+    /*
+      R61 - confirmación lateral urbana / de maniobra.
+      En baja velocidad, un giro visual de 38°+ recorrido en sólo 5-25 m
+      puede ser esquina real o deriva lateral. No lo dibujamos con una sola
+      muestra: queda en cuarentena y la siguiente lectura confirma el giro
+      o descarta el punto. Alta velocidad (>=40 km/h) no entra aquí.
+    */
+    ANGULO_DESVIO_LATERAL_URBANO_CONFIRMAR_GRADOS:38,
+    DISTANCIA_MIN_DESVIO_LATERAL_URBANO_M:5,
+    DISTANCIA_MAX_DESVIO_LATERAL_URBANO_M:25,
+    VELOCIDAD_MAX_DESVIO_LATERAL_URBANO_KMH:30,
 
     DURACION_REENGANCHE_RAPIDO_MS:1100,
 
@@ -5944,6 +6001,42 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         e.cadenciaMs * 0.975
       )
     );
+  }
+
+
+  /*
+    R61 - REENGANCHE URBANO SUAVE
+
+    Cuando una maniobra de baja velocidad necesitó una segunda lectura para
+    confirmarse, no usamos el reenganche rápido de 1100 ms pensado para
+    recuperaciones grandes. La duración se deriva de la cadencia R58:
+    ~80% del intervalo aprendido, limitada entre 1,6 y 3,4 s.
+
+    Con el emisor actual (~4 s) da ~3,2 s. Con un futuro emisor más rápido
+    se acorta automáticamente sin reescribir la lógica.
+  */
+  function duracionReengancheUrbanoAdaptada(){
+
+    const e =
+      estadoCadenciaGpsHibrido;
+
+    if(
+      e.muestras >=
+        ALGORITMO_PIN_HIBRIDO.MUESTRAS_MIN_MODELO &&
+      Number.isFinite(
+        e.cadenciaMs
+      )
+    ){
+      return Math.max(
+        1600,
+        Math.min(
+          3400,
+          e.cadenciaMs * 0.80
+        )
+      );
+    }
+
+    return 2600;
   }
 
 
@@ -11569,8 +11662,76 @@ ocultarHoraLlegada();
       }
 
       /*
+        R61 - CONFIRMACIÓN DE DESVÍO LATERAL URBANO
+
+        R60 ya dibuja mejor los vértices, pero el test mostró un patrón
+        muy concreto: a baja velocidad apareció un punto de ~7,6 m con
+        cambio de rumbo lateral y la lectura siguiente volvió al corredor
+        que traía el vehículo. Ese único punto no debe crear una esquina.
+
+        Sólo se aplica en modo maniobra / baja velocidad y en recorridos
+        cortos. Un giro real no se pierde: la lectura siguiente lo confirma
+        y el punto pendiente se conserva como vértice. Si la siguiente
+        muestra vuelve al rumbo anterior, el pendiente se descarta.
+      */
+      if(
+        respuesta.modoManiobra === true &&
+        Number.isFinite(
+          distanciaAnterior
+        ) &&
+        distanciaAnterior >=
+          c.DISTANCIA_MIN_DESVIO_LATERAL_URBANO_M &&
+        distancia >=
+          c.DISTANCIA_MIN_DESVIO_LATERAL_URBANO_M &&
+        distancia <=
+          c.DISTANCIA_MAX_DESVIO_LATERAL_URBANO_M &&
+        velocidadCalculada <=
+          c.VELOCIDAD_MAX_DESVIO_LATERAL_URBANO_KMH
+      ){
+        const rumboAnteriorUrbano =
+          rumboGrados(
+            penultimoPuntoServidor.lat,
+            penultimoPuntoServidor.lon,
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon
+          );
+
+        const rumboNuevoUrbano =
+          rumboGrados(
+            ultimoPuntoServidor.lat,
+            ultimoPuntoServidor.lon,
+            latNuevo,
+            lonNuevo
+          );
+
+        const diferenciaUrbana =
+          diferenciaRumboGrados(
+            rumboAnteriorUrbano,
+            rumboNuevoUrbano
+          );
+
+        if(
+          Number.isFinite(
+            diferenciaUrbana
+          ) &&
+          diferenciaUrbana >=
+            c.ANGULO_DESVIO_LATERAL_URBANO_CONFIRMAR_GRADOS
+        ){
+          respuesta.diferenciaRumbo =
+            diferenciaUrbana;
+
+          respuesta.sospechosa =
+            true;
+
+          respuesta.razones.push(
+            "DESVIO_LATERAL_URBANO_REQUIERE_CONFIRMACION"
+          );
+        }
+      }
+
+      /*
         Cerca del domicilio, cuando veníamos realmente detenidos,
-        un único salto de 8+ m no tiene autoridad para mover el pin.
+        un único salto de 5+ m no tiene autoridad para mover el pin.
         Si el vehículo arrancó o puso marcha atrás de verdad, la siguiente
         lectura lo confirma y el movimiento se habilita.
       */
@@ -11863,11 +12024,26 @@ ocultarHoraLlegada();
           puntoGeometricoPendiente =
             null;
 
+          const confirmacionUrbana =
+            Array.isArray(
+              pendiente.razones
+            ) &&
+            (
+              pendiente.razones.indexOf(
+                "DESVIO_LATERAL_URBANO_REQUIERE_CONFIRMACION"
+              ) >= 0 ||
+              pendiente.razones.indexOf(
+                "SALTO_DESDE_DETENIDO_PROXIMIDAD"
+              ) >= 0
+            );
+
           return {
             aceptar:true,
             cuarentena:false,
             recuperacion:true,
             reengancheConfirmado:true,
+            confirmacionUrbana:
+              confirmacionUrbana,
             verticeConfirmado:
               pendiente.extrema === true
                 ? null
@@ -14507,8 +14683,15 @@ if(
     ){
       /*
         Una trayectoria previamente dudosa quedó confirmada.
-        Borramos esquinas viejas y recuperamos el punto real con una
-        transición corta. Nunca hacemos el antiguo teletransporte por >120 m.
+        Borramos esquinas viejas y recuperamos el punto real.
+
+        R61:
+        - recuperaciones grandes conservan el reenganche corto existente;
+        - confirmaciones urbanas / desde detenido usan una recuperación
+          adaptada a la cadencia para no producir el salto visible que
+          apareció en la prueba de calle.
+
+        Nunca hacemos el antiguo teletransporte por >120 m.
       */
       limpiarColaVerticesVisuales();
 
@@ -14564,10 +14747,13 @@ if(
 
       }else{
         const duracionReenganche =
-          Math.min(
-            duracion,
-            ALGORITMO_PROTECCION_GEOMETRICA.DURACION_REENGANCHE_RAPIDO_MS
-          );
+          proteccionGeometrica.confirmacionUrbana ===
+            true
+            ? duracionReengancheUrbanoAdaptada()
+            : Math.min(
+                duracion,
+                ALGORITMO_PROTECCION_GEOMETRICA.DURACION_REENGANCHE_RAPIDO_MS
+              );
 
         if(
           verticesVisualesPendientes.length >
