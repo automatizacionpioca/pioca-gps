@@ -3940,6 +3940,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 (function(){
 
+  /*
+    R63 = R62 FINAL + capa 2 de vértice geométrico independiente.
+    La lógica funcional R62 permanece como autoridad primaria.
+  */
+
   const SUPABASE_URL =
     "https://apxrmkdegjnblkbyjsbp.supabase.co";
 
@@ -5330,6 +5335,49 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     FACTOR_AJUSTE_VERTICE_PROYECCION:0.90,
     FACTOR_AJUSTE_VERTICE_TRAMO:0.80
   });
+
+  /* ==========================================================
+     R63 - CAPA 2: VÉRTICE GEOMÉTRICO INDEPENDIENTE
+
+     PRINCIPIO DE COMPATIBILIDAD:
+     - R62 sigue calculando y agregando su vértice exactamente igual.
+     - esta capa sólo observa posiciones YA confirmadas por R62;
+     - nunca adelanta un vértice R62; sólo puede retraer un vértice
+       pendiente cuando una segunda geometría demuestra sobrepaso;
+     - si faltan muestras o la geometría no es estable, no interviene.
+
+     La segunda estimación ajusta el eje de entrada y el de salida mediante
+     mínimos cuadrados ortogonales (TLS/PCA) y usa su intersección.
+     ========================================================== */
+  const ALGORITMO_VERTICE_GEOMETRICO_R63 = Object.freeze({
+    HISTORIAL_CONFIRMADO_MAX:9,
+    PUNTOS_ENTRADA_MAX:6,
+    PUNTOS_ENTRADA_MIN:3,
+    PUNTOS_SALIDA_MAX:4,
+    PUNTOS_SALIDA_MIN:2,
+    DISTANCIA_MIN_ENTRE_MUESTRAS_M:2.0,
+    TRAMO_ENTRADA_MIN_M:10,
+    TRAMO_SALIDA_MIN_M:5,
+    DESVIO_RUMBO_ENTRADA_MAX_GRADOS:24,
+    DESVIO_RUMBO_SALIDA_MAX_GRADOS:32,
+    ANGULO_INTERSECCION_MIN_GRADOS:32,
+    ANGULO_INTERSECCION_MAX_GRADOS:105,
+    RMS_ABSOLUTO_MAX_M:4.5,
+    RMS_RELATIVO_MAX:0.22,
+    MARGEN_ATRAS_INTERSECCION_M:3,
+    MARGEN_DELANTE_INTERSECCION_M:8,
+    DISTANCIA_MAX_VERTICE_GEOMETRICO_M:
+      ALGORITMO_PROTECCION_GEOMETRICA.AJUSTE_VERTICE_MAX_M + 8,
+    DISTANCIA_MAX_DIFERENCIA_VERTICES_M:
+      ALGORITMO_PROTECCION_GEOMETRICA.AJUSTE_VERTICE_MAX_M + 6,
+    SALIDA_CONFIRMADA_DESDE_VERTICE_M:1.5,
+    TOLERANCIA_BASE_SOBREPASO_M:2.5,
+    VIGENCIA_CANDIDATO_MS:18000
+  });
+
+  let historialPuntosGeometricosR63 = [];
+
+  let verticeGeometricoPendienteR63 = null;
 
   /* ==========================================================
      R58 - ESTADO DEL ALGORITMO HÍBRIDO DE MOVIMIENTO DEL PIN
@@ -8417,6 +8465,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       null;
 
     limpiarColaVerticesVisuales();
+
+    reiniciarVerticeGeometricoR63(
+      lat,
+      lon,
+      createdAt
+    );
 
     reanudacionVisualProtegidaPendiente =
       false;
@@ -11671,6 +11725,853 @@ ocultarHoraLlegada();
   }
 
 
+  /* ==========================================================
+     R63 - FUNCIONES DE LA CAPA 2 DE VÉRTICE GEOMÉTRICO
+     ========================================================== */
+
+  function reiniciarVerticeGeometricoR63(
+    lat,
+    lon,
+    createdAt
+  ){
+    historialPuntosGeometricosR63 = [];
+    verticeGeometricoPendienteR63 = null;
+
+    if(
+      Number.isFinite(lat) &&
+      Number.isFinite(lon)
+    ){
+      registrarPuntoConfirmadoR63(
+        lat,
+        lon,
+        createdAt
+      );
+    }
+  }
+
+
+  function registrarPuntoConfirmadoR63(
+    lat,
+    lon,
+    createdAt
+  ){
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    const punto = {
+      lat:lat,
+      lon:lon,
+      createdAt:createdAt || null
+    };
+
+    const ultimo =
+      historialPuntosGeometricosR63.length > 0
+        ? historialPuntosGeometricosR63[
+            historialPuntosGeometricosR63.length - 1
+          ]
+        : null;
+
+    if(ultimo){
+      const distancia =
+        distanciaMetros(
+          ultimo.lat,
+          ultimo.lon,
+          lat,
+          lon
+        );
+
+      /*
+        No dejamos que varias muestras prácticamente estacionarias pesen
+        varias veces sobre el ajuste TLS. Conservamos la última temporalmente.
+      */
+      if(
+        Number.isFinite(distancia) &&
+        distancia <
+          ALGORITMO_VERTICE_GEOMETRICO_R63.DISTANCIA_MIN_ENTRE_MUESTRAS_M
+      ){
+        ultimo.lat = lat;
+        ultimo.lon = lon;
+        ultimo.createdAt = createdAt || ultimo.createdAt;
+        return;
+      }
+    }
+
+    historialPuntosGeometricosR63.push(punto);
+
+    while(
+      historialPuntosGeometricosR63.length >
+        ALGORITMO_VERTICE_GEOMETRICO_R63.HISTORIAL_CONFIRMADO_MAX
+    ){
+      historialPuntosGeometricosR63.shift();
+    }
+  }
+
+
+  function seleccionarEntradaEstableR63(){
+    const c =
+      ALGORITMO_VERTICE_GEOMETRICO_R63;
+
+    const h =
+      historialPuntosGeometricosR63;
+
+    if(
+      !Array.isArray(h) ||
+      h.length < c.PUNTOS_ENTRADA_MIN
+    ){
+      return null;
+    }
+
+    const ultimo = h[h.length - 1];
+    let indiceAnterior = h.length - 2;
+
+    while(
+      indiceAnterior >= 0 &&
+      distanciaMetros(
+        h[indiceAnterior].lat,
+        h[indiceAnterior].lon,
+        ultimo.lat,
+        ultimo.lon
+      ) < c.DISTANCIA_MIN_ENTRE_MUESTRAS_M
+    ){
+      indiceAnterior--;
+    }
+
+    if(indiceAnterior < 0){
+      return null;
+    }
+
+    const rumboBase =
+      rumboGrados(
+        h[indiceAnterior].lat,
+        h[indiceAnterior].lon,
+        ultimo.lat,
+        ultimo.lon
+      );
+
+    if(!Number.isFinite(rumboBase)){
+      return null;
+    }
+
+    const seleccion = [ultimo];
+    let siguiente = ultimo;
+
+    for(
+      let i = indiceAnterior;
+      i >= 0 &&
+      seleccion.length < c.PUNTOS_ENTRADA_MAX;
+      i--
+    ){
+      const p = h[i];
+      const distancia =
+        distanciaMetros(
+          p.lat,
+          p.lon,
+          siguiente.lat,
+          siguiente.lon
+        );
+
+      if(
+        !Number.isFinite(distancia) ||
+        distancia < c.DISTANCIA_MIN_ENTRE_MUESTRAS_M
+      ){
+        continue;
+      }
+
+      const rumbo =
+        rumboGrados(
+          p.lat,
+          p.lon,
+          siguiente.lat,
+          siguiente.lon
+        );
+
+      if(
+        !Number.isFinite(rumbo) ||
+        diferenciaRumboGrados(
+          rumboBase,
+          rumbo
+        ) > c.DESVIO_RUMBO_ENTRADA_MAX_GRADOS
+      ){
+        break;
+      }
+
+      seleccion.unshift(p);
+      siguiente = p;
+    }
+
+    if(
+      seleccion.length <
+        c.PUNTOS_ENTRADA_MIN
+    ){
+      return null;
+    }
+
+    const tramo =
+      distanciaMetros(
+        seleccion[0].lat,
+        seleccion[0].lon,
+        seleccion[seleccion.length - 1].lat,
+        seleccion[seleccion.length - 1].lon
+      );
+
+    if(
+      !Number.isFinite(tramo) ||
+      tramo < c.TRAMO_ENTRADA_MIN_M
+    ){
+      return null;
+    }
+
+    return seleccion.map(
+      function(p){
+        return {lat:p.lat,lon:p.lon};
+      }
+    );
+  }
+
+
+  function puntoLocalR63(
+    punto,
+    referencia
+  ){
+    const radio = 6371000;
+    const lat0Rad =
+      gradosARadianes(referencia.lat);
+
+    return {
+      x:
+        gradosARadianes(
+          punto.lon - referencia.lon
+        ) *
+        radio *
+        Math.cos(lat0Rad),
+      y:
+        gradosARadianes(
+          punto.lat - referencia.lat
+        ) *
+        radio
+    };
+  }
+
+
+  function puntoGeograficoR63(
+    punto,
+    referencia
+  ){
+    const radio = 6371000;
+    const lat0Rad =
+      gradosARadianes(referencia.lat);
+
+    const cosLat =
+      Math.max(
+        0.000001,
+        Math.abs(Math.cos(lat0Rad))
+      );
+
+    return {
+      lat:
+        referencia.lat +
+        punto.y / radio * 180 / Math.PI,
+      lon:
+        referencia.lon +
+        punto.x / (radio * cosLat) * 180 / Math.PI
+    };
+  }
+
+
+  function ajustarEjeTlsR63(
+    puntos,
+    referencia
+  ){
+    if(
+      !Array.isArray(puntos) ||
+      puntos.length < 2
+    ){
+      return null;
+    }
+
+    const locales =
+      puntos.map(
+        function(p){
+          return puntoLocalR63(p,referencia);
+        }
+      );
+
+    let cx = 0;
+    let cy = 0;
+
+    locales.forEach(
+      function(p){
+        cx += p.x;
+        cy += p.y;
+      }
+    );
+
+    cx /= locales.length;
+    cy /= locales.length;
+
+    let sxx = 0;
+    let sxy = 0;
+    let syy = 0;
+
+    locales.forEach(
+      function(p){
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        sxx += dx * dx;
+        sxy += dx * dy;
+        syy += dy * dy;
+      }
+    );
+
+    const angulo =
+      0.5 *
+      Math.atan2(
+        2 * sxy,
+        sxx - syy
+      );
+
+    let dirX = Math.cos(angulo);
+    let dirY = Math.sin(angulo);
+
+    const primero = locales[0];
+    const ultimo = locales[locales.length - 1];
+    const viajeX = ultimo.x - primero.x;
+    const viajeY = ultimo.y - primero.y;
+
+    if(
+      viajeX * dirX +
+      viajeY * dirY < 0
+    ){
+      dirX *= -1;
+      dirY *= -1;
+    }
+
+    let sumaError2 = 0;
+    let minT = Infinity;
+    let maxT = -Infinity;
+
+    locales.forEach(
+      function(p){
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        const t = dx * dirX + dy * dirY;
+        const perpendicular =
+          -dx * dirY + dy * dirX;
+
+        minT = Math.min(minT,t);
+        maxT = Math.max(maxT,t);
+        sumaError2 +=
+          perpendicular * perpendicular;
+      }
+    );
+
+    const span = maxT - minT;
+    const rms =
+      Math.sqrt(
+        sumaError2 / locales.length
+      );
+
+    return {
+      cx:cx,
+      cy:cy,
+      dirX:dirX,
+      dirY:dirY,
+      span:span,
+      rms:rms,
+      cantidad:locales.length
+    };
+  }
+
+
+  function ejeConCalidadR63(
+    eje,
+    tramoMinimo
+  ){
+    if(!eje){
+      return false;
+    }
+
+    const c =
+      ALGORITMO_VERTICE_GEOMETRICO_R63;
+
+    if(
+      !Number.isFinite(eje.span) ||
+      !Number.isFinite(eje.rms) ||
+      eje.span < tramoMinimo
+    ){
+      return false;
+    }
+
+    const limiteRms =
+      Math.min(
+        c.RMS_ABSOLUTO_MAX_M,
+        Math.max(
+          1.5,
+          eje.span * c.RMS_RELATIVO_MAX
+        )
+      );
+
+    return eje.rms <= limiteRms;
+  }
+
+
+  function interseccionEjesR63(
+    entrada,
+    salida
+  ){
+    const cruz =
+      entrada.dirX * salida.dirY -
+      entrada.dirY * salida.dirX;
+
+    if(
+      !Number.isFinite(cruz) ||
+      Math.abs(cruz) < 0.0001
+    ){
+      return null;
+    }
+
+    const dx = salida.cx - entrada.cx;
+    const dy = salida.cy - entrada.cy;
+
+    const t =
+      (
+        dx * salida.dirY -
+        dy * salida.dirX
+      ) / cruz;
+
+    return {
+      x:entrada.cx + t * entrada.dirX,
+      y:entrada.cy + t * entrada.dirY
+    };
+  }
+
+
+  function abrirVerticeGeometricoR63(
+    verticeR62,
+    latSalida,
+    lonSalida,
+    createdAt,
+    longitudColaAntes
+  ){
+    if(
+      !verticeR62 ||
+      verticeR62.ajustado !== true ||
+      !Number.isFinite(latSalida) ||
+      !Number.isFinite(lonSalida)
+    ){
+      return;
+    }
+
+    /*
+      Sólo abrimos la capa 2 si R62 realmente agregó un nuevo vértice.
+      Si la cola lo rechazó por proximidad, no inventamos un candidato.
+    */
+    if(
+      verticesVisualesPendientes.length <=
+        longitudColaAntes
+    ){
+      return;
+    }
+
+    const puntosEntrada =
+      seleccionarEntradaEstableR63();
+
+    if(!puntosEntrada){
+      return;
+    }
+
+    const referencia =
+      puntosEntrada[
+        puntosEntrada.length - 1
+      ];
+
+    const ejeEntrada =
+      ajustarEjeTlsR63(
+        puntosEntrada,
+        referencia
+      );
+
+    if(
+      !ejeConCalidadR63(
+        ejeEntrada,
+        ALGORITMO_VERTICE_GEOMETRICO_R63.TRAMO_ENTRADA_MIN_M
+      )
+    ){
+      return;
+    }
+
+    const refVertice =
+      verticesVisualesPendientes[
+        verticesVisualesPendientes.length - 1
+      ];
+
+    verticeGeometricoPendienteR63 = {
+      referencia:referencia,
+      puntosEntrada:puntosEntrada,
+      ejeEntrada:ejeEntrada,
+      puntosSalida:[{
+        lat:latSalida,
+        lon:lonSalida
+      }],
+      rumboSalidaInicial:
+        rumboGrados(
+          referencia.lat,
+          referencia.lon,
+          latSalida,
+          lonSalida
+        ),
+      verticeR62Original:{
+        lat:refVertice.lat,
+        lon:refVertice.lon
+      },
+      refVertice:refVertice,
+      creadoMs:
+        new Date(createdAt).getTime(),
+      refinado:false
+    };
+  }
+
+
+  function actualizarVerticeGeometricoR63(
+    lat,
+    lon,
+    createdAt
+  ){
+    const estado =
+      verticeGeometricoPendienteR63;
+
+    if(!estado){
+      return false;
+    }
+
+    const c =
+      ALGORITMO_VERTICE_GEOMETRICO_R63;
+
+    /*
+      Si R62 ya consumió o eliminó ese vértice, la capa 2 pierde autoridad.
+      Nunca reconstruimos una esquina que visualmente ya quedó atrás.
+    */
+    if(
+      verticesVisualesPendientes.indexOf(
+        estado.refVertice
+      ) < 0
+    ){
+      verticeGeometricoPendienteR63 = null;
+      return false;
+    }
+
+    const ahoraMs =
+      new Date(createdAt).getTime();
+
+    if(
+      Number.isFinite(estado.creadoMs) &&
+      Number.isFinite(ahoraMs) &&
+      ahoraMs - estado.creadoMs >
+        c.VIGENCIA_CANDIDATO_MS
+    ){
+      verticeGeometricoPendienteR63 = null;
+      return false;
+    }
+
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return false;
+    }
+
+    const ultimoSalida =
+      estado.puntosSalida[
+        estado.puntosSalida.length - 1
+      ];
+
+    const distanciaNueva =
+      distanciaMetros(
+        ultimoSalida.lat,
+        ultimoSalida.lon,
+        lat,
+        lon
+      );
+
+    if(
+      !Number.isFinite(distanciaNueva) ||
+      distanciaNueva <
+        c.DISTANCIA_MIN_ENTRE_MUESTRAS_M
+    ){
+      return false;
+    }
+
+    /*
+      El primer vector B->C que detectó R62 cruza la propia esquina y por
+      eso NO representa todavía el rumbo de la calle de salida. La segunda
+      muestra es justamente la que permite descubrir ese nuevo eje.
+
+      Recién desde la tercera muestra exigimos continuidad respecto del eje
+      de salida ya observado. Así no confundimos una esquina de 90° con
+      una incoherencia por comparar contra la diagonal de transición.
+    */
+    if(
+      estado.puntosSalida.length >= 2
+    ){
+      const penultimoSalida =
+        estado.puntosSalida[
+          estado.puntosSalida.length - 2
+        ];
+
+      const rumboSalidaPrevio =
+        rumboGrados(
+          penultimoSalida.lat,
+          penultimoSalida.lon,
+          ultimoSalida.lat,
+          ultimoSalida.lon
+        );
+
+      const rumboNuevo =
+        rumboGrados(
+          ultimoSalida.lat,
+          ultimoSalida.lon,
+          lat,
+          lon
+        );
+
+      if(
+        Number.isFinite(rumboSalidaPrevio) &&
+        Number.isFinite(rumboNuevo) &&
+        diferenciaRumboGrados(
+          rumboSalidaPrevio,
+          rumboNuevo
+        ) > c.DESVIO_RUMBO_SALIDA_MAX_GRADOS
+      ){
+        /*
+          Curva, rotonda o nueva maniobra antes de consolidar una recta de
+          salida: R63 se retira y deja R62 exactamente como estaba.
+        */
+        verticeGeometricoPendienteR63 = null;
+        return false;
+      }
+    }
+
+    estado.puntosSalida.push({
+      lat:lat,
+      lon:lon
+    });
+
+    while(
+      estado.puntosSalida.length >
+        c.PUNTOS_SALIDA_MAX
+    ){
+      estado.puntosSalida.shift();
+    }
+
+    if(
+      estado.puntosSalida.length <
+        c.PUNTOS_SALIDA_MIN
+    ){
+      return false;
+    }
+
+    const ejeSalida =
+      ajustarEjeTlsR63(
+        estado.puntosSalida,
+        estado.referencia
+      );
+
+    if(
+      !ejeConCalidadR63(
+        ejeSalida,
+        c.TRAMO_SALIDA_MIN_M
+      )
+    ){
+      return false;
+    }
+
+    const dot =
+      Math.max(
+        -1,
+        Math.min(
+          1,
+          estado.ejeEntrada.dirX * ejeSalida.dirX +
+          estado.ejeEntrada.dirY * ejeSalida.dirY
+        )
+      );
+
+    const angulo =
+      Math.acos(dot) *
+      180 /
+      Math.PI;
+
+    if(
+      !Number.isFinite(angulo) ||
+      angulo < c.ANGULO_INTERSECCION_MIN_GRADOS ||
+      angulo > c.ANGULO_INTERSECCION_MAX_GRADOS
+    ){
+      return false;
+    }
+
+    const interseccion =
+      interseccionEjesR63(
+        estado.ejeEntrada,
+        ejeSalida
+      );
+
+    if(!interseccion){
+      return false;
+    }
+
+    const localAncla = {x:0,y:0};
+    const localR62 =
+      puntoLocalR63(
+        estado.verticeR62Original,
+        estado.referencia
+      );
+
+    const avanceInterseccion =
+      (interseccion.x - localAncla.x) *
+        estado.ejeEntrada.dirX +
+      (interseccion.y - localAncla.y) *
+        estado.ejeEntrada.dirY;
+
+    const avanceR62 =
+      (localR62.x - localAncla.x) *
+        estado.ejeEntrada.dirX +
+      (localR62.y - localAncla.y) *
+        estado.ejeEntrada.dirY;
+
+    if(
+      !Number.isFinite(avanceInterseccion) ||
+      !Number.isFinite(avanceR62) ||
+      avanceInterseccion <
+        -c.MARGEN_ATRAS_INTERSECCION_M ||
+      avanceInterseccion >
+        c.DISTANCIA_MAX_VERTICE_GEOMETRICO_M
+    ){
+      return false;
+    }
+
+    const ultimoSalidaLocal =
+      puntoLocalR63(
+        estado.puntosSalida[
+          estado.puntosSalida.length - 1
+        ],
+        estado.referencia
+      );
+
+    const salidaDesdeVertice =
+      (ultimoSalidaLocal.x - interseccion.x) *
+        ejeSalida.dirX +
+      (ultimoSalidaLocal.y - interseccion.y) *
+        ejeSalida.dirY;
+
+    if(
+      !Number.isFinite(salidaDesdeVertice) ||
+      salidaDesdeVertice <
+        c.SALIDA_CONFIRMADA_DESDE_VERTICE_M
+    ){
+      return false;
+    }
+
+    const verticeGeografico =
+      puntoGeograficoR63(
+        interseccion,
+        estado.referencia
+      );
+
+    const diferenciaVertices =
+      distanciaMetros(
+        estado.verticeR62Original.lat,
+        estado.verticeR62Original.lon,
+        verticeGeografico.lat,
+        verticeGeografico.lon
+      );
+
+    if(
+      !Number.isFinite(diferenciaVertices) ||
+      diferenciaVertices >
+        c.DISTANCIA_MAX_DIFERENCIA_VERTICES_M
+    ){
+      return false;
+    }
+
+    const incertidumbre =
+      Math.max(
+        c.TOLERANCIA_BASE_SOBREPASO_M,
+        1.25 *
+        (
+          estado.ejeEntrada.rms +
+          ejeSalida.rms
+        ) +
+        0.75
+      );
+
+    const sobrepaso =
+      avanceR62 -
+      avanceInterseccion;
+
+    /*
+      Regla central R63: la capa 2 jamás empuja el vértice hacia delante.
+      Sólo retrae si el sobrepaso supera la incertidumbre geométrica medida.
+    */
+    if(
+      !Number.isFinite(sobrepaso) ||
+      sobrepaso <= incertidumbre
+    ){
+      return false;
+    }
+
+    if(marcador){
+      const actual =
+        marcador.getLatLng();
+
+      const actualLocal =
+        puntoLocalR63(
+          {
+            lat:Number(actual.lat),
+            lon:Number(actual.lng)
+          },
+          estado.referencia
+        );
+
+      const avanceVisualActual =
+        actualLocal.x * estado.ejeEntrada.dirX +
+        actualLocal.y * estado.ejeEntrada.dirY;
+
+      /*
+        Si el pin visual ya pasó el vértice geométrico, corregirlo implicaría
+        una marcha atrás visible. En ese caso R63 renuncia y conserva R62.
+      */
+      if(
+        Number.isFinite(avanceVisualActual) &&
+        avanceVisualActual >
+          avanceInterseccion +
+          c.MARGEN_DELANTE_INTERSECCION_M
+      ){
+        verticeGeometricoPendienteR63 = null;
+        return false;
+      }
+    }
+
+    estado.refVertice.lat =
+      verticeGeografico.lat;
+
+    estado.refVertice.lon =
+      verticeGeografico.lon;
+
+    estado.refinado = true;
+
+    /*
+      Una única corrección demostrada basta. Congelamos el resultado para
+      que nuevas pequeñas oscilaciones GPS no hagan bailar la esquina.
+    */
+    verticeGeometricoPendienteR63 = null;
+
+    return true;
+  }
+
+
   function modoManiobraGeometricaActivo(
     velocidadReferenciaKmh
   ){
@@ -14674,6 +15575,12 @@ if(
       puntoGeometricoPendiente =
         null;
 
+      reiniciarVerticeGeometricoR63(
+        lat,
+        lon,
+        createdAt
+      );
+
       intentarEncuadreInicialMapa();
 
       return {
@@ -14819,6 +15726,18 @@ if(
           velocidadInterna;
 
         lecturasGeometricasConfirmadas++;
+
+        registrarPuntoConfirmadoR63(
+          pendiente.lat,
+          pendiente.lon,
+          pendiente.createdAt
+        );
+
+        registrarPuntoConfirmadoR63(
+          lat,
+          lon,
+          createdAt
+        );
 
         return {
           procesada:true,
@@ -14982,6 +15901,17 @@ if(
             lonVisual
           )
         : Infinity;
+
+    /*
+      R63 - antes de dibujar esta lectura, damos a una esquina pendiente
+      la oportunidad de ser refinada por la segunda geometría. Si no hay
+      evidencia suficiente, esta función no toca absolutamente nada.
+    */
+    actualizarVerticeGeometricoR63(
+      lat,
+      lon,
+      createdAt
+    );
 
     if(
       proteccionGeometrica.reengancheConfirmado ===
@@ -15156,9 +16086,27 @@ if(
             lon:ultimoPuntoServidor.lon
           };
 
+        const longitudColaAntesR63 =
+          verticesVisualesPendientes.length;
+
+        /*
+          CAPA 1 R62: se agrega exactamente el mismo vértice de siempre.
+        */
         agregarVerticeVisualPendiente(
           verticeVisual.lat,
           verticeVisual.lon
+        );
+
+        /*
+          CAPA 2 R63: sólo abre una comprobación independiente si R62 creó
+          un vértice consolidado real. No cambia el vértice en este instante.
+        */
+        abrirVerticeGeometricoR63(
+          verticeVisual,
+          lat,
+          lon,
+          createdAt,
+          longitudColaAntesR63
         );
       }
 
@@ -15211,6 +16159,12 @@ if(
       createdAt;
 
     lecturasGeometricasConfirmadas++;
+
+    registrarPuntoConfirmadoR63(
+      lat,
+      lon,
+      createdAt
+    );
 
     return {
       procesada:true,
