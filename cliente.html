@@ -3941,8 +3941,21 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 (function(){
 
   /*
-    R63 = R62 FINAL + capa 2 de vértice geométrico independiente.
-    La lógica funcional R62 permanece como autoridad primaria.
+    R64 = R63 + afinación específica para la cadencia B14 verificada.
+
+    Medición real B14 (05/10/2026):
+    - promedio 2.031 s;
+    - mediana 2.001 s;
+    - 97.9% de intervalos entre 1.5 y 2.5 s.
+
+    R64 aprovecha esa mayor densidad SIN relajar las barreras duras:
+    - conserva ETA, proximidad, T0, HEMOS LLEGADO y cierre de R63;
+    - conserva los límites físicos duros y el anti-retroceso;
+    - usa más evidencia en el mismo tiempo para confirmar cuarentenas;
+    - refina el vértice TLS/PCA con más muestras cuando la cadencia 2 s
+      está realmente demostrada;
+    - si la entrega vuelve a ser más lenta/irregular, cae automáticamente
+      al perfil R63 anterior.
   */
 
   const SUPABASE_URL =
@@ -5350,6 +5363,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
      mínimos cuadrados ortogonales (TLS/PCA) y usa su intersección.
      ========================================================== */
   const ALGORITMO_VERTICE_GEOMETRICO_R63 = Object.freeze({
+    /* Perfil histórico R63: queda como fallback automático. */
     HISTORIAL_CONFIRMADO_MAX:9,
     PUNTOS_ENTRADA_MAX:6,
     PUNTOS_ENTRADA_MIN:3,
@@ -5372,7 +5386,31 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       ALGORITMO_PROTECCION_GEOMETRICA.AJUSTE_VERTICE_MAX_M + 6,
     SALIDA_CONFIRMADA_DESDE_VERTICE_M:1.5,
     TOLERANCIA_BASE_SOBREPASO_M:2.5,
-    VIGENCIA_CANDIDATO_MS:18000
+    VIGENCIA_CANDIDATO_MS:18000,
+
+    /*
+      R64 / PERFIL DENSO 2 s
+
+      El GPS físico no se volvió mágicamente más preciso. Lo que sí tenemos
+      es aproximadamente el doble de evidencia temporal. Por eso R64 no
+      baja tolerancias de seguridad por capricho: usa más puntos y exige un
+      eje más coherente dentro de una ventana temporal equivalente.
+    */
+    HISTORIAL_CONFIRMADO_MAX_DENSO:12,
+    PUNTOS_ENTRADA_MAX_DENSO:8,
+    PUNTOS_ENTRADA_MIN_DENSO:4,
+    PUNTOS_SALIDA_MAX_DENSO:6,
+    PUNTOS_SALIDA_MIN_DENSO:3,
+    TRAMO_ENTRADA_MIN_DENSO_M:10,
+    TRAMO_SALIDA_MIN_DENSO_M:5,
+    DESVIO_RUMBO_ENTRADA_DENSO_MAX_GRADOS:22,
+    DESVIO_RUMBO_SALIDA_DENSO_MAX_GRADOS:30,
+    RMS_ABSOLUTO_DENSO_MAX_M:4.5,
+    RMS_RELATIVO_DENSO_MAX:0.22,
+    SALIDA_CONFIRMADA_DENSO_DESDE_VERTICE_M:2.0,
+    VIGENCIA_CANDIDATO_DENSO_MIN_MS:9000,
+    VIGENCIA_CANDIDATO_DENSO_MAX_MS:13000,
+    VIGENCIA_CANDIDATO_DENSO_CADENCIAS:5.5
   });
 
   let historialPuntosGeometricosR63 = [];
@@ -5683,7 +5721,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
      ========================================================== */
   const ALGORITMO_PIN_HIBRIDO = Object.freeze({
     CADENCIA_DEFAULT_MS:2000,
-    HISTORIAL_INTERVALOS_MAX:7,
+    /* R64: 9 muestras a ~2 s = ~18 s de ventana robusta. */
+    HISTORIAL_INTERVALOS_MAX:9,
     INTERVALO_MIN_VALIDO_MS:500,
     INTERVALO_MAX_VALIDO_MS:6500,
     /*
@@ -5696,7 +5735,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     */
     CADENCIA_MIN_USABLE_MS:2000,
     CADENCIA_MAX_USABLE_MS:5000,
-    MUESTRAS_MIN_MODELO:3,
+    /* R64: 4 intervalos (~8 s) antes de activar el perfil denso. */
+    MUESTRAS_MIN_MODELO:4,
     DISPERSION_RELATIVA_BUENA:0.08,
     DISPERSION_RELATIVA_MALA:0.38,
     PESO_MAX_CADENCIA_APRENDIDA:0.80,
@@ -5720,6 +5760,184 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     RATIO_TECHO_ALTA:1.20,
     RATIO_TECHO_RUMBO_INCIERTO:0.96
   });
+
+
+  /* ==========================================================
+     R64 - PERFIL DE ALTA DENSIDAD TEMPORAL (~2 s)
+
+     Sólo se activa cuando la propia señal demuestra cadencia rápida y
+     regular. Si la red / dispositivo vuelve a entregar más lento, todas
+     las decisiones vuelven solas a los parámetros R63.
+     ========================================================== */
+  const ALGORITMO_CADENCIA_R64 = Object.freeze({
+    CADENCIA_DENSA_MAX_MS:2600,
+    CONFIANZA_MODELO_MIN:0.72,
+    MUESTRAS_DENSAS_MIN:4,
+
+    /*
+      Las cuarentenas se calibraron empíricamente cuando la entrega real
+      rondaba 4 s. Con 2 s no queremos aceptar una maniobra dudosa en la
+      mitad del tiempo: usamos más muestras dentro de una duración similar.
+    */
+    EVIDENCIA_NORMAL_REFERENCIA_MS:4000,
+    EVIDENCIA_EXTREMA_REFERENCIA_MS:8000,
+    CONFIRMACIONES_NORMAL_MAX:4,
+    CONFIRMACIONES_EXTREMO_MAX:6,
+
+    HISTORIAL_RUMBO_DENSO_MAX:5,
+    HISTORIAL_VELOCIDAD_DENSO_MAX:5
+  });
+
+
+  function cadenciaRapidaR64Detectada(){
+    const e = estadoCadenciaGpsHibrido;
+    const c = ALGORITMO_CADENCIA_R64;
+
+    return (
+      e.muestras >= c.MUESTRAS_DENSAS_MIN &&
+      Number.isFinite(e.cadenciaMs) &&
+      e.cadenciaMs <= c.CADENCIA_DENSA_MAX_MS
+    );
+  }
+
+
+  function perfilCadenciaDensaR64Activo(){
+    const e = estadoCadenciaGpsHibrido;
+    const c = ALGORITMO_CADENCIA_R64;
+
+    return (
+      cadenciaRapidaR64Detectada() &&
+      Number.isFinite(e.confianzaModelo) &&
+      e.confianzaModelo >= c.CONFIANZA_MODELO_MIN
+    );
+  }
+
+
+  function cadenciaOperativaR64(){
+    const e = estadoCadenciaGpsHibrido;
+
+    if(
+      Number.isFinite(e.cadenciaMs) &&
+      e.cadenciaMs > 0
+    ){
+      return e.cadenciaMs;
+    }
+
+    return ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
+  }
+
+
+  function confirmacionesGeometricasNecesariasR64(
+    extrema
+  ){
+    const g = ALGORITMO_PROTECCION_GEOMETRICA;
+
+    /*
+      Para el tiempo de cuarentena alcanza con detectar que la entrega es
+      rápida. Si además la señal es regular, el perfil geométrico denso
+      podrá activarse; si es irregular, NO reducimos la evidencia temporal.
+    */
+    if(!cadenciaRapidaR64Detectada()){
+      return extrema === true
+        ? g.CONFIRMACIONES_EXTREMO
+        : g.CONFIRMACIONES_NORMAL;
+    }
+
+    const c = ALGORITMO_CADENCIA_R64;
+    const cadencia =
+      Math.max(
+        1500,
+        cadenciaOperativaR64()
+      );
+
+    const evidenciaMs =
+      extrema === true
+        ? c.EVIDENCIA_EXTREMA_REFERENCIA_MS
+        : c.EVIDENCIA_NORMAL_REFERENCIA_MS;
+
+    const base =
+      extrema === true
+        ? g.CONFIRMACIONES_EXTREMO
+        : g.CONFIRMACIONES_NORMAL;
+
+    const maximo =
+      extrema === true
+        ? c.CONFIRMACIONES_EXTREMO_MAX
+        : c.CONFIRMACIONES_NORMAL_MAX;
+
+    /*
+      confirmaciones incluye la primera lectura que abrió la cuarentena.
+      A ~2 s: normal 3 muestras totales; extrema 5.
+      A ~4 s: vuelve de hecho a 2 / 3, como R63.
+    */
+    return Math.max(
+      base,
+      Math.min(
+        maximo,
+        1 + Math.ceil(evidenciaMs / cadencia)
+      )
+    );
+  }
+
+
+  function maxHistorialRumboR64(){
+    return perfilCadenciaDensaR64Activo()
+      ? ALGORITMO_CADENCIA_R64.HISTORIAL_RUMBO_DENSO_MAX
+      : HISTORIAL_RUMBO_MAX;
+  }
+
+
+  function maxHistorialVelocidadR64(){
+    return perfilCadenciaDensaR64Activo()
+      ? ALGORITMO_CADENCIA_R64.HISTORIAL_VELOCIDAD_DENSO_MAX
+      : HISTORIAL_VELOCIDAD_AUTOPISTA_MAX;
+  }
+
+
+  function parametrosVerticeGeometricoR64(){
+    const c = ALGORITMO_VERTICE_GEOMETRICO_R63;
+    const denso = perfilCadenciaDensaR64Activo();
+    const cadencia = cadenciaOperativaR64();
+
+    return {
+      denso:denso,
+      historialMax:
+        denso ? c.HISTORIAL_CONFIRMADO_MAX_DENSO : c.HISTORIAL_CONFIRMADO_MAX,
+      entradaMax:
+        denso ? c.PUNTOS_ENTRADA_MAX_DENSO : c.PUNTOS_ENTRADA_MAX,
+      entradaMin:
+        denso ? c.PUNTOS_ENTRADA_MIN_DENSO : c.PUNTOS_ENTRADA_MIN,
+      salidaMax:
+        denso ? c.PUNTOS_SALIDA_MAX_DENSO : c.PUNTOS_SALIDA_MAX,
+      salidaMin:
+        denso ? c.PUNTOS_SALIDA_MIN_DENSO : c.PUNTOS_SALIDA_MIN,
+      tramoEntradaMin:
+        denso ? c.TRAMO_ENTRADA_MIN_DENSO_M : c.TRAMO_ENTRADA_MIN_M,
+      tramoSalidaMin:
+        denso ? c.TRAMO_SALIDA_MIN_DENSO_M : c.TRAMO_SALIDA_MIN_M,
+      desvioEntradaMax:
+        denso ? c.DESVIO_RUMBO_ENTRADA_DENSO_MAX_GRADOS : c.DESVIO_RUMBO_ENTRADA_MAX_GRADOS,
+      desvioSalidaMax:
+        denso ? c.DESVIO_RUMBO_SALIDA_DENSO_MAX_GRADOS : c.DESVIO_RUMBO_SALIDA_MAX_GRADOS,
+      rmsAbsolutoMax:
+        denso ? c.RMS_ABSOLUTO_DENSO_MAX_M : c.RMS_ABSOLUTO_MAX_M,
+      rmsRelativoMax:
+        denso ? c.RMS_RELATIVO_DENSO_MAX : c.RMS_RELATIVO_MAX,
+      salidaConfirmadaMin:
+        denso ? c.SALIDA_CONFIRMADA_DENSO_DESDE_VERTICE_M : c.SALIDA_CONFIRMADA_DESDE_VERTICE_M,
+      vigenciaMs:
+        denso
+          ? Math.max(
+              c.VIGENCIA_CANDIDATO_DENSO_MIN_MS,
+              Math.min(
+                c.VIGENCIA_CANDIDATO_DENSO_MAX_MS,
+                cadencia * c.VIGENCIA_CANDIDATO_DENSO_CADENCIAS
+              )
+            )
+          : c.VIGENCIA_CANDIDATO_MS
+    };
+  }
+
 
   function medianaNumeros(valores){
     const v = (Array.isArray(valores) ? valores : [])
@@ -6087,8 +6305,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     recuperaciones grandes. La duración se deriva de la cadencia R58:
     ~80% del intervalo aprendido, limitada entre 1,6 y 3,4 s.
 
-    Con el emisor actual (~4 s) da ~3,2 s. Con un futuro emisor más rápido
-    se acorta automáticamente sin reescribir la lógica.
+    R64: con B14 verificado (~2 s) queda alrededor de 1,6 s. Si la entrega
+    vuelve a ser más lenta, se estira automáticamente sin reescribir lógica.
   */
   function duracionReengancheUrbanoAdaptada(){
 
@@ -10726,7 +10944,7 @@ ocultarHoraLlegada();
 
     while(
       historialVelocidadesAutopista.length >
-        HISTORIAL_VELOCIDAD_AUTOPISTA_MAX
+        maxHistorialVelocidadR64()
     ){
       historialVelocidadesAutopista.shift();
     }
@@ -11063,7 +11281,7 @@ ocultarHoraLlegada();
 
     while(
       historialRumbosAltaVelocidad.length >
-        HISTORIAL_RUMBO_MAX
+        maxHistorialRumboR64()
     ){
       historialRumbosAltaVelocidad.shift();
     }
@@ -11726,7 +11944,10 @@ ocultarHoraLlegada();
 
 
   /* ==========================================================
-     R63 - FUNCIONES DE LA CAPA 2 DE VÉRTICE GEOMÉTRICO
+     R64 - FUNCIONES DE VÉRTICE GEOMÉTRICO
+
+     Conservan la arquitectura R63, pero seleccionan automáticamente
+     un perfil de mayor densidad cuando la cadencia ~2 s está demostrada.
      ========================================================== */
 
   function reiniciarVerticeGeometricoR63(
@@ -11802,9 +12023,12 @@ ocultarHoraLlegada();
 
     historialPuntosGeometricosR63.push(punto);
 
+    const perfilR64 =
+      parametrosVerticeGeometricoR64();
+
     while(
       historialPuntosGeometricosR63.length >
-        ALGORITMO_VERTICE_GEOMETRICO_R63.HISTORIAL_CONFIRMADO_MAX
+        perfilR64.historialMax
     ){
       historialPuntosGeometricosR63.shift();
     }
@@ -11815,12 +12039,15 @@ ocultarHoraLlegada();
     const c =
       ALGORITMO_VERTICE_GEOMETRICO_R63;
 
+    const perfilR64 =
+      parametrosVerticeGeometricoR64();
+
     const h =
       historialPuntosGeometricosR63;
 
     if(
       !Array.isArray(h) ||
-      h.length < c.PUNTOS_ENTRADA_MIN
+      h.length < perfilR64.entradaMin
     ){
       return null;
     }
@@ -11862,7 +12089,7 @@ ocultarHoraLlegada();
     for(
       let i = indiceAnterior;
       i >= 0 &&
-      seleccion.length < c.PUNTOS_ENTRADA_MAX;
+      seleccion.length < perfilR64.entradaMax;
       i--
     ){
       const p = h[i];
@@ -11894,7 +12121,7 @@ ocultarHoraLlegada();
         diferenciaRumboGrados(
           rumboBase,
           rumbo
-        ) > c.DESVIO_RUMBO_ENTRADA_MAX_GRADOS
+        ) > perfilR64.desvioEntradaMax
       ){
         break;
       }
@@ -11905,7 +12132,7 @@ ocultarHoraLlegada();
 
     if(
       seleccion.length <
-        c.PUNTOS_ENTRADA_MIN
+        perfilR64.entradaMin
     ){
       return null;
     }
@@ -11920,7 +12147,7 @@ ocultarHoraLlegada();
 
     if(
       !Number.isFinite(tramo) ||
-      tramo < c.TRAMO_ENTRADA_MIN_M
+      tramo < perfilR64.tramoEntradaMin
     ){
       return null;
     }
@@ -12098,6 +12325,9 @@ ocultarHoraLlegada();
     const c =
       ALGORITMO_VERTICE_GEOMETRICO_R63;
 
+    const perfilR64 =
+      parametrosVerticeGeometricoR64();
+
     if(
       !Number.isFinite(eje.span) ||
       !Number.isFinite(eje.rms) ||
@@ -12108,10 +12338,10 @@ ocultarHoraLlegada();
 
     const limiteRms =
       Math.min(
-        c.RMS_ABSOLUTO_MAX_M,
+        perfilR64.rmsAbsolutoMax,
         Math.max(
           1.5,
-          eje.span * c.RMS_RELATIVO_MAX
+          eje.span * perfilR64.rmsRelativoMax
         )
       );
 
@@ -12198,7 +12428,7 @@ ocultarHoraLlegada();
     if(
       !ejeConCalidadR63(
         ejeEntrada,
-        ALGORITMO_VERTICE_GEOMETRICO_R63.TRAMO_ENTRADA_MIN_M
+        parametrosVerticeGeometricoR64().tramoEntradaMin
       )
     ){
       return;
@@ -12251,6 +12481,9 @@ ocultarHoraLlegada();
     const c =
       ALGORITMO_VERTICE_GEOMETRICO_R63;
 
+    const perfilR64 =
+      parametrosVerticeGeometricoR64();
+
     /*
       Si R62 ya consumió o eliminó ese vértice, la capa 2 pierde autoridad.
       Nunca reconstruimos una esquina que visualmente ya quedó atrás.
@@ -12271,7 +12504,7 @@ ocultarHoraLlegada();
       Number.isFinite(estado.creadoMs) &&
       Number.isFinite(ahoraMs) &&
       ahoraMs - estado.creadoMs >
-        c.VIGENCIA_CANDIDATO_MS
+        perfilR64.vigenciaMs
     ){
       verticeGeometricoPendienteR63 = null;
       return false;
@@ -12344,7 +12577,7 @@ ocultarHoraLlegada();
         diferenciaRumboGrados(
           rumboSalidaPrevio,
           rumboNuevo
-        ) > c.DESVIO_RUMBO_SALIDA_MAX_GRADOS
+        ) > perfilR64.desvioSalidaMax
       ){
         /*
           Curva, rotonda o nueva maniobra antes de consolidar una recta de
@@ -12362,14 +12595,14 @@ ocultarHoraLlegada();
 
     while(
       estado.puntosSalida.length >
-        c.PUNTOS_SALIDA_MAX
+        perfilR64.salidaMax
     ){
       estado.puntosSalida.shift();
     }
 
     if(
       estado.puntosSalida.length <
-        c.PUNTOS_SALIDA_MIN
+        perfilR64.salidaMin
     ){
       return false;
     }
@@ -12383,7 +12616,7 @@ ocultarHoraLlegada();
     if(
       !ejeConCalidadR63(
         ejeSalida,
-        c.TRAMO_SALIDA_MIN_M
+        perfilR64.tramoSalidaMin
       )
     ){
       return false;
@@ -12469,7 +12702,7 @@ ocultarHoraLlegada();
     if(
       !Number.isFinite(salidaDesdeVertice) ||
       salidaDesdeVertice <
-        c.SALIDA_CONFIRMADA_DESDE_VERTICE_M
+        perfilR64.salidaConfirmadaMin
     ){
       return false;
     }
@@ -13173,9 +13406,9 @@ ocultarHoraLlegada();
           clasificacion.extrema === true;
 
         const confirmacionesNecesarias =
-          pendiente.extrema
-            ? c.CONFIRMACIONES_EXTREMO
-            : c.CONFIRMACIONES_NORMAL;
+          confirmacionesGeometricasNecesariasR64(
+            pendiente.extrema === true
+          );
 
         const anteriorMs =
           new Date(
