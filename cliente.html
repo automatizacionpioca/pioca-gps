@@ -1609,6 +1609,136 @@
 
 
 /* ==========================================================
+   R65 - INDICADOR ÚNICO DE MONITOREO SATELITAL
+   Unifica el estado de monitoreo y elimina el segundo recuadro.
+   ========================================================== */
+
+#actualizacionBox{
+  display:none !important;
+}
+
+#estado{
+  width:auto !important;
+  min-width:188px !important;
+  max-width:calc(100vw - 132px) !important;
+  min-height:36px !important;
+  padding:7px 10px !important;
+}
+
+.estadoMonitorWrap{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.estadoTextoMonitor{
+  color:#1f6f3a !important;
+  font-size:11px !important;
+  letter-spacing:.15px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.estadoSenal{
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-end;
+  gap:3px;
+  min-width:34px;
+  flex:0 0 auto;
+}
+
+.senalBarra{
+  width:5px;
+  border-radius:999px;
+  background:#cfd9d3;
+  opacity:.45;
+  transition:background .25s ease, opacity .25s ease, transform .25s ease, box-shadow .25s ease;
+}
+
+.senalBarra.b1{ height:8px; }
+.senalBarra.b2{ height:12px; }
+.senalBarra.b3{ height:16px; }
+
+.senalBarra.activa{
+  opacity:1;
+}
+
+.senalBarra.verde{
+  background:#28bf59;
+  box-shadow:0 0 0 1px rgba(40,191,89,.08);
+}
+
+.senalBarra.ambar{
+  background:#ffb02e;
+  box-shadow:0 0 0 1px rgba(255,176,46,.08);
+}
+
+.senalBarra.roja{
+  background:#ff5252;
+  box-shadow:0 0 0 1px rgba(255,82,82,.08);
+}
+
+.senalBarra.parpadeo{
+  animation:piocaBarPulse 1.05s ease-in-out infinite;
+}
+
+#estado.estadoMonitoreoVerde{
+  border-color:#bfe4ca !important;
+  background:rgba(237,249,240,.95) !important;
+}
+
+#estado.estadoMonitoreoAmbar{
+  border-color:#f3dfae !important;
+  background:rgba(255,248,231,.96) !important;
+}
+
+#estado.estadoMonitoreoRojo{
+  border-color:#f2b5b5 !important;
+  background:rgba(255,241,241,.97) !important;
+}
+
+#estado.estadoMonitoreoAmbar .estadoTextoMonitor{
+  color:#8b5b00 !important;
+}
+
+#estado.estadoMonitoreoRojo .estadoTextoMonitor{
+  color:#b03333 !important;
+}
+
+@keyframes piocaBarPulse{
+  0%,100%{opacity:1;transform:translateY(0)}
+  50%{opacity:.38;transform:translateY(-1px)}
+}
+
+@media(max-width:430px){
+  #estado{
+    min-width:166px !important;
+    max-width:calc(100vw - 120px) !important;
+    min-height:33px !important;
+    padding:6px 9px !important;
+  }
+
+  .estadoTextoMonitor{
+    font-size:9.4px !important;
+  }
+
+  .estadoSenal{
+    min-width:31px;
+    gap:2.5px;
+  }
+
+  .senalBarra{ width:4px; }
+  .senalBarra.b1{ height:7px; }
+  .senalBarra.b2{ height:10px; }
+  .senalBarra.b3{ height:14px; }
+}
+
+
+/* ==========================================================
    R15 - PROGRESO CONTINUO ENTRE ETAPAS
    La camioneta y la línea avanzan según el tiempo restante.
    El tramo activo respira suavemente mientras está en curso.
@@ -8834,26 +8964,144 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
-  function pintarEstadoNormalEnVivo(){
+  function construirBarrasMonitoreo(
+    diferencia
+  ){
+
+    let barrasActivas = 1;
+    let colorClase = "verde";
+    let claseEstado = "estadoMonitoreoVerde";
+    let barraParpadeo = 1;
+
+    if(
+      diferencia <= 2
+    ){
+
+      barrasActivas = 1;
+      colorClase = "verde";
+      claseEstado = "estadoMonitoreoVerde";
+      barraParpadeo = 1;
+
+    }else if(
+      diferencia <= 3
+    ){
+
+      barrasActivas = 2;
+      colorClase = "verde";
+      claseEstado = "estadoMonitoreoVerde";
+      barraParpadeo = 2;
+
+    }else if(
+      diferencia <= 4
+    ){
+
+      barrasActivas = 3;
+      colorClase = "verde";
+      claseEstado = "estadoMonitoreoVerde";
+      barraParpadeo = 3;
+
+    }else if(
+      diferencia <= 7
+    ){
+
+      barrasActivas = 3;
+      colorClase = "ambar";
+      claseEstado = "estadoMonitoreoAmbar";
+      barraParpadeo = 3;
+
+    }else{
+
+      barrasActivas = 3;
+      colorClase = "roja";
+      claseEstado = "estadoMonitoreoRojo";
+      barraParpadeo = 3;
+    }
+
+    let html = "";
+
+    for(
+      let i = 1;
+      i <= 3;
+      i++
+    ){
+
+      html +=
+        '<span class="senalBarra b' +
+        i +
+        (
+          i <= barrasActivas
+            ? ' activa ' + colorClase
+            : ''
+        ) +
+        (
+          i === barraParpadeo
+            ? ' parpadeo'
+            : ''
+        ) +
+        '"></span>';
+    }
+
+    return {
+      html,
+      claseEstado
+    };
+  }
+
+  function pintarEstadoNormalEnVivo(
+    diferencia = null
+  ){
+
+    if(
+      !Number.isFinite(
+        diferencia
+      )
+    ){
+
+      diferencia =
+        Number.isFinite(
+          ultimaActualizacionMs
+        ) && ultimaActualizacionMs > 0
+          ? Math.max(
+              0,
+              Math.floor(
+                (
+                  Date.now() -
+                  ultimaActualizacionMs
+                ) / 1000
+              )
+            )
+          : 0;
+    }
+
+    const senal =
+      construirBarrasMonitoreo(
+        diferencia
+      );
 
     estado.classList.remove(
       "estadoProximo",
       "estadoOculto",
-      "estadoNoDisponible"
+      "estadoNoDisponible",
+      "estadoMonitoreoVerde",
+      "estadoMonitoreoAmbar",
+      "estadoMonitoreoRojo"
     );
 
     estado.classList.add(
-      "estadoVisible"
+      "estadoVisible",
+      senal.claseEstado
     );
 
     estado.innerHTML =
-      '<span class="estadoEnVivo">' +
-        '<span class="puntoEnVivo"></span>' +
-        '<span class="estadoTexto">MONITOREO SATELITAL</span>' +
+      '<span class="estadoMonitorWrap">' +
+        '<span class="estadoTexto estadoTextoMonitor">MONITOREO SATELITAL</span>' +
+        '<span class="estadoSenal" aria-label="Estado de señal de actualización">' +
+          senal.html +
+        '</span>' +
       '</span>';
 
     estado.style.background =
-      "#dff5e1";
+      "";
   }
 
   function actualizarEstadoLlegada(){
@@ -10623,6 +10871,10 @@ ocultarHoraLlegada();
       actualizacionTexto.textContent =
         "SIN ACTUALIZACIÓN";
     }
+
+    pintarEstadoNormalEnVivo(
+      diferencia
+    );
   }
 
   function iniciarReloj(){
