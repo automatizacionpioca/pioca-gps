@@ -1,0 +1,303 @@
+name: Compilar piOca Android APK B14 PRUEBA Cadencia DESDE B13
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Instalar Android 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Generar proyecto base V7
+        shell: bash
+        run: |
+          set -e
+
+          python3 -m pip install --quiet pyyaml
+
+          python3 - <<'PY'
+          import yaml
+          from pathlib import Path
+
+          source = Path(".github/workflows/build-android-apk.yml")
+
+          with source.open("r", encoding="utf-8") as f:
+              data = yaml.safe_load(f)
+
+          script = None
+
+          for step in data["jobs"]["build"]["steps"]:
+              name = str(step.get("name", ""))
+
+              if name.startswith("Crear proyecto Android v7"):
+                  script = step.get("run")
+                  break
+
+          if not script:
+              raise SystemExit(
+                  "ERROR: No encontré el bloque de generación V7 "
+                  "en build-android-apk.yml"
+              )
+
+          Path("/tmp/pioca-genera-v7.sh").write_text(
+              script,
+              encoding="utf-8"
+          )
+          PY
+
+          bash /tmp/pioca-genera-v7.sh
+
+      - name: Aplicar V8 silencio No molestar
+        run: |
+          python3 .github/scripts/patch_android_v8_silencio.py
+
+      - name: Aplicar V9 GPS cada 2 segundos
+        run: |
+          python3 .github/scripts/patch_android_v9_gps_2s.py
+
+      - name: Aplicar V10 compartir Google Maps y WhatsApp
+        run: |
+          python3 .github/scripts/patch_android_v10_maps_share.py
+
+      - name: Aplicar V11 ETA dinamica
+        run: |
+          python3 .github/scripts/patch_android_v11_eta_dinamica.py
+
+      - name: Aplicar V12 ETA Freeze
+        run: |
+          python3 .github/scripts/patch_android_v12_eta_freeze.py
+
+      - name: Aplicar V13 reloj llegada y DND 2/4
+        run: |
+          python3 .github/scripts/patch_android_v13_reloj_llegada.py
+
+      - name: Aplicar B14 PRUEBA - desacoplar cadencia de lastOk
+        shell: bash
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          gradle = Path("android-pioca/app/build.gradle")
+          service = Path(
+              "android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java"
+          )
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit("ERROR B14 PRUEBA: " + label)
+              return text.replace(old, new, 1)
+
+          def re_once(text, pattern, repl, label, flags=0):
+              out, n = re.subn(
+                  pattern,
+                  repl,
+                  text,
+                  count=1,
+                  flags=flags
+              )
+              if n != 1:
+                  raise SystemExit("ERROR B14 PRUEBA: " + label)
+              return out
+
+          t = gradle.read_text(encoding="utf-8")
+
+          t = replace_once(
+              t,
+              "versionCode 13",
+              "versionCode 14",
+              "versionCode 13 -> 14"
+          )
+
+          t = replace_once(
+              t,
+              'versionName "0.13-reloj-llegada"',
+              'versionName "0.14-prueba-cadencia-desacoplada"',
+              "versionName B14 prueba"
+          )
+
+          gradle.write_text(t, encoding="utf-8")
+
+          t = service.read_text(encoding="utf-8")
+
+          t = re_once(
+              t,
+              r'(private long lastOk\s*=\s*0L;)',
+              r'''\1
+
+              /*
+               * B14 PRUEBA:
+               * reloj local de inicio de transmisión.
+               * lastOk queda reservado para confirmación/salud del servidor.
+               */
+              private long lastSendStarted = 0L;
+
+              private static final long MIN_SEND_GUARD_MS = 1500L;''',
+              "insertar lastSendStarted"
+          )
+
+          pattern = (
+              r'if\s*\(\s*'
+              r'System\.currentTimeMillis\(\)\s*-\s*lastOk\s*>=\s*2000L'
+              r'\s*\)\s*\{\s*'
+              r'sendAsync\(\s*l\s*\);\s*'
+              r'\}'
+          )
+
+          replacement = r'''long nowLocation =
+                          System.currentTimeMillis();
+
+                  if (
+
+                          !sending.get()
+
+                          && (
+
+                                  lastSendStarted == 0L
+
+                                  || nowLocation - lastSendStarted >= MIN_SEND_GUARD_MS
+
+                          )
+
+                  ) {
+
+
+                      lastSendStarted =
+                              nowLocation;
+
+
+                      sendAsync(
+                              l
+                      );
+                  }'''
+
+          t = re_once(
+              t,
+              pattern,
+              replacement,
+              "desacoplar envío normal de lastOk",
+              re.S
+          )
+
+          checks = {
+              "GPS principal 2 s": r'LocationManager\.GPS_PROVIDER,\s*2000L',
+              "NETWORK respaldo 10 s": r'LocationManager\.NETWORK_PROVIDER,\s*10000L',
+              "heartbeat lastOk 10 s": r'last\s*!=\s*null\s*&&\s*now\s*-\s*lastOk\s*>=\s*10000L',
+              "nuevo reloj lastSendStarted": r'private long lastSendStarted\s*=\s*0L;',
+              "guard B14 1500 ms": r'MIN_SEND_GUARD_MS\s*=\s*1500L;',
+              "protección sending": r'!sending\.compareAndSet\(',
+              "ETA dinámica": r'maybeRefreshRouteEta\(now\)',
+              "freeze ETA T0": r'now\s*>=\s*clientArrivalMillis',
+              "anti carrera ETA": r'etaApplyNow\s*>=\s*clientArrivalMillis',
+              "reloj llegada V13": r'maybeLatchArrivalAndFinish\(now\)',
+              "latch T0": r'arrivalReachedAtMillis\s*=\s*clientArrivalMillis',
+              "deadline T0+5": r'arrivalReachedAtMillis\s*\+\s*TRACKING_AFTER_ARRIVAL_MS',
+              "DND entrada 2 min": r'DND_ENTER_BEFORE_ARRIVAL_MS\s*=\s*2L\s*\*\s*60L\s*\*\s*1000L',
+              "DND salida 4 min": r'DND_EXIT_BEFORE_ARRIVAL_MS\s*=\s*4L\s*\*\s*60L\s*\*\s*1000L',
+          }
+
+          for label, rx in checks.items():
+              if not re.search(rx, t, re.S):
+                  raise SystemExit("ERROR B14 PRUEBA: falta " + label)
+
+          if re.search(
+              r'System\.currentTimeMillis\(\)\s*-\s*lastOk\s*>=\s*2000L',
+              t,
+              re.S
+          ):
+              raise SystemExit(
+                  "ERROR B14 PRUEBA: quedó activo el filtro normal lastOk >= 2000 ms"
+              )
+
+          if re.search(
+              r'now\s*>=\s*expiresAtMillis',
+              t,
+              re.S
+          ):
+              raise SystemExit(
+                  "ERROR B14 PRUEBA: se perdió protección V13 contra cierre pre-T0"
+              )
+
+          service.write_text(t, encoding="utf-8")
+
+          print(
+              "B14 PRUEBA aplicada SOBRE V13: "
+              "GPS 2 s + cadencia desacoplada de lastOk + guard 1500 ms; "
+              "V10/V11/V12/V13 preservados."
+          )
+          PY
+
+      - name: Verificar configuración B14 PRUEBA DESDE B13
+        shell: bash
+        run: |
+          set -e
+
+          SERVICE="android-pioca/app/src/main/java/ar/com/pioca/seguimiento/TrackingService.java"
+          MAIN="android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java"
+          MANIFEST="android-pioca/app/src/main/AndroidManifest.xml"
+          GRADLE="android-pioca/app/build.gradle"
+
+          grep -q 'versionCode 14' "$GRADLE"
+          grep -q 'versionName "0.14-prueba-cadencia-desacoplada"' "$GRADLE"
+
+          grep -q 'lastSendStarted' "$SERVICE"
+          grep -q 'MIN_SEND_GUARD_MS = 1500L' "$SERVICE"
+          grep -q 'GPS_PROVIDER' "$SERVICE"
+          grep -q '2000L' "$SERVICE"
+          grep -q 'NETWORK_PROVIDER' "$SERVICE"
+          grep -q '10000L' "$SERVICE"
+          grep -q 'maybeRefreshRouteEta(now)' "$SERVICE"
+          grep -q 'maybeLatchArrivalAndFinish(now)' "$SERVICE"
+          grep -q 'arrivalReachedAtMillis' "$SERVICE"
+
+          grep -q 'android.intent.action.SEND' "$MANIFEST"
+          grep -q 'android:mimeType="text/plain"' "$MANIFEST"
+          grep -q 'android:launchMode="singleTop"' "$MANIFEST"
+          grep -q 'consumeSharedDestination' "$MAIN"
+          grep -q 'shareWhatsApp' "$MAIN"
+          grep -q 'pending_shared_destination' "$MAIN"
+          grep -q 'com.whatsapp.w4b' "$MAIN"
+
+          echo "B14 PRUEBA verificada: base V13 reloj llegada + cambio de cadencia."
+
+      - name: Compilar APK debug
+        working-directory: android-pioca
+        run: |
+          gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK
+        run: |
+          cp \
+            android-pioca/app/build/outputs/apk/debug/app-debug.apk \
+            piOca-Seguimiento-B14-PRUEBA-cadencia-DESDE-B13.apk
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-Seguimiento-APK-B14-PRUEBA-cadencia-DESDE-B13
+          path: piOca-Seguimiento-B14-PRUEBA-cadencia-DESDE-B13.apk
+          retention-days: 30
