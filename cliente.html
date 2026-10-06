@@ -2186,6 +2186,96 @@ body.seguimientoFinalizadoVisual #mensajeTecnicoPanel{
 }
 
 
+/* ==========================================================
+   R64 - MENSAJERÍA: DESCUBRIBILIDAD + RESPUESTA PENDIENTE
+   - aro verde animado mientras el panel está cerrado;
+   - badge rojo "1" cuando el técnico ya leyó y el cliente aún
+     no abrió la respuesta automática OK;
+   - no modifica Supabase, GPS, ETA, llegada ni tracking.
+   ========================================================== */
+
+#piocaTrayectoPanel #btnMensajeTecnico::before{
+  content:"";
+  position:absolute;
+  inset:-5px;
+  border:2px solid rgba(56,224,111,.92);
+  border-radius:50%;
+  pointer-events:none;
+  opacity:.92;
+  transform:scale(1);
+  animation:piocaMensajeAroVerdeR64 1.45s ease-out infinite;
+}
+
+#piocaTrayectoPanel #btnMensajeTecnico.abierto::before{
+  display:none !important;
+}
+
+@keyframes piocaMensajeAroVerdeR64{
+  0%{
+    opacity:.92;
+    transform:scale(.96);
+    box-shadow:0 0 0 0 rgba(56,224,111,.24);
+  }
+  72%,100%{
+    opacity:0;
+    transform:scale(1.28);
+    box-shadow:0 0 0 7px rgba(56,224,111,0);
+  }
+}
+
+#piocaTrayectoPanel #btnMensajeTecnico.tieneRespuestaNueva::after{
+  content:"1";
+  position:absolute;
+  z-index:3;
+  top:-7px;
+  right:-7px;
+  width:19px;
+  height:19px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:2px solid #fff;
+  border-radius:50%;
+  background:#e94235;
+  color:#fff;
+  font:900 10px/1 Arial,sans-serif;
+  box-shadow:0 2px 7px rgba(150,25,25,.28);
+  pointer-events:none;
+  animation:piocaRespuestaNuevaR64 .92s ease-in-out infinite;
+}
+
+#piocaTrayectoPanel #btnMensajeTecnico.abierto::after{
+  display:none !important;
+}
+
+@keyframes piocaRespuestaNuevaR64{
+  0%,100%{
+    transform:scale(1);
+    opacity:1;
+    box-shadow:
+      0 2px 7px rgba(150,25,25,.28),
+      0 0 0 0 rgba(233,66,53,.28);
+  }
+  50%{
+    transform:scale(1.14);
+    opacity:.78;
+    box-shadow:
+      0 2px 7px rgba(150,25,25,.22),
+      0 0 0 5px rgba(233,66,53,0);
+  }
+}
+
+@media(max-width:430px){
+  #piocaTrayectoPanel #btnMensajeTecnico.tieneRespuestaNueva::after{
+    top:-6px;
+    right:-6px;
+    width:18px;
+    height:18px;
+    font-size:9.5px;
+  }
+}
+
+
 
 /* ==========================================================
    PANTALLA FINAL - EXPERIENCIA DE SERVICIO + RESEÑA
@@ -4125,6 +4215,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     R64 - parche operativo 06/10/2026:
     - renderer de vértices redondeado para cadencia B14 ~2 s;
     - panel de mensajes con ENVIAR/CERRAR y respuesta visual OK al leer;
+    - aro verde animado en el botón de mensajes mientras está cerrado;
+    - badge rojo "1" persistente hasta abrir la respuesta OK del técnico;
+    - reconsulta de mensajes al restaurar/desbloquear/reabrir la página;
     - la preaproximación ETA se resuelve en Android B15 (no en este cliente),
       preservando la independencia entre ETA y llegada física.
 
@@ -4356,6 +4449,108 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
   }
 
+
+  /*
+    R64 - estado local de lectura de la respuesta automática "OK".
+
+    Supabase ya conserva message_id + read_at. El cliente sólo necesita
+    recordar si ESA respuesta ya fue abierta visualmente por el usuario.
+    La clave incluye tracking + message_id para que una respuesta nueva
+    vuelva a generar su propio aviso aunque la anterior ya haya sido vista.
+  */
+  function claveRespuestaTecnicoVistaLocal(messageId){
+    if(!codigo || !messageId){ return null; }
+
+    return (
+      "pioca_respuesta_tecnico_vista_" +
+      String(codigo).trim().toUpperCase() +
+      "_" +
+      String(messageId)
+    );
+  }
+
+  function respuestaTecnicoYaVistaLocal(messageId){
+    const clave = claveRespuestaTecnicoVistaLocal(messageId);
+    if(!clave){ return false; }
+
+    try{
+      return localStorage.getItem(clave) === "1";
+    }catch(e){
+      return false;
+    }
+  }
+
+  function marcarRespuestaTecnicoVistaLocal(messageId){
+    const clave = claveRespuestaTecnicoVistaLocal(messageId);
+
+    if(clave){
+      try{
+        localStorage.setItem(clave,"1");
+      }catch(e){}
+    }
+
+    if(btnMensajeTecnico){
+      btnMensajeTecnico.classList.remove("tieneRespuestaNueva");
+      btnMensajeTecnico.setAttribute(
+        "aria-label",
+        "Enviar mensaje al técnico"
+      );
+      btnMensajeTecnico.setAttribute(
+        "title",
+        "Enviar mensaje al técnico"
+      );
+    }
+  }
+
+  function actualizarAvisoRespuestaTecnico(r){
+    if(!btnMensajeTecnico){ return; }
+
+    const messageId =
+      r && r.message_id
+        ? String(r.message_id)
+        : null;
+
+    const hayRespuesta =
+      Boolean(
+        messageId &&
+        r &&
+        r.read_at
+      );
+
+    if(!hayRespuesta){
+      btnMensajeTecnico.classList.remove("tieneRespuestaNueva");
+      return;
+    }
+
+    const panelAbierto =
+      mensajeTecnicoPanel &&
+      mensajeTecnicoPanel.classList.contains("visible");
+
+    if(panelAbierto){
+      marcarRespuestaTecnicoVistaLocal(messageId);
+      return;
+    }
+
+    const pendiente =
+      !respuestaTecnicoYaVistaLocal(messageId);
+
+    btnMensajeTecnico.classList.toggle(
+      "tieneRespuestaNueva",
+      pendiente
+    );
+
+    if(pendiente){
+      btnMensajeTecnico.setAttribute(
+        "aria-label",
+        "Tenés 1 respuesta nueva del técnico"
+      );
+      btnMensajeTecnico.setAttribute(
+        "title",
+        "Tenés 1 respuesta nueva del técnico"
+      );
+    }
+  }
+
   function pintarConversacionMensajeCliente(r){
     if(!mensajeTecnicoConversacion){ return; }
 
@@ -4396,6 +4591,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(r.message_id){ mensajeTecnicoIdUltimo = r.message_id; }
 
     pintarConversacionMensajeCliente(r);
+    actualizarAvisoRespuestaTecnico(r);
 
     if(r.read_at){
       mensajeTecnicoEstado.textContent = "✓ Mensaje leído por el técnico";
@@ -4451,6 +4647,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       mensajeTecnicoEstado.textContent = "✓ Mensaje enviado · aún no leído";
       mensajeTecnicoEstado.className = "enviado";
       pintarConversacionMensajeCliente({
+        message_id:mensajeTecnicoIdUltimo,
+        read_at:null
+      });
+      actualizarAvisoRespuestaTecnico({
         message_id:mensajeTecnicoIdUltimo,
         read_at:null
       });
@@ -17225,8 +17425,21 @@ if(
 
 
   btnMensajeTecnico.addEventListener("click",function(){
+    const teniaRespuestaPendiente =
+      btnMensajeTecnico.classList.contains("tieneRespuestaNueva");
+
     mensajeTecnicoPanel.classList.add("visible");
     btnMensajeTecnico.classList.add("abierto");
+
+    if(
+      teniaRespuestaPendiente &&
+      mensajeTecnicoIdUltimo
+    ){
+      marcarRespuestaTecnicoVistaLocal(
+        mensajeTecnicoIdUltimo
+      );
+    }
+
     consultarEstadoMensajeCliente();
     setTimeout(function(){ mensajeTecnicoTexto.focus(); },80);
   });
@@ -17330,6 +17543,8 @@ if(
 
         iniciarAnimacionTrayectoContinua();
 
+        consultarEstadoMensajeCliente();
+
         consultar(true);
       }
     }
@@ -17367,6 +17582,8 @@ if(
 
         iniciarAnimacionTrayectoContinua();
 
+        consultarEstadoMensajeCliente();
+
         consultar(true);
       }
     }
@@ -17381,6 +17598,8 @@ if(
         codigo
       ){
         actualizarPanelTrayecto();
+
+        consultarEstadoMensajeCliente();
 
         iniciarAnimacionTrayectoContinua();
       }
