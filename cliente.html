@@ -4212,8 +4212,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 (function(){
 
   /*
-    R64 - parche operativo 06/10/2026:
+    R64.1 - parche operativo 06/10/2026:
     - renderer de vértices redondeado para cadencia B14 ~2 s;
+    - continuidad de salida durante reconstrucciones dentro de un giro;
+    - consumo del vértice al finalizar la curva y cierre de la franja 2,5-5 m;
     - panel de mensajes con ENVIAR/CERRAR y respuesta visual OK al leer;
     - aro verde animado en el botón de mensajes mientras está cerrado;
     - badge rojo "1" persistente hasta abrir la respuesta OK del técnico;
@@ -5611,6 +5613,19 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     No genera posiciones nuevas ni aumenta consultas.
   */
   let animacionMarcadorId =
+    null;
+
+  /*
+    R64.1 - CONTINUIDAD VISUAL DE CURVA
+
+    Conserva únicamente la salida de la curva que el pin YA empezó a
+    recorrer. Si llega un GPS nuevo antes de terminarla, la reconstrucción
+    continúa hacia esa salida en vez de volver a apuntar al vértice.
+
+    Es estado de render puro: no modifica GPS, filtros, TLS/PCA, ETA,
+    proximidad, llegada física ni la geometría confirmada del servidor.
+  */
+  let continuidadCurvaVisualR64 =
     null;
 
   /* ==========================================================
@@ -12279,6 +12294,7 @@ ocultarHoraLlegada();
 
   function limpiarColaVerticesVisuales(){
     verticesVisualesPendientes = [];
+    continuidadCurvaVisualR64 = null;
   }
 
 
@@ -15529,8 +15545,13 @@ ocultarHoraLlegada();
         Number.isFinite(tramoEntrada) &&
         Number.isFinite(tramoSalida) &&
         Number.isFinite(angulo) &&
-        tramoEntrada >= 5 &&
-        tramoSalida >= 5 &&
+        /*
+          R64.1: el vértice sigue vivo hasta 2,5 m. Por eso el renderer
+          también debe poder redondear desde inmediatamente fuera de ese
+          radio; antes quedaba una franja 2,5-5 m que recaía en punta.
+        */
+        tramoEntrada >= 2.6 &&
+        tramoSalida >= 2.6 &&
         angulo >= 24 &&
         angulo <= 125;
 
@@ -15560,7 +15581,7 @@ ocultarHoraLlegada();
         tramoSalida * 0.30
       );
 
-      if(!Number.isFinite(radio) || radio < 1.6){
+      if(!Number.isFinite(radio) || radio < 0.70){
         salida.push({
           lat:b.lat,
           lon:b.lon,
@@ -15602,7 +15623,12 @@ ocultarHoraLlegada();
         Math.min(8,Math.round(4 + angulo / 32))
       );
 
-      const pasoConsumo = Math.max(1,Math.ceil(pasos * 0.58));
+      /*
+        R64.1: el vértice se libera recién en la salida de la curva.
+        El 58% anterior podía dejar al siguiente paquete GPS sin vértice
+        mientras el pin todavía estaba doblando.
+      */
+      const pasoConsumo = pasos;
 
       for(let k = 1; k <= pasos; k++){
         const t = k / pasos;
@@ -15619,7 +15645,11 @@ ocultarHoraLlegada();
         salida.push({
           lat:lat,
           lon:lon,
-          consumirVertice:k === pasoConsumo ? indiceVertice : null
+          consumirVertice:k === pasoConsumo ? indiceVertice : null,
+          curvaVertice:indiceVertice,
+          salidaCurvaLat:salidaCurva.lat,
+          salidaCurvaLon:salidaCurva.lon,
+          finCurva:k === pasos
         });
       }
     }
@@ -15667,7 +15697,119 @@ ocultarHoraLlegada();
       la animación durante una esquina.
     */
 
+    /*
+      Si el paquete anterior fue interrumpido mientras el pin YA estaba
+      dentro de una curva, no volvemos a reconstruir pasando por el vértice.
+      Conservamos la salida de ESA curva como waypoint transitorio.
+    */
+    let continuidadAplicableR64 = false;
+
+    if(
+      continuidadCurvaVisualR64 &&
+      verticesVisualesPendientes.length > 0
+    ){
+      const primero = verticesVisualesPendientes[0];
+      const activa = continuidadCurvaVisualR64;
+
+      const coincideVertice = distanciaMetros(
+        primero.lat,
+        primero.lon,
+        activa.verticeLat,
+        activa.verticeLon
+      );
+
+      const distanciaSalidaActiva = distanciaMetros(
+        inicio.lat,
+        inicio.lon,
+        activa.salidaLat,
+        activa.salidaLon
+      );
+
+      const rumboSalidaGuardado = rumboGrados(
+        activa.verticeLat,
+        activa.verticeLon,
+        activa.salidaLat,
+        activa.salidaLon
+      );
+
+      const rumboSalidaNuevo = rumboGrados(
+        activa.verticeLat,
+        activa.verticeLon,
+        latDestino,
+        lonDestino
+      );
+
+      const distanciaVerticeActual = distanciaMetros(
+        activa.verticeLat,
+        activa.verticeLon,
+        inicio.lat,
+        inicio.lon
+      );
+
+      const distanciaVerticeSalida = distanciaMetros(
+        activa.verticeLat,
+        activa.verticeLon,
+        activa.salidaLat,
+        activa.salidaLon
+      );
+
+      const rumboVerticeActual = rumboGrados(
+        activa.verticeLat,
+        activa.verticeLon,
+        inicio.lat,
+        inicio.lon
+      );
+
+      const salidaYaSuperada =
+        Number.isFinite(distanciaVerticeActual) &&
+        Number.isFinite(distanciaVerticeSalida) &&
+        Number.isFinite(rumboVerticeActual) &&
+        Number.isFinite(rumboSalidaGuardado) &&
+        distanciaVerticeActual >= distanciaVerticeSalida - 0.15 &&
+        diferenciaRumboGrados(
+          rumboVerticeActual,
+          rumboSalidaGuardado
+        ) <= 35;
+
+      const continuidadCoherente =
+        Number.isFinite(coincideVertice) &&
+        coincideVertice <= Math.max(3.5,c.RADIO_VERTICE_CONSUMIDO_M) &&
+        Number.isFinite(distanciaSalidaActiva) &&
+        distanciaSalidaActiva > 0.45 &&
+        !salidaYaSuperada &&
+        Number.isFinite(rumboSalidaGuardado) &&
+        Number.isFinite(rumboSalidaNuevo) &&
+        diferenciaRumboGrados(
+          rumboSalidaGuardado,
+          rumboSalidaNuevo
+        ) <= 70;
+
+      if(continuidadCoherente){
+        continuidadAplicableR64 = true;
+      }else{
+        /*
+          Si ya alcanzamos la salida, consumimos únicamente ese vértice.
+          Si la geometría nueva contradice la salida anterior, soltamos la
+          continuidad y dejamos que R64 reconstruya normalmente.
+        */
+        if(
+          Number.isFinite(coincideVertice) &&
+          coincideVertice <= Math.max(3.5,c.RADIO_VERTICE_CONSUMIDO_M) &&
+          Number.isFinite(distanciaSalidaActiva) &&
+          (
+            distanciaSalidaActiva <= 0.45 ||
+            salidaYaSuperada
+          )
+        ){
+          verticesVisualesPendientes.shift();
+        }
+
+        continuidadCurvaVisualR64 = null;
+      }
+    }
+
     while(
+      !continuidadAplicableR64 &&
       verticesVisualesPendientes.length > 0
     ){
       const primero = verticesVisualesPendientes[0];
@@ -15695,11 +15837,42 @@ ocultarHoraLlegada();
     );
 
     const verticesRutaUtiles = [];
-    const puntosBase = [inicio];
+    let puntos = [];
 
-    verticesRuta.forEach(
-      function(p){
-        const anterior = puntosBase[puntosBase.length - 1];
+    if(
+      continuidadAplicableR64 &&
+      verticesRuta.length > 0
+    ){
+      /*
+        Continuación de una curva ya iniciada:
+        inicio visual actual -> salida de curva guardada -> resto de la cola
+        -> GPS nuevo. Así nunca reapuntamos hacia atrás al vértice y se
+        elimina el pequeño triángulo producido por la reconstrucción.
+      */
+      puntos.push({
+        lat:inicio.lat,
+        lon:inicio.lon,
+        consumirVertice:null
+      });
+
+      verticesRuta.forEach(function(p){
+        verticesRutaUtiles.push(p);
+      });
+
+      const salidaActiva = {
+        lat:continuidadCurvaVisualR64.salidaLat,
+        lon:continuidadCurvaVisualR64.salidaLon
+      };
+
+      puntos.push({
+        lat:salidaActiva.lat,
+        lon:salidaActiva.lon,
+        consumirVertice:0
+      });
+
+      for(let j = 1; j < verticesRuta.length; j++){
+        const anterior = puntos[puntos.length - 1];
+        const p = verticesRuta[j];
         const distancia = distanciaMetros(
           anterior.lat,
           anterior.lon,
@@ -15708,37 +15881,79 @@ ocultarHoraLlegada();
         );
 
         if(!Number.isFinite(distancia) || distancia > 1.5){
-          puntosBase.push(p);
-          verticesRutaUtiles.push(p);
+          puntos.push({
+            lat:p.lat,
+            lon:p.lon,
+            consumirVertice:j
+          });
         }
       }
-    );
 
-    const ultimoRuta = puntosBase[puntosBase.length - 1];
-    const distanciaFinal = distanciaMetros(
-      ultimoRuta.lat,
-      ultimoRuta.lon,
-      latDestino,
-      lonDestino
-    );
+      const ultimoContinuidad = puntos[puntos.length - 1];
+      const distanciaFinalContinuidad = distanciaMetros(
+        ultimoContinuidad.lat,
+        ultimoContinuidad.lon,
+        latDestino,
+        lonDestino
+      );
 
-    if(!Number.isFinite(distanciaFinal) || distanciaFinal > 1.5){
-      puntosBase.push({lat:latDestino,lon:lonDestino});
+      if(
+        !Number.isFinite(distanciaFinalContinuidad) ||
+        distanciaFinalContinuidad > 1.5
+      ){
+        puntos.push({
+          lat:latDestino,
+          lon:lonDestino,
+          consumirVertice:null
+        });
+      }
+
+    }else{
+      const puntosBase = [inicio];
+
+      verticesRuta.forEach(
+        function(p){
+          const anterior = puntosBase[puntosBase.length - 1];
+          const distancia = distanciaMetros(
+            anterior.lat,
+            anterior.lon,
+            p.lat,
+            p.lon
+          );
+
+          if(!Number.isFinite(distancia) || distancia > 1.5){
+            puntosBase.push(p);
+            verticesRutaUtiles.push(p);
+          }
+        }
+      );
+
+      const ultimoRuta = puntosBase[puntosBase.length - 1];
+      const distanciaFinal = distanciaMetros(
+        ultimoRuta.lat,
+        ultimoRuta.lon,
+        latDestino,
+        lonDestino
+      );
+
+      if(!Number.isFinite(distanciaFinal) || distanciaFinal > 1.5){
+        puntosBase.push({lat:latDestino,lon:lonDestino});
+      }
+
+      if(puntosBase.length < 2){
+        marcador.setLatLng([latDestino,lonDestino]);
+        limpiarColaVerticesVisuales();
+        return;
+      }
+
+      const rutaSuavizada = construirRutaVisualSuavizadaR64(
+        puntosBase,
+        verticesRutaUtiles.length,
+        velocidadKmh
+      );
+
+      puntos = rutaSuavizada.puntos;
     }
-
-    if(puntosBase.length < 2){
-      marcador.setLatLng([latDestino,lonDestino]);
-      limpiarColaVerticesVisuales();
-      return;
-    }
-
-    const rutaSuavizada = construirRutaVisualSuavizadaR64(
-      puntosBase,
-      verticesRutaUtiles.length,
-      velocidadKmh
-    );
-
-    const puntos = rutaSuavizada.puntos;
 
     if(!Array.isArray(puntos) || puntos.length < 2){
       marcador.setLatLng([latDestino,lonDestino]);
@@ -15784,9 +15999,23 @@ ocultarHoraLlegada();
       distanciaTotal = acumuladaFin;
     }
 
-    if(!Number.isFinite(distanciaTotal) || distanciaTotal < 2){
+    const distanciaMinimaAnimableR64 =
+      continuidadAplicableR64 ? 0.35 : 2;
+
+    if(
+      !Number.isFinite(distanciaTotal) ||
+      distanciaTotal < distanciaMinimaAnimableR64
+    ){
       marcador.setLatLng([latDestino,lonDestino]);
-      limpiarColaVerticesVisuales();
+
+      if(continuidadAplicableR64){
+        if(verticesVisualesPendientes.length > 0){
+          verticesVisualesPendientes.shift();
+        }
+        continuidadCurvaVisualR64 = null;
+      }else{
+        limpiarColaVerticesVisuales();
+      }
       return;
     }
 
@@ -15857,6 +16086,30 @@ ocultarHoraLlegada();
 
       marcador.setLatLng([latActual,lonActual]);
 
+      /*
+        R64.1: la continuidad se arma sólo cuando el pin YA está recorriendo
+        un segmento de la curva. Nunca anticipa el giro.
+      */
+      if(
+        Number.isInteger(segmento.hasta.curvaVertice)
+      ){
+        const indiceCurva = segmento.hasta.curvaVertice;
+        const verticeCurva = verticesRutaUtiles[indiceCurva];
+
+        if(
+          verticeCurva &&
+          Number.isFinite(segmento.hasta.salidaCurvaLat) &&
+          Number.isFinite(segmento.hasta.salidaCurvaLon)
+        ){
+          continuidadCurvaVisualR64 = {
+            verticeLat:verticeCurva.lat,
+            verticeLon:verticeCurva.lon,
+            salidaLat:segmento.hasta.salidaCurvaLat,
+            salidaLon:segmento.hasta.salidaCurvaLon
+          };
+        }
+      }
+
       centrarMapaEnAreaUtil(
         latActual,
         lonActual,
@@ -15887,6 +16140,22 @@ ocultarHoraLlegada();
             coincide <= c.RADIO_VERTICE_CONSUMIDO_M
           ){
             verticesVisualesPendientes.shift();
+
+            if(continuidadCurvaVisualR64){
+              const coincideActiva = distanciaMetros(
+                continuidadCurvaVisualR64.verticeLat,
+                continuidadCurvaVisualR64.verticeLon,
+                localVertice.lat,
+                localVertice.lon
+              );
+
+              if(
+                Number.isFinite(coincideActiva) &&
+                coincideActiva <= Math.max(3.5,c.RADIO_VERTICE_CONSUMIDO_M)
+              ){
+                continuidadCurvaVisualR64 = null;
+              }
+            }
           }
         }
 
