@@ -2027,6 +2027,41 @@
   color:#263746;
   background:#fff;
 }
+#mensajeTecnicoConversacion{
+  display:none;
+  width:100%;
+  margin:0 0 9px;
+  gap:6px;
+  flex-direction:column;
+}
+#mensajeTecnicoConversacion.visible{display:flex;}
+.mensajeBurbujaCliente,
+.mensajeBurbujaTecnico{
+  max-width:82%;
+  padding:8px 10px;
+  border-radius:12px;
+  font-size:10px;
+  line-height:1.3;
+  box-shadow:0 2px 6px rgba(25,45,65,.08);
+  word-break:break-word;
+}
+.mensajeBurbujaCliente{
+  align-self:flex-end;
+  background:#eef4fb;
+  border:1px solid #d9e6f3;
+  color:#29445f;
+  border-bottom-right-radius:4px;
+}
+.mensajeBurbujaTecnico{
+  align-self:flex-start;
+  min-width:44px;
+  text-align:center;
+  background:#edf8f0;
+  border:1px solid #cbe8d2;
+  color:#247238;
+  font-weight:900;
+  border-bottom-left-radius:4px;
+}
 #mensajeTecnicoPie{
   display:flex;
   align-items:center;
@@ -2038,17 +2073,28 @@
   color:#7a858f;
   font-size:9px;
 }
-#btnEnviarMensajeTecnico{
+#mensajeTecnicoAcciones{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px;
+}
+#btnEnviarMensajeTecnico,
+#btnCerrarMensajeTecnico{
   width:auto;
   margin:0;
   padding:9px 14px;
   border:0;
   border-radius:10px;
-  background:#1955A3;
   color:#fff;
   font-size:10px;
   font-weight:800;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
+#btnEnviarMensajeTecnico{background:#249447;}
+#btnCerrarMensajeTecnico{background:#d83b42;}
+#btnEnviarMensajeTecnico:disabled{opacity:.58;}
 #mensajeTecnicoEstado{
   min-height:14px;
   margin-top:8px;
@@ -2058,6 +2104,7 @@
   text-align:center;
 }
 #mensajeTecnicoEstado.leido{color:#249447;font-weight:700;}
+#mensajeTecnicoEstado.enviado{color:#53606c;font-weight:700;}
 #mensajeTecnicoEstado.error{color:#b3262e;}
 .cabeceraCliente.finalizado ~ #mapaWrap #btnMensajeTecnico,
 .cabeceraCliente.finalizado ~ #mapaWrap #mensajeTecnicoPanel,
@@ -3125,13 +3172,17 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         <div id="mensajeTecnicoEjemplo">
           Ej.: el timbre no funciona, estoy en el portón lateral o información útil para llegar.
         </div>
+        <div id="mensajeTecnicoConversacion" aria-live="polite"></div>
         <textarea
           id="mensajeTecnicoTexto"
           maxlength="150"
           placeholder="Escribí tu mensaje..."></textarea>
         <div id="mensajeTecnicoPie">
           <span id="mensajeTecnicoContador">0/150</span>
-          <button id="btnEnviarMensajeTecnico" type="button">ENVIAR</button>
+          <div id="mensajeTecnicoAcciones">
+            <button id="btnEnviarMensajeTecnico" type="button">ENVIAR</button>
+            <button id="btnCerrarMensajeTecnico" type="button">CERRAR</button>
+          </div>
         </div>
         <div id="mensajeTecnicoEstado"></div>
       </div>
@@ -4071,6 +4122,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 (function(){
 
   /*
+    R64 - parche operativo 06/10/2026:
+    - renderer de vértices redondeado para cadencia B14 ~2 s;
+    - panel de mensajes con ENVIAR/CERRAR y respuesta visual OK al leer;
+    - la preaproximación ETA se resuelve en Android B15 (no en este cliente),
+      preservando la independencia entre ETA y llegada física.
+
     R64 = R63 + afinación específica para la cadencia B14 verificada.
 
     Medición real B14 (05/10/2026):
@@ -4169,6 +4226,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   const btnEnviarMensajeTecnico =
     document.getElementById("btnEnviarMensajeTecnico");
 
+  const btnCerrarMensajeTecnico =
+    document.getElementById("btnCerrarMensajeTecnico");
+
+  const mensajeTecnicoConversacion =
+    document.getElementById("mensajeTecnicoConversacion");
+
   const mensajeTecnicoEstado =
     document.getElementById("mensajeTecnicoEstado");
 
@@ -4248,15 +4311,98 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     return await respuesta.json();
   }
 
+  function claveMensajeClienteLocal(){
+    return codigo
+      ? "pioca_ultimo_mensaje_cliente_" +
+        String(codigo).trim().toUpperCase()
+      : null;
+  }
+
+  function guardarMensajeClienteLocal(messageId,texto){
+    const clave = claveMensajeClienteLocal();
+    if(!clave || !messageId || !texto){ return; }
+    try{
+      localStorage.setItem(
+        clave,
+        JSON.stringify({
+          messageId:String(messageId),
+          texto:String(texto).slice(0,150),
+          guardadoMs:Date.now()
+        })
+      );
+    }catch(e){}
+  }
+
+  function leerMensajeClienteLocal(){
+    const clave = claveMensajeClienteLocal();
+    if(!clave){ return null; }
+    try{
+      const bruto = localStorage.getItem(clave);
+      if(!bruto){ return null; }
+      const dato = JSON.parse(bruto);
+      if(
+        !dato ||
+        !dato.messageId ||
+        !dato.texto ||
+        !Number.isFinite(Number(dato.guardadoMs)) ||
+        Date.now() - Number(dato.guardadoMs) > 24 * 60 * 60 * 1000
+      ){
+        localStorage.removeItem(clave);
+        return null;
+      }
+      return dato;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function pintarConversacionMensajeCliente(r){
+    if(!mensajeTecnicoConversacion){ return; }
+
+    const local = leerMensajeClienteLocal();
+    const idServidor = r && r.message_id
+      ? String(r.message_id)
+      : null;
+
+    if(
+      !local ||
+      !idServidor ||
+      String(local.messageId) !== idServidor
+    ){
+      mensajeTecnicoConversacion.innerHTML = "";
+      mensajeTecnicoConversacion.classList.remove("visible");
+      return;
+    }
+
+    mensajeTecnicoConversacion.innerHTML = "";
+
+    const burbujaCliente = document.createElement("div");
+    burbujaCliente.className = "mensajeBurbujaCliente";
+    burbujaCliente.textContent = local.texto;
+    mensajeTecnicoConversacion.appendChild(burbujaCliente);
+
+    if(r && r.read_at){
+      const burbujaTecnico = document.createElement("div");
+      burbujaTecnico.className = "mensajeBurbujaTecnico";
+      burbujaTecnico.textContent = "OK";
+      mensajeTecnicoConversacion.appendChild(burbujaTecnico);
+    }
+
+    mensajeTecnicoConversacion.classList.add("visible");
+  }
+
   function pintarEstadoMensajeCliente(r){
     if(!r){ return; }
     if(r.message_id){ mensajeTecnicoIdUltimo = r.message_id; }
+
+    pintarConversacionMensajeCliente(r);
+
     if(r.read_at){
       mensajeTecnicoEstado.textContent = "✓ Mensaje leído por el técnico";
       mensajeTecnicoEstado.className = "leido";
     }else if(r.message_id){
-      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado";
-      mensajeTecnicoEstado.className = "";
+      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado · aún no leído";
+      mensajeTecnicoEstado.className = "enviado";
     }
   }
 
@@ -4296,10 +4442,18 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         throw new Error(r && r.error_message ? r.error_message : "No enviado");
       }
       mensajeTecnicoIdUltimo = r.message_id || null;
+      guardarMensajeClienteLocal(
+        mensajeTecnicoIdUltimo,
+        texto
+      );
       mensajeTecnicoTexto.value = "";
       mensajeTecnicoContador.textContent = "0/150";
-      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado";
-      mensajeTecnicoEstado.className = "";
+      mensajeTecnicoEstado.textContent = "✓ Mensaje enviado · aún no leído";
+      mensajeTecnicoEstado.className = "enviado";
+      pintarConversacionMensajeCliente({
+        message_id:mensajeTecnicoIdUltimo,
+        read_at:null
+      });
       setTimeout(consultarEstadoMensajeCliente,1200);
     }catch(e){
       mensajeTecnicoEstado.textContent =
@@ -15120,6 +15274,163 @@ ocultarHoraLlegada();
   }
 
 
+  function interpolarPuntoVisualR64(a,b,fraccion){
+    const t = Math.max(0,Math.min(1,Number(fraccion) || 0));
+    return {
+      lat:a.lat + (b.lat - a.lat) * t,
+      lon:a.lon + (b.lon - a.lon) * t
+    };
+  }
+
+
+  function construirRutaVisualSuavizadaR64(
+    puntosBase,
+    cantidadVertices,
+    velocidadKmh
+  ){
+    const salida = [];
+    const consumos = [];
+
+    if(!Array.isArray(puntosBase) || puntosBase.length === 0){
+      return {puntos:salida,consumos:consumos};
+    }
+
+    salida.push({
+      lat:puntosBase[0].lat,
+      lon:puntosBase[0].lon,
+      consumirVertice:null
+    });
+
+    for(let i = 1; i < puntosBase.length; i++){
+      const b = puntosBase[i];
+      const indiceVertice = i - 1;
+      const esVertice = indiceVertice >= 0 && indiceVertice < cantidadVertices;
+      const tieneSalida = i < puntosBase.length - 1;
+
+      if(!esVertice || !tieneSalida){
+        salida.push({
+          lat:b.lat,
+          lon:b.lon,
+          consumirVertice:esVertice ? indiceVertice : null
+        });
+        continue;
+      }
+
+      const a = puntosBase[i - 1];
+      const c = puntosBase[i + 1];
+
+      const tramoEntrada = distanciaMetros(a.lat,a.lon,b.lat,b.lon);
+      const tramoSalida = distanciaMetros(b.lat,b.lon,c.lat,c.lon);
+      const rumboEntrada = rumboGrados(a.lat,a.lon,b.lat,b.lon);
+      const rumboSalida = rumboGrados(b.lat,b.lon,c.lat,c.lon);
+      const angulo = diferenciaRumboGrados(rumboEntrada,rumboSalida);
+
+      const puedeRedondear =
+        Number.isFinite(tramoEntrada) &&
+        Number.isFinite(tramoSalida) &&
+        Number.isFinite(angulo) &&
+        tramoEntrada >= 5 &&
+        tramoSalida >= 5 &&
+        angulo >= 24 &&
+        angulo <= 125;
+
+      if(!puedeRedondear){
+        salida.push({
+          lat:b.lat,
+          lon:b.lon,
+          consumirVertice:indiceVertice
+        });
+        continue;
+      }
+
+      const radioPorVelocidad =
+        Number.isFinite(velocidadKmh)
+          ? (
+              velocidadKmh < 18 ? 2.6 :
+              velocidadKmh < 35 ? 3.5 :
+              velocidadKmh < 55 ? 4.4 :
+              5.2
+            )
+          : 3.5;
+
+      const radio = Math.min(
+        5.5,
+        radioPorVelocidad,
+        tramoEntrada * 0.30,
+        tramoSalida * 0.30
+      );
+
+      if(!Number.isFinite(radio) || radio < 1.6){
+        salida.push({
+          lat:b.lat,
+          lon:b.lon,
+          consumirVertice:indiceVertice
+        });
+        continue;
+      }
+
+      const entrada = interpolarPuntoVisualR64(
+        b,
+        a,
+        radio / tramoEntrada
+      );
+
+      const salidaCurva = interpolarPuntoVisualR64(
+        b,
+        c,
+        radio / tramoSalida
+      );
+
+      const ultimo = salida[salida.length - 1];
+      const separacionEntrada = distanciaMetros(
+        ultimo.lat,
+        ultimo.lon,
+        entrada.lat,
+        entrada.lon
+      );
+
+      if(!Number.isFinite(separacionEntrada) || separacionEntrada > 0.45){
+        salida.push({
+          lat:entrada.lat,
+          lon:entrada.lon,
+          consumirVertice:null
+        });
+      }
+
+      const pasos = Math.max(
+        5,
+        Math.min(8,Math.round(4 + angulo / 32))
+      );
+
+      const pasoConsumo = Math.max(1,Math.ceil(pasos * 0.58));
+
+      for(let k = 1; k <= pasos; k++){
+        const t = k / pasos;
+        const u = 1 - t;
+        const lat =
+          u * u * entrada.lat +
+          2 * u * t * b.lat +
+          t * t * salidaCurva.lat;
+        const lon =
+          u * u * entrada.lon +
+          2 * u * t * b.lon +
+          t * t * salidaCurva.lon;
+
+        salida.push({
+          lat:lat,
+          lon:lon,
+          consumirVertice:k === pasoConsumo ? indiceVertice : null
+        });
+      }
+    }
+
+    return {
+      puntos:salida,
+      consumos:consumos
+    };
+  }
+
+
   function animarMarcadorConColaVertices(
     latDestino,
     lonDestino,
@@ -15148,28 +15459,28 @@ ocultarHoraLlegada();
     };
 
     /*
-      Quitamos únicamente vértices que el pin YA alcanzó.
-      Los demás sobreviven a nuevos paquetes GPS.
+      R64 - RENDER DE VÉRTICE SUAVIZADO
+      La geometría física y la cola de vértices NO cambian.
+      Únicamente reemplazamos la punta de dos segmentos rectos por una
+      curva cuadrática corta y limitada. Con la cadencia B14 ~2 s esto
+      evita el pequeño "triángulo" visual que podía aparecer al reconstruir
+      la animación durante una esquina.
     */
-    while(
-      verticesVisualesPendientes.length >
-        0
-    ){
-      const primero =
-        verticesVisualesPendientes[0];
 
-      const distanciaPrimero =
-        distanciaMetros(
-          inicio.lat,
-          inicio.lon,
-          primero.lat,
-          primero.lon
-        );
+    while(
+      verticesVisualesPendientes.length > 0
+    ){
+      const primero = verticesVisualesPendientes[0];
+      const distanciaPrimero = distanciaMetros(
+        inicio.lat,
+        inicio.lon,
+        primero.lat,
+        primero.lon
+      );
 
       if(
         Number.isFinite(distanciaPrimero) &&
-        distanciaPrimero <=
-          c.RADIO_VERTICE_CONSUMIDO_M
+        distanciaPrimero <= c.RADIO_VERTICE_CONSUMIDO_M
       ){
         verticesVisualesPendientes.shift();
       }else{
@@ -15177,370 +15488,222 @@ ocultarHoraLlegada();
       }
     }
 
-    const verticesRuta =
-      verticesVisualesPendientes.map(
-        function(p){
-          return {
-            lat:p.lat,
-            lon:p.lon
-          };
-        }
-      );
+    const verticesRuta = verticesVisualesPendientes.map(
+      function(p){
+        return {lat:p.lat,lon:p.lon};
+      }
+    );
 
-    const verticesRutaUtiles =
-      [];
-
-    const puntos = [
-      inicio
-    ];
+    const verticesRutaUtiles = [];
+    const puntosBase = [inicio];
 
     verticesRuta.forEach(
       function(p){
-        const anterior =
-          puntos[
-            puntos.length - 1
-          ];
+        const anterior = puntosBase[puntosBase.length - 1];
+        const distancia = distanciaMetros(
+          anterior.lat,
+          anterior.lon,
+          p.lat,
+          p.lon
+        );
 
-        const distancia =
-          distanciaMetros(
-            anterior.lat,
-            anterior.lon,
-            p.lat,
-            p.lon
-          );
-
-        if(
-          !Number.isFinite(distancia) ||
-          distancia >
-            1.5
-        ){
-          puntos.push(p);
+        if(!Number.isFinite(distancia) || distancia > 1.5){
+          puntosBase.push(p);
           verticesRutaUtiles.push(p);
         }
       }
     );
 
-    const ultimoRuta =
-      puntos[
-        puntos.length - 1
-      ];
+    const ultimoRuta = puntosBase[puntosBase.length - 1];
+    const distanciaFinal = distanciaMetros(
+      ultimoRuta.lat,
+      ultimoRuta.lon,
+      latDestino,
+      lonDestino
+    );
 
-    const distanciaFinal =
-      distanciaMetros(
-        ultimoRuta.lat,
-        ultimoRuta.lon,
-        latDestino,
-        lonDestino
-      );
-
-    if(
-      !Number.isFinite(distanciaFinal) ||
-      distanciaFinal >
-        1.5
-    ){
-      puntos.push({
-        lat:latDestino,
-        lon:lonDestino
-      });
+    if(!Number.isFinite(distanciaFinal) || distanciaFinal > 1.5){
+      puntosBase.push({lat:latDestino,lon:lonDestino});
     }
 
-    if(
-      puntos.length <
-        2
-    ){
-      marcador.setLatLng(
-        [latDestino, lonDestino]
-      );
-
+    if(puntosBase.length < 2){
+      marcador.setLatLng([latDestino,lonDestino]);
       limpiarColaVerticesVisuales();
       return;
     }
 
-    const segmentos =
-      [];
+    const rutaSuavizada = construirRutaVisualSuavizadaR64(
+      puntosBase,
+      verticesRutaUtiles.length,
+      velocidadKmh
+    );
 
-    let distanciaTotal =
-      0;
+    const puntos = rutaSuavizada.puntos;
 
-    for(
-      let i = 0;
-      i < puntos.length - 1;
-      i++
-    ){
-      const distancia =
-        distanciaMetros(
-          puntos[i].lat,
-          puntos[i].lon,
-          puntos[i + 1].lat,
-          puntos[i + 1].lon
-        );
+    if(!Array.isArray(puntos) || puntos.length < 2){
+      marcador.setLatLng([latDestino,lonDestino]);
+      limpiarColaVerticesVisuales();
+      return;
+    }
 
-      const segura =
-        Number.isFinite(distancia)
-          ? Math.max(0,distancia)
-          : 0;
+    const segmentos = [];
+    const umbralesConsumo = [];
+    let distanciaTotal = 0;
+
+    for(let i = 0; i < puntos.length - 1; i++){
+      const distancia = distanciaMetros(
+        puntos[i].lat,
+        puntos[i].lon,
+        puntos[i + 1].lat,
+        puntos[i + 1].lon
+      );
+
+      const segura = Number.isFinite(distancia)
+        ? Math.max(0,distancia)
+        : 0;
+
+      const acumuladaInicio = distanciaTotal;
+      const acumuladaFin = distanciaTotal + segura;
 
       segmentos.push({
         desde:puntos[i],
         hasta:puntos[i + 1],
         distancia:segura,
-        acumuladaInicio:distanciaTotal,
-        acumuladaFin:
-          distanciaTotal + segura
+        acumuladaInicio:acumuladaInicio,
+        acumuladaFin:acumuladaFin
       });
 
-      distanciaTotal +=
-        segura;
+      const indiceConsumir = puntos[i + 1].consumirVertice;
+      if(Number.isInteger(indiceConsumir)){
+        umbralesConsumo.push({
+          indice:indiceConsumir,
+          distancia:acumuladaFin
+        });
+      }
+
+      distanciaTotal = acumuladaFin;
     }
 
-    if(
-      !Number.isFinite(distanciaTotal) ||
-      distanciaTotal <
-        2
-    ){
-      marcador.setLatLng(
-        [latDestino, lonDestino]
-      );
-
+    if(!Number.isFinite(distanciaTotal) || distanciaTotal < 2){
+      marcador.setLatLng([latDestino,lonDestino]);
       limpiarColaVerticesVisuales();
       return;
     }
 
-    const distanciaDirecta =
-      distanciaMetros(
-        inicio.lat,
-        inicio.lon,
-        latDestino,
-        lonDestino
-      );
+    const distanciaDirecta = distanciaMetros(
+      inicio.lat,
+      inicio.lon,
+      latDestino,
+      lonDestino
+    );
 
     const factorRuta =
-      Number.isFinite(distanciaDirecta) &&
-      distanciaDirecta >
-        1
-        ? Math.max(
-            1,
-            Math.min(
-              1.12,
-              distanciaTotal /
-              distanciaDirecta
-            )
-          )
+      Number.isFinite(distanciaDirecta) && distanciaDirecta > 1
+        ? Math.max(1,Math.min(1.12,distanciaTotal / distanciaDirecta))
         : 1;
 
-    const duracionRuta =
-      Math.max(
-        650,
-        Math.min(
-          ALGORITMO_PIN_HIBRIDO.DURACION_MAX_ABS_MS,
-          (
-            Number.isFinite(duracionTotalMs)
-              ? duracionTotalMs
-              : DURACION_ANIMACION_DEFAULT_MS
-          ) *
-          factorRuta
-        )
-      );
+    const duracionRuta = Math.max(
+      650,
+      Math.min(
+        ALGORITMO_PIN_HIBRIDO.DURACION_MAX_ABS_MS,
+        (
+          Number.isFinite(duracionTotalMs)
+            ? duracionTotalMs
+            : DURACION_ANIMACION_DEFAULT_MS
+        ) * factorRuta
+      )
+    );
 
-    const inicioMs =
-      performance.now();
+    const inicioMs = performance.now();
+    let consumosProcesados = 0;
 
-    let verticesConsumidos =
-      0;
-
-    function pasoRuta(
-      ahora
-    ){
-
-      const progreso =
-        Math.min(
-          1,
-          (
-            ahora -
-            inicioMs
-          ) /
-          duracionRuta
-        );
+    function pasoRuta(ahora){
+      const progreso = Math.min(1,(ahora - inicioMs) / duracionRuta);
 
       const t =
-        (
-          Number.isFinite(
-            velocidadKmh
-          ) &&
-          velocidadKmh >= 30
-        )
+        Number.isFinite(velocidadKmh) && velocidadKmh >= 30
           ? progreso
-          : (
-              progreso *
-              progreso *
-              (
-                3 -
-                2 *
-                progreso
-              )
-            );
+          : progreso * progreso * (3 - 2 * progreso);
 
-      const recorrida =
-        distanciaTotal *
-        t;
+      const recorrida = distanciaTotal * t;
+      let segmento = segmentos[segmentos.length - 1];
 
-      let segmento =
-        segmentos[
-          segmentos.length - 1
-        ];
-
-      for(
-        let i = 0;
-        i < segmentos.length;
-        i++
-      ){
+      for(let i = 0; i < segmentos.length; i++){
         if(
-          recorrida <=
-            segmentos[i].acumuladaFin ||
-          i ===
-            segmentos.length - 1
+          recorrida <= segmentos[i].acumuladaFin ||
+          i === segmentos.length - 1
         ){
-          segmento =
-            segmentos[i];
+          segmento = segmentos[i];
           break;
         }
       }
 
-      const tramo =
-        Math.max(
-          0.0001,
-          segmento.distancia
-        );
-
-      const progresoTramo =
-        Math.max(
-          0,
-          Math.min(
-            1,
-            (
-              recorrida -
-              segmento.acumuladaInicio
-            ) /
-            tramo
-          )
-        );
+      const tramo = Math.max(0.0001,segmento.distancia);
+      const progresoTramo = Math.max(
+        0,
+        Math.min(
+          1,
+          (recorrida - segmento.acumuladaInicio) / tramo
+        )
+      );
 
       const latActual =
         segmento.desde.lat +
-        (
-          segmento.hasta.lat -
-          segmento.desde.lat
-        ) *
-        progresoTramo;
+        (segmento.hasta.lat - segmento.desde.lat) * progresoTramo;
 
       const lonActual =
         segmento.desde.lon +
-        (
-          segmento.hasta.lon -
-          segmento.desde.lon
-        ) *
-        progresoTramo;
+        (segmento.hasta.lon - segmento.desde.lon) * progresoTramo;
 
-      marcador.setLatLng(
-        [latActual, lonActual]
-      );
+      marcador.setLatLng([latActual,lonActual]);
 
       centrarMapaEnAreaUtil(
         latActual,
         lonActual,
-        {
-          animate:false
-        }
+        {animate:false}
       );
 
-      /*
-        Cada vértice local que ya quedó atrás se elimina también de
-        la cola global. Así un GPS nuevo retoma sólo las esquinas que
-        todavía faltan, nunca vuelve a una esquina ya recorrida.
-      */
       while(
-        verticesConsumidos <
-          verticesRutaUtiles.length
+        consumosProcesados < umbralesConsumo.length &&
+        recorrida + 0.35 >= umbralesConsumo[consumosProcesados].distancia
       ){
-        let acumuladaVertice =
-          0;
-
-        for(
-          let j = 0;
-          j <= verticesConsumidos;
-          j++
-        ){
-          acumuladaVertice +=
-            segmentos[j]
-              ? segmentos[j].distancia
-              : 0;
-        }
+        const indiceLocal = umbralesConsumo[consumosProcesados].indice;
+        const localVertice = verticesRutaUtiles[indiceLocal];
 
         if(
-          recorrida + 0.5 >=
-            acumuladaVertice
+          localVertice &&
+          verticesVisualesPendientes.length > 0
         ){
+          const globalPrimero = verticesVisualesPendientes[0];
+          const coincide = distanciaMetros(
+            globalPrimero.lat,
+            globalPrimero.lon,
+            localVertice.lat,
+            localVertice.lon
+          );
+
           if(
-            verticesVisualesPendientes.length >
-              0
+            Number.isFinite(coincide) &&
+            coincide <= c.RADIO_VERTICE_CONSUMIDO_M
           ){
-            const globalPrimero =
-              verticesVisualesPendientes[0];
-
-            const localVertice =
-              verticesRutaUtiles[
-                verticesConsumidos
-              ];
-
-            const coincide =
-              distanciaMetros(
-                globalPrimero.lat,
-                globalPrimero.lon,
-                localVertice.lat,
-                localVertice.lon
-              );
-
-            if(
-              Number.isFinite(coincide) &&
-              coincide <=
-                c.RADIO_VERTICE_CONSUMIDO_M
-            ){
-              verticesVisualesPendientes.shift();
-            }
+            verticesVisualesPendientes.shift();
           }
-
-          verticesConsumidos++;
-        }else{
-          break;
         }
+
+        consumosProcesados++;
       }
 
-      if(
-        progreso <
-          1
-      ){
-        animacionMarcadorId =
-          requestAnimationFrame(
-            pasoRuta
-          );
+      if(progreso < 1){
+        animacionMarcadorId = requestAnimationFrame(pasoRuta);
       }else{
-        marcador.setLatLng(
-          [latDestino, lonDestino]
-        );
-
+        marcador.setLatLng([latDestino,lonDestino]);
         limpiarColaVerticesVisuales();
-
-        animacionMarcadorId =
-          null;
+        animacionMarcadorId = null;
       }
     }
 
-    animacionMarcadorId =
-      requestAnimationFrame(
-        pasoRuta
-      );
+    animacionMarcadorId = requestAnimationFrame(pasoRuta);
   }
-
 
   /*
     R50 - ZOOM MANUAL TOMANDO LA CAMIONETA COMO EJE
@@ -17062,14 +17225,18 @@ if(
 
 
   btnMensajeTecnico.addEventListener("click",function(){
-    const abrir = !mensajeTecnicoPanel.classList.contains("visible");
-    mensajeTecnicoPanel.classList.toggle("visible",abrir);
-    btnMensajeTecnico.classList.toggle("abierto",abrir);
-    if(abrir){
-      consultarEstadoMensajeCliente();
-      setTimeout(function(){ mensajeTecnicoTexto.focus(); },80);
-    }
+    mensajeTecnicoPanel.classList.add("visible");
+    btnMensajeTecnico.classList.add("abierto");
+    consultarEstadoMensajeCliente();
+    setTimeout(function(){ mensajeTecnicoTexto.focus(); },80);
   });
+
+  if(btnCerrarMensajeTecnico){
+    btnCerrarMensajeTecnico.addEventListener("click",function(){
+      mensajeTecnicoPanel.classList.remove("visible");
+      btnMensajeTecnico.classList.remove("abierto");
+    });
+  }
 
   mensajeTecnicoTexto.addEventListener("input",function(){
     mensajeTecnicoContador.textContent =
