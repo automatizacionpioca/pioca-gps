@@ -4212,32 +4212,32 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 (function(){
 
   /*
-    R64.1 - parche operativo 06/10/2026:
-    - renderer de vértices redondeado para cadencia B14 ~2 s;
-    - continuidad de salida durante reconstrucciones dentro de un giro;
-    - consumo del vértice al finalizar la curva y cierre de la franja 2,5-5 m;
-    - panel de mensajes con ENVIAR/CERRAR y respuesta visual OK al leer;
-    - aro verde animado en el botón de mensajes mientras está cerrado;
-    - badge rojo "1" persistente hasta abrir la respuesta OK del técnico;
-    - reconsulta de mensajes al restaurar/desbloquear/reabrir la página;
-    - la preaproximación ETA se resuelve en Android B15 (no en este cliente),
-      preservando la independencia entre ETA y llegada física.
+    R65 - continuidad urbana y vértices 06/10/2026:
+    - conserva íntegra la autoridad física R63/R64 (GPS, cuarentenas,
+      TLS/PCA, ETA, 300 m, 50 m, T0, HEMOS LLEGADO y cierre);
+    - desacopla la representación visual de las cuarentenas urbanas:
+      una lectura lateral dudosa puede iniciar un avance VISUAL provisional
+      limitado, sin convertirse en punto físico confirmado;
+    - incorpora GIRO TARDÍO: si el vértice real ya quedó demasiado cerca
+      o detrás del pin visual, no vuelve a buscar la esquina; enlaza desde
+      la posición visual actual con tangentes de entrada/salida;
+    - las curvas ya no alargan su duración por longitud de arco y quedan
+      acotadas por la cadencia aprendida;
+    - el renderer de curvas usa velocidad visual continua (progreso lineal
+      sobre longitud de arco), evitando arrancar/frenar con cada paquete;
+    - el polling deja el patrón fijo 1,5/3 s y pasa a ventana adaptativa:
+      anticipa el próximo GPS según cadencia y reintenta corto si aún no llegó;
+    - mantiene mensajería R64 y preaproximación ETA Android APK15 intactas.
 
-    R64 = R63 + afinación específica para la cadencia B14 verificada.
+    Medición de diagnóstico R64.1:
+    - los 10 giros fueron detectados por la lógica física;
+    - la mitad llegó tarde al renderer y no creó vértice útil;
+    - varias cuarentenas urbanas produjeron pausas visuales de ~4 s;
+    - numerosas curvas fueron interrumpidas por el siguiente paquete.
 
-    Medición real B14 (05/10/2026):
-    - promedio 2.031 s;
-    - mediana 2.001 s;
-    - 97.9% de intervalos entre 1.5 y 2.5 s.
-
-    R64 aprovecha esa mayor densidad SIN relajar las barreras duras:
-    - conserva ETA, proximidad, T0, HEMOS LLEGADO y cierre de R63;
-    - conserva los límites físicos duros y el anti-retroceso;
-    - usa más evidencia en el mismo tiempo para confirmar cuarentenas;
-    - refina el vértice TLS/PCA con más muestras cuando la cadencia 2 s
-      está realmente demostrada;
-    - si la entrega vuelve a ser más lenta/irregular, cae automáticamente
-      al perfil R63 anterior.
+    R65 corrige exclusivamente el movimiento visual y la oportunidad de
+    consulta. Ninguna muestra provisional tiene autoridad sobre proximidad,
+    llegada, ETA, memoria física ni filtros de seguridad.
   */
 
   const SUPABASE_URL =
@@ -4753,6 +4753,22 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
   let consultaId =
     null;
+
+  /*
+    R65 - ciclo de consulta adaptativo.
+    consultaId representa el próximo setTimeout del ciclo principal.
+    El watchdog continúa siendo independiente.
+  */
+  let cicloConsultasR65Activo =
+    false;
+
+  const ALGORITMO_CONSULTA_R65 = Object.freeze({
+    ANTICIPACION_CADENCIA_MS:350,
+    REINTENTO_SIN_NUEVO_MS:350,
+    DEMORA_INICIAL_MS:900,
+    DEMORA_MIN_MS:300,
+    DEMORA_MAX_MS:1500
+  });
 
   let watchdogConsultaId =
     null;
@@ -5627,6 +5643,23 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   */
   let continuidadCurvaVisualR64 =
     null;
+
+  /*
+    R65 - estado visual sin autoridad física.
+    Se usa únicamente para mantener tangencia/velocidad aparente cuando
+    una curva es reconstruida o una cuarentena urbana aún no fue confirmada.
+  */
+  let ultimoRumboVisualR65 =
+    null;
+
+  let ultimoRumboVisualR65Ms =
+    0;
+
+  let ultimoPuntoVisualR65 =
+    null;
+
+  let visualProvisionalUrbanoR65Activo =
+    false;
 
   /* ==========================================================
      R62 - REANUDACIÓN PROTEGIDA DESPUÉS DE SUSPENSIÓN
@@ -8709,11 +8742,14 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
   function detenerConsultas(){
 
+    cicloConsultasR65Activo =
+      false;
+
     if(
       consultaId !== null
     ){
 
-      clearInterval(
+      clearTimeout(
         consultaId
       );
 
@@ -8749,9 +8785,48 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       false;
   }
 
-  function iniciarCicloConsultas(){
+
+  function demoraProximaConsultaR65(
+    huboGpsNuevo
+  ){
+    const c =
+      ALGORITMO_CONSULTA_R65;
+
+    const cadencia =
+      estadoCadenciaGpsHibrido &&
+      Number.isFinite(
+        estadoCadenciaGpsHibrido.cadenciaMs
+      )
+        ? estadoCadenciaGpsHibrido.cadenciaMs
+        : ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
 
     if(
+      huboGpsNuevo === true
+    ){
+      return Math.max(
+        c.DEMORA_MIN_MS,
+        Math.min(
+          c.DEMORA_MAX_MS,
+          cadencia -
+            c.ANTICIPACION_CADENCIA_MS
+        )
+      );
+    }
+
+    /*
+      Si consultamos un poco antes del próximo GPS y todavía no apareció,
+      hacemos un reintento corto. Esto evita el alias fijo 1,5 / 3 s sin
+      convertir el cliente en un polling permanente de alta frecuencia.
+    */
+    return c.REINTENTO_SIN_NUEVO_MS;
+  }
+
+
+  function programarProximaConsultaR65(
+    demoraMs
+  ){
+    if(
+      !cicloConsultasR65Activo ||
       terminado ||
       !codigo
     ){
@@ -8761,18 +8836,70 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     if(
       consultaId !== null
     ){
-      clearInterval(
+      clearTimeout(
         consultaId
       );
     }
 
+    const c =
+      ALGORITMO_CONSULTA_R65;
+
+    const demora =
+      Math.max(
+        c.DEMORA_MIN_MS,
+        Math.min(
+          c.DEMORA_MAX_MS,
+          Number(demoraMs) ||
+            c.DEMORA_INICIAL_MS
+        )
+      );
+
     consultaId =
-      setInterval(
+      setTimeout(
         function(){
+          consultaId = null;
           consultar(false);
         },
-        1500
+        demora
       );
+  }
+
+
+  function iniciarCicloConsultas(){
+
+    if(
+      terminado ||
+      !codigo
+    ){
+      return;
+    }
+
+    cicloConsultasR65Activo =
+      true;
+
+    if(
+      consultaId !== null
+    ){
+      clearTimeout(
+        consultaId
+      );
+
+      consultaId =
+        null;
+    }
+
+    /*
+      Si no hay una consulta corriendo, armamos una primera ventana.
+      Cuando consultar() termina, el propio finally recalibra la próxima
+      espera con la cadencia real y con si apareció o no un GPS nuevo.
+    */
+    if(
+      !consultaEnCurso
+    ){
+      programarProximaConsultaR65(
+        ALGORITMO_CONSULTA_R65.DEMORA_INICIAL_MS
+      );
+    }
 
     if(
       watchdogConsultaId === null
@@ -9039,6 +9166,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       desbloquear. La memoria física de llegada queda intacta.
     */
     limpiarColaVerticesVisuales();
+    reiniciarContinuidadVisualR65();
 
     puntoGeometricoPendiente =
       null;
@@ -9093,6 +9221,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     */
     marcador.setLatLng(
       [lat, lon]
+    );
+
+    reiniciarContinuidadVisualR65();
+
+    registrarMovimientoVisualR65(
+      lat,
+      lon
     );
 
     /*
@@ -10858,6 +10993,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       0;
 
     limpiarColaVerticesVisuales();
+    reiniciarContinuidadVisualR65();
 
     reiniciarAlgoritmoPinHibrido();
 
@@ -11166,6 +11302,7 @@ ocultarHoraLlegada();
       0;
 
     limpiarColaVerticesVisuales();
+    reiniciarContinuidadVisualR65();
 
     reiniciarAlgoritmoPinHibrido();
 
@@ -12298,6 +12435,79 @@ ocultarHoraLlegada();
   }
 
 
+  function reiniciarContinuidadVisualR65(){
+    ultimoRumboVisualR65 = null;
+    ultimoRumboVisualR65Ms = 0;
+    ultimoPuntoVisualR65 = null;
+    visualProvisionalUrbanoR65Activo = false;
+  }
+
+
+  function registrarMovimientoVisualR65(
+    lat,
+    lon
+  ){
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    if(
+      ultimoPuntoVisualR65 &&
+      Number.isFinite(ultimoPuntoVisualR65.lat) &&
+      Number.isFinite(ultimoPuntoVisualR65.lon)
+    ){
+      const d = distanciaMetros(
+        ultimoPuntoVisualR65.lat,
+        ultimoPuntoVisualR65.lon,
+        lat,
+        lon
+      );
+
+      if(Number.isFinite(d) && d >= 0.18){
+        const r = rumboGrados(
+          ultimoPuntoVisualR65.lat,
+          ultimoPuntoVisualR65.lon,
+          lat,
+          lon
+        );
+
+        if(Number.isFinite(r)){
+          ultimoRumboVisualR65 = r;
+          ultimoRumboVisualR65Ms = performance.now();
+        }
+      }
+    }
+
+    ultimoPuntoVisualR65 = {
+      lat:lat,
+      lon:lon
+    };
+  }
+
+
+  function rumboEntradaVisualR65(
+    rumboFallback
+  ){
+    const edad =
+      performance.now() -
+      ultimoRumboVisualR65Ms;
+
+    if(
+      Number.isFinite(ultimoRumboVisualR65) &&
+      Number.isFinite(edad) &&
+      edad >= 0 &&
+      edad <= 3500
+    ){
+      return ultimoRumboVisualR65;
+    }
+
+    return rumboFallback;
+  }
+
+
   function agregarVerticeVisualPendiente(
     lat,
     lon
@@ -12307,7 +12517,7 @@ ocultarHoraLlegada();
       !Number.isFinite(lat) ||
       !Number.isFinite(lon)
     ){
-      return;
+      return false;
     }
 
     const c =
@@ -12332,7 +12542,7 @@ ocultarHoraLlegada();
         distanciaActual <=
           c.RADIO_VERTICE_CONSUMIDO_M
       ){
-        return;
+        return false;
       }
     }
 
@@ -12358,7 +12568,7 @@ ocultarHoraLlegada();
         distanciaUltimo <=
           c.RADIO_VERTICE_CONSUMIDO_M
       ){
-        return;
+        return false;
       }
     }
 
@@ -12388,6 +12598,8 @@ ocultarHoraLlegada();
         break;
       }
     }
+
+    return true;
   }
 
 
@@ -15085,6 +15297,740 @@ ocultarHoraLlegada();
       );
   }
 
+
+  /*
+    R65 - DURACIÓN DE CURVA ACOPLADA A LA CADENCIA
+
+    En baja velocidad una curva no puede "comprar" más tiempo por ser
+    geométricamente más larga. El pin recorre el arco algo más rápido y
+    debe quedar disponible para el próximo GPS. En media/alta velocidad
+    conservamos un margen pequeño porque allí la continuidad histórica
+    R33/R36 sigue siendo prioritaria.
+  */
+  function duracionCurvaR65(
+    duracionBaseMs,
+    velocidadKmh
+  ){
+    const cadencia =
+      estadoCadenciaGpsHibrido &&
+      Number.isFinite(
+        estadoCadenciaGpsHibrido.cadenciaMs
+      )
+        ? estadoCadenciaGpsHibrido.cadenciaMs
+        : ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
+
+    let factorTecho = 0.96;
+
+    if(
+      Number.isFinite(velocidadKmh) &&
+      velocidadKmh >= 60
+    ){
+      factorTecho = 1.08;
+    }else if(
+      Number.isFinite(velocidadKmh) &&
+      velocidadKmh >= 40
+    ){
+      factorTecho = 1.02;
+    }
+
+    const techoCadencia =
+      Math.max(
+        900,
+        Math.min(
+          ALGORITMO_PIN_HIBRIDO.DURACION_MAX_ABS_MS,
+          cadencia * factorTecho
+        )
+      );
+
+    const base =
+      Number.isFinite(duracionBaseMs)
+        ? duracionBaseMs
+        : DURACION_ANIMACION_DEFAULT_MS;
+
+    return Math.max(
+      650,
+      Math.min(
+        base,
+        techoCadencia
+      )
+    );
+  }
+
+
+  function verticeDebeResolverseTardioR65(
+    latVertice,
+    lonVertice,
+    latDestino,
+    lonDestino
+  ){
+    if(
+      !marcador ||
+      !Number.isFinite(latVertice) ||
+      !Number.isFinite(lonVertice)
+    ){
+      return false;
+    }
+
+    const actual =
+      marcador.getLatLng();
+
+    const latActual =
+      Number(actual.lat);
+
+    const lonActual =
+      Number(actual.lng);
+
+    const distanciaAlVertice =
+      distanciaMetros(
+        latActual,
+        lonActual,
+        latVertice,
+        lonVertice
+      );
+
+    if(
+      Number.isFinite(distanciaAlVertice) &&
+      distanciaAlVertice <=
+        ALGORITMO_PROTECCION_GEOMETRICA.RADIO_VERTICE_CONSUMIDO_M + 0.8
+    ){
+      return true;
+    }
+
+    if(
+      !Number.isFinite(latDestino) ||
+      !Number.isFinite(lonDestino)
+    ){
+      return false;
+    }
+
+    const distanciaActualDestino =
+      distanciaMetros(
+        latActual,
+        lonActual,
+        latDestino,
+        lonDestino
+      );
+
+    const distanciaVerticeDestino =
+      distanciaMetros(
+        latVertice,
+        lonVertice,
+        latDestino,
+        lonDestino
+      );
+
+    const rumboActualHaciaVertice =
+      rumboGrados(
+        latActual,
+        lonActual,
+        latVertice,
+        lonVertice
+      );
+
+    const rumboVerticeSalida =
+      rumboGrados(
+        latVertice,
+        lonVertice,
+        latDestino,
+        lonDestino
+      );
+
+    const verticeQuedoAtras =
+      Number.isFinite(distanciaActualDestino) &&
+      Number.isFinite(distanciaVerticeDestino) &&
+      distanciaActualDestino + 0.8 <
+        distanciaVerticeDestino &&
+      Number.isFinite(rumboActualHaciaVertice) &&
+      Number.isFinite(rumboVerticeSalida) &&
+      diferenciaRumboGrados(
+        rumboActualHaciaVertice,
+        rumboVerticeSalida
+      ) >= 105;
+
+    return verticeQuedoAtras;
+  }
+
+
+  function construirCurvaTangencialR65(
+    inicio,
+    destino
+  ){
+    const distancia =
+      distanciaMetros(
+        inicio.lat,
+        inicio.lon,
+        destino.lat,
+        destino.lon
+      );
+
+    if(
+      !Number.isFinite(distancia) ||
+      distancia < 1.2
+    ){
+      return [
+        inicio,
+        destino
+      ];
+    }
+
+    let rumboEntradaFallback =
+      rumboGrados(
+        inicio.lat,
+        inicio.lon,
+        destino.lat,
+        destino.lon
+      );
+
+    if(
+      penultimoPuntoServidor &&
+      ultimoPuntoServidor
+    ){
+      const r =
+        rumboGrados(
+          penultimoPuntoServidor.lat,
+          penultimoPuntoServidor.lon,
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon
+        );
+
+      if(Number.isFinite(r)){
+        rumboEntradaFallback = r;
+      }
+    }
+
+    const rumboEntrada =
+      rumboEntradaVisualR65(
+        rumboEntradaFallback
+      );
+
+    let rumboSalida =
+      rumboGrados(
+        inicio.lat,
+        inicio.lon,
+        destino.lat,
+        destino.lon
+      );
+
+    if(
+      ultimoPuntoServidor
+    ){
+      const r =
+        rumboGrados(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon,
+          destino.lat,
+          destino.lon
+        );
+
+      if(Number.isFinite(r)){
+        rumboSalida = r;
+      }
+    }
+
+    if(
+      !Number.isFinite(rumboEntrada) ||
+      !Number.isFinite(rumboSalida)
+    ){
+      return [
+        inicio,
+        destino
+      ];
+    }
+
+    const controlMetros =
+      Math.max(
+        1.4,
+        Math.min(
+          5.0,
+          distancia * 0.30
+        )
+      );
+
+    const control1 =
+      proyectarPuntoPorRumbo(
+        inicio.lat,
+        inicio.lon,
+        rumboEntrada,
+        controlMetros
+      );
+
+    const control2 =
+      proyectarPuntoPorRumbo(
+        destino.lat,
+        destino.lon,
+        (rumboSalida + 180) % 360,
+        controlMetros
+      );
+
+    const puntos = [
+      {
+        lat:inicio.lat,
+        lon:inicio.lon
+      }
+    ];
+
+    const pasos =
+      Math.max(
+        6,
+        Math.min(
+          10,
+          Math.round(6 + distancia / 6)
+        )
+      );
+
+    for(let i = 1; i <= pasos; i++){
+      const t = i / pasos;
+      const u = 1 - t;
+
+      puntos.push({
+        lat:
+          u * u * u * inicio.lat +
+          3 * u * u * t * control1.lat +
+          3 * u * t * t * control2.lat +
+          t * t * t * destino.lat,
+        lon:
+          u * u * u * inicio.lon +
+          3 * u * u * t * control1.lon +
+          3 * u * t * t * control2.lon +
+          t * t * t * destino.lon
+      });
+    }
+
+    return puntos;
+  }
+
+
+  function animarRutaVisualContinuaR65(
+    puntos,
+    duracionMs,
+    velocidadKmh
+  ){
+    if(
+      !mapa ||
+      !marcador ||
+      !Array.isArray(puntos) ||
+      puntos.length < 2
+    ){
+      return false;
+    }
+
+    detenerAnimacionMarcador();
+
+    const segmentos = [];
+    let distanciaTotal = 0;
+
+    for(let i = 0; i < puntos.length - 1; i++){
+      const d =
+        distanciaMetros(
+          puntos[i].lat,
+          puntos[i].lon,
+          puntos[i + 1].lat,
+          puntos[i + 1].lon
+        );
+
+      const segura =
+        Number.isFinite(d)
+          ? Math.max(0,d)
+          : 0;
+
+      segmentos.push({
+        desde:puntos[i],
+        hasta:puntos[i + 1],
+        distancia:segura,
+        inicio:distanciaTotal,
+        fin:distanciaTotal + segura
+      });
+
+      distanciaTotal += segura;
+    }
+
+    if(
+      !Number.isFinite(distanciaTotal) ||
+      distanciaTotal < 0.35
+    ){
+      const fin =
+        puntos[puntos.length - 1];
+
+      marcador.setLatLng([
+        fin.lat,
+        fin.lon
+      ]);
+
+      registrarMovimientoVisualR65(
+        fin.lat,
+        fin.lon
+      );
+
+      return true;
+    }
+
+    const duracion =
+      duracionCurvaR65(
+        duracionMs,
+        velocidadKmh
+      );
+
+    const inicioMs =
+      performance.now();
+
+    const primerPunto =
+      puntos[0];
+
+    if(
+      !ultimoPuntoVisualR65
+    ){
+      ultimoPuntoVisualR65 = {
+        lat:primerPunto.lat,
+        lon:primerPunto.lon
+      };
+    }
+
+    function pasoR65(ahora){
+      const progreso =
+        Math.min(
+          1,
+          (ahora - inicioMs) /
+            duracion
+        );
+
+      /*
+        R65: avance por longitud de arco con progreso LINEAL.
+        No hay smoothstep: una reconstrucción por GPS nuevo no vuelve
+        a imponer velocidad cero al principio/final de la curva.
+      */
+      const recorrida =
+        distanciaTotal *
+        progreso;
+
+      let segmento =
+        segmentos[
+          segmentos.length - 1
+        ];
+
+      for(let i = 0; i < segmentos.length; i++){
+        if(
+          recorrida <= segmentos[i].fin ||
+          i === segmentos.length - 1
+        ){
+          segmento = segmentos[i];
+          break;
+        }
+      }
+
+      const tramo =
+        Math.max(
+          0.0001,
+          segmento.distancia
+        );
+
+      const fraccion =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            (
+              recorrida -
+              segmento.inicio
+            ) /
+            tramo
+          )
+        );
+
+      const latActual =
+        segmento.desde.lat +
+        (
+          segmento.hasta.lat -
+          segmento.desde.lat
+        ) *
+        fraccion;
+
+      const lonActual =
+        segmento.desde.lon +
+        (
+          segmento.hasta.lon -
+          segmento.desde.lon
+        ) *
+        fraccion;
+
+      marcador.setLatLng([
+        latActual,
+        lonActual
+      ]);
+
+      registrarMovimientoVisualR65(
+        latActual,
+        lonActual
+      );
+
+      centrarMapaEnAreaUtil(
+        latActual,
+        lonActual,
+        {animate:false}
+      );
+
+      if(progreso < 1){
+        animacionMarcadorId =
+          requestAnimationFrame(
+            pasoR65
+          );
+      }else{
+        const fin =
+          puntos[
+            puntos.length - 1
+          ];
+
+        marcador.setLatLng([
+          fin.lat,
+          fin.lon
+        ]);
+
+        registrarMovimientoVisualR65(
+          fin.lat,
+          fin.lon
+        );
+
+        animacionMarcadorId =
+          null;
+      }
+    }
+
+    animacionMarcadorId =
+      requestAnimationFrame(
+        pasoR65
+      );
+
+    return true;
+  }
+
+
+  function animarGiroTardioR65(
+    latDestino,
+    lonDestino,
+    duracionMs,
+    velocidadKmh
+  ){
+    if(
+      !mapa ||
+      !marcador ||
+      !Number.isFinite(latDestino) ||
+      !Number.isFinite(lonDestino)
+    ){
+      return false;
+    }
+
+    const actual =
+      marcador.getLatLng();
+
+    const inicio = {
+      lat:Number(actual.lat),
+      lon:Number(actual.lng)
+    };
+
+    const destino = {
+      lat:latDestino,
+      lon:lonDestino
+    };
+
+    const puntos =
+      construirCurvaTangencialR65(
+        inicio,
+        destino
+      );
+
+    return animarRutaVisualContinuaR65(
+      puntos,
+      duracionMs,
+      velocidadKmh
+    );
+  }
+
+
+  function animarLecturaUrbanaProvisionalR65(
+    latNuevo,
+    lonNuevo,
+    proteccionGeometrica
+  ){
+    if(
+      !mapa ||
+      !marcador ||
+      !ultimoPuntoServidor ||
+      !proteccionGeometrica ||
+      !proteccionGeometrica.clasificacion
+    ){
+      return false;
+    }
+
+    /*
+      Si ya existe una curva/cola confirmada, no la interrumpimos por una
+      lectura provisional. La animación existente conserva su autoridad visual.
+    */
+    if(
+      verticesVisualesPendientes.length > 0 ||
+      continuidadCurvaVisualR64
+    ){
+      return false;
+    }
+
+    const clasificacion =
+      proteccionGeometrica.clasificacion;
+
+    const razones =
+      Array.isArray(
+        clasificacion.razones
+      )
+        ? clasificacion.razones
+        : [];
+
+    const lateral =
+      razones.indexOf(
+        "DESVIO_LATERAL_URBANO_REQUIERE_CONFIRMACION"
+      ) >= 0;
+
+    const desdeDetenido =
+      razones.indexOf(
+        "SALTO_DESDE_DETENIDO_PROXIMIDAD"
+      ) >= 0;
+
+    if(
+      (
+        !lateral &&
+        !desdeDetenido
+      ) ||
+      clasificacion.extrema === true
+    ){
+      return false;
+    }
+
+    const actual =
+      marcador.getLatLng();
+
+    const latActual =
+      Number(actual.lat);
+
+    const lonActual =
+      Number(actual.lng);
+
+    const distanciaObjetivo =
+      distanciaMetros(
+        latActual,
+        lonActual,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(distanciaObjetivo) ||
+      distanciaObjetivo < 1.5 ||
+      distanciaObjetivo > 35
+    ){
+      return false;
+    }
+
+    const rumboObjetivo =
+      rumboGrados(
+        latActual,
+        lonActual,
+        latNuevo,
+        lonNuevo
+      );
+
+    if(
+      !Number.isFinite(rumboObjetivo)
+    ){
+      return false;
+    }
+
+    const fraccion =
+      lateral
+        ? 0.66
+        : 0.38;
+
+    const avanceMax =
+      lateral
+        ? 10.5
+        : 5.5;
+
+    const avance =
+      Math.max(
+        1.2,
+        Math.min(
+          avanceMax,
+          distanciaObjetivo * fraccion
+        )
+      );
+
+    let objetivo =
+      proyectarPuntoPorRumbo(
+        latActual,
+        lonActual,
+        rumboObjetivo,
+        avance
+      );
+
+    /*
+      Una muestra sin confirmar nunca puede arrastrar el pin visual de forma
+      indefinida. Hasta que la geometría física la confirme, el adelanto queda
+      dentro de un corredor máximo respecto del último punto confirmado.
+    */
+    const distanciaDesdeConfirmado =
+      distanciaMetros(
+        ultimoPuntoServidor.lat,
+        ultimoPuntoServidor.lon,
+        objetivo.lat,
+        objetivo.lon
+      );
+
+    if(
+      Number.isFinite(distanciaDesdeConfirmado) &&
+      distanciaDesdeConfirmado > 16
+    ){
+      const rumboDesdeConfirmado =
+        rumboGrados(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon,
+          objetivo.lat,
+          objetivo.lon
+        );
+
+      objetivo =
+        proyectarPuntoPorRumbo(
+          ultimoPuntoServidor.lat,
+          ultimoPuntoServidor.lon,
+          rumboDesdeConfirmado,
+          16
+        );
+    }
+
+    const cadencia =
+      estadoCadenciaGpsHibrido &&
+      Number.isFinite(
+        estadoCadenciaGpsHibrido.cadenciaMs
+      )
+        ? estadoCadenciaGpsHibrido.cadenciaMs
+        : ALGORITMO_PIN_HIBRIDO.CADENCIA_DEFAULT_MS;
+
+    const duracion =
+      Math.max(
+        900,
+        Math.min(
+          1550,
+          cadencia * 0.78
+        )
+      );
+
+    visualProvisionalUrbanoR65Activo =
+      true;
+
+    return animarGiroTardioR65(
+      objetivo.lat,
+      objetivo.lon,
+      duracion,
+      Number.isFinite(ultimaVelocidadValidaKmh)
+        ? Math.min(ultimaVelocidadValidaKmh,30)
+        : 18
+    );
+  }
+
   function animarMarcadorHasta(
     latDestino,
     lonDestino,
@@ -15140,6 +16086,11 @@ ocultarHoraLlegada();
 
       marcador.setLatLng(
         [latDestino, lonDestino]
+      );
+
+      registrarMovimientoVisualR65(
+        latDestino,
+        lonDestino
       );
 
       return;
@@ -15210,6 +16161,11 @@ ocultarHoraLlegada();
         [latActual, lonActual]
       );
 
+      registrarMovimientoVisualR65(
+        latActual,
+        lonActual
+      );
+
       /*
         Acompaña la camioneta sin modificar
         la orientación elegida por el cliente.
@@ -15236,6 +16192,11 @@ ocultarHoraLlegada();
 
         marcador.setLatLng(
           [latDestino, lonDestino]
+        );
+
+        registrarMovimientoVisualR65(
+          latDestino,
+          lonDestino
         );
 
         animacionMarcadorId =
@@ -16019,43 +16980,18 @@ ocultarHoraLlegada();
       return;
     }
 
-    const distanciaDirecta = distanciaMetros(
-      inicio.lat,
-      inicio.lon,
-      latDestino,
-      lonDestino
-    );
-
-    const factorRuta =
-      Number.isFinite(distanciaDirecta) && distanciaDirecta > 1
-        ? Math.max(1,Math.min(1.12,distanciaTotal / distanciaDirecta))
-        : 1;
-
-    const duracionRuta = Math.max(
-      650,
-      Math.min(
-        ALGORITMO_PIN_HIBRIDO.DURACION_MAX_ABS_MS,
-        (
-          Number.isFinite(duracionTotalMs)
-            ? duracionTotalMs
-            : DURACION_ANIMACION_DEFAULT_MS
-        ) * factorRuta
-      )
-    );
-
-    bbRegistrarConfigRuta({
-      continuidadAplicableR64:continuidadAplicableR64 === true,
-      distanciaTotal:distanciaTotal,
-      distanciaDirecta:distanciaDirecta,
-      factorRuta:factorRuta,
-      duracionSolicitadaMs:Number.isFinite(duracionTotalMs) ? duracionTotalMs : null,
-      duracionRutaMs:duracionRuta,
-      cantidadPuntos:puntos.length,
-      cantidadSegmentos:segmentos.length,
-      cantidadVerticesRuta:verticesRuta.length,
-      cantidadVerticesUtiles:verticesRutaUtiles.length,
-      umbralesConsumo:umbralesConsumo
-    });
+    /*
+      R65:
+      la longitud adicional del arco ya NO estira el tiempo de animación.
+      La curva entra dentro de la ventana temporal del próximo GPS.
+    */
+    const duracionRuta =
+      duracionCurvaR65(
+        Number.isFinite(duracionTotalMs)
+          ? duracionTotalMs
+          : DURACION_ANIMACION_DEFAULT_MS,
+        velocidadKmh
+      );
 
     const inicioMs = performance.now();
     let consumosProcesados = 0;
@@ -16063,10 +16999,12 @@ ocultarHoraLlegada();
     function pasoRuta(ahora){
       const progreso = Math.min(1,(ahora - inicioMs) / duracionRuta);
 
+      /*
+        R65: velocidad visual continua durante la curva.
+        No imponemos velocidad cero al inicio/final de cada paquete.
+      */
       const t =
-        Number.isFinite(velocidadKmh) && velocidadKmh >= 30
-          ? progreso
-          : progreso * progreso * (3 - 2 * progreso);
+        progreso;
 
       const recorrida = distanciaTotal * t;
       let segmento = segmentos[segmentos.length - 1];
@@ -16100,8 +17038,13 @@ ocultarHoraLlegada();
 
       marcador.setLatLng([latActual,lonActual]);
 
+      registrarMovimientoVisualR65(
+        latActual,
+        lonActual
+      );
+
       /*
-        R64.1: la continuidad se arma sólo cuando el pin YA está recorriendo
+        R65: la continuidad se arma sólo cuando el pin YA está recorriendo
         un segmento de la curva. Nunca anticipa el giro.
       */
       if(
@@ -16180,6 +17123,10 @@ ocultarHoraLlegada();
         animacionMarcadorId = requestAnimationFrame(pasoRuta);
       }else{
         marcador.setLatLng([latDestino,lonDestino]);
+        registrarMovimientoVisualR65(
+          latDestino,
+          lonDestino
+        );
         limpiarColaVerticesVisuales();
         animacionMarcadorId = null;
       }
@@ -16683,6 +17630,13 @@ if(
           mapa
         );
 
+      reiniciarContinuidadVisualR65();
+
+      registrarMovimientoVisualR65(
+        lat,
+        lon
+      );
+
       /*
         Diseño nuevo:
         el pin no lleva globo/popup.
@@ -16733,11 +17687,21 @@ if(
       proteccionGeometrica.aceptar !== true
     ){
       /*
-        R59:
-        la lectura existe y mantiene viva la cadencia R58, pero no tiene
-        autoridad geométrica. No mueve pin, cámara, zoom, rumbo, velocidad,
-        proximidad ni memoria confirmada.
+        R65:
+        la lectura sigue SIN autoridad geométrica. No toca memoria física,
+        proximidad, T0, ETA, rumbo confirmado ni velocidad válida.
+
+        Sólo para las dos cuarentenas urbanas conocidas permitimos un avance
+        VISUAL provisional y acotado. Si la lectura siguiente desmiente el giro,
+        el pin reengancha desde su posición visual actual sin haber contaminado
+        la fuente física de verdad.
       */
+      animarLecturaUrbanaProvisionalR65(
+        lat,
+        lon,
+        proteccionGeometrica
+      );
+
       return {
         procesada:true,
         aceptada:false,
@@ -17003,6 +17967,13 @@ if(
         velocidadInterna
       );
 
+    /*
+      R65: recordar si esta lectura viene a confirmar/descartar una trayectoria
+      visual provisional. Ese estado sólo afecta cómo reenganchamos el dibujo.
+    */
+    const habiaVisualProvisionalR65 =
+      visualProvisionalUrbanoR65Activo === true;
+
     const retrocesoRuido =
       esRetrocesoProbablePorRuido(
         lat,
@@ -17062,6 +18033,12 @@ if(
       */
       limpiarColaVerticesVisuales();
 
+      let verticeConfirmadoTardioR65 =
+        false;
+
+      let verticeConfirmadoAgregadoR65 =
+        false;
+
       if(
         proteccionGeometrica.verticeConfirmado &&
         Number.isFinite(
@@ -17071,10 +18048,31 @@ if(
           proteccionGeometrica.verticeConfirmado.lon
         )
       ){
-        agregarVerticeVisualPendiente(
-          proteccionGeometrica.verticeConfirmado.lat,
-          proteccionGeometrica.verticeConfirmado.lon
-        );
+        const v =
+          proteccionGeometrica.verticeConfirmado;
+
+        /*
+          Si el pin visual ya está encima o por delante de la esquina,
+          volver a insertar V obliga a mirar hacia atrás y reaparece la V.
+          R65 la resuelve como giro tardío desde la posición visual actual.
+        */
+        verticeConfirmadoTardioR65 =
+          verticeDebeResolverseTardioR65(
+            v.lat,
+            v.lon,
+            latVisual,
+            lonVisual
+          );
+
+        if(
+          !verticeConfirmadoTardioR65
+        ){
+          verticeConfirmadoAgregadoR65 =
+            agregarVerticeVisualPendiente(
+              v.lat,
+              v.lon
+            ) === true;
+        }
       }
 
       const posicionActual =
@@ -17102,6 +18100,11 @@ if(
 
         marcador.setLatLng(
           [latVisual, lonVisual]
+        );
+
+        registrarMovimientoVisualR65(
+          latVisual,
+          lonVisual
         );
 
         centrarMapaEnAreaUtil(
@@ -17132,6 +18135,24 @@ if(
             duracionReenganche,
             velocidadInterna
           );
+        }else if(
+          proteccionGeometrica.confirmacionUrbana === true &&
+          (
+            verticeConfirmadoTardioR65 ||
+            habiaVisualProvisionalR65 ||
+            !verticeConfirmadoAgregadoR65
+          )
+        ){
+          /*
+            Confirmación real pero tardía: no vamos hacia atrás a buscar V.
+            Terminamos la maniobra desde el punto visual actual.
+          */
+          animarGiroTardioR65(
+            latVisual,
+            lonVisual,
+            duracionReenganche,
+            velocidadInterna
+          );
         }else{
           animarMarcadorHasta(
             latVisual,
@@ -17143,8 +18164,11 @@ if(
       }
 
     }else if(
-      retrocesoRuido ||
-      retrocesoVisual
+      (
+        retrocesoRuido ||
+        retrocesoVisual
+      ) &&
+      !habiaVisualProvisionalR65
     ){
 
       /*
@@ -17161,6 +18185,7 @@ if(
       detenerAnimacionMarcador();
 
     }else if(
+      !habiaVisualProvisionalR65 &&
       Number.isFinite(
         distanciaDesdeUltimo
       ) &&
@@ -17196,16 +18221,19 @@ if(
 
     }else{
 
+      let giroTardioR65 =
+        false;
+
       if(
         giroProtegido &&
         ultimoPuntoServidor
       ){
         /*
-          R60 - VÉRTICE CONSOLIDADO:
-          R59 ya conserva la esquina pendiente. R60 afina dónde cae esa
-          esquina usando la componente longitudinal demostrada por el primer
-          punto de salida. Si la geometría no es inequívoca, vuelve exactamente
-          al último punto confirmado de R59.
+          R65 - VÉRTICE CONSOLIDADO CON SALIDA TARDÍA
+
+          La geometría física sigue siendo la misma R60/R63. La diferencia
+          es puramente visual: antes de encolar el vértice verificamos si el
+          pin ya llegó a él o lo dejó atrás. En ese caso no lo reinsertamos.
         */
         const verticeVisual =
           calcularVerticeVisualConsolidado(
@@ -17220,37 +18248,64 @@ if(
         const longitudColaAntesR63 =
           verticesVisualesPendientes.length;
 
-        /*
-          CAPA 1 R62: se agrega exactamente el mismo vértice de siempre.
-        */
-        agregarVerticeVisualPendiente(
-          verticeVisual.lat,
-          verticeVisual.lon
-        );
+        giroTardioR65 =
+          verticeDebeResolverseTardioR65(
+            verticeVisual.lat,
+            verticeVisual.lon,
+            latVisual,
+            lonVisual
+          );
+
+        let verticeAgregadoR65 =
+          false;
+
+        if(
+          !giroTardioR65
+        ){
+          verticeAgregadoR65 =
+            agregarVerticeVisualPendiente(
+              verticeVisual.lat,
+              verticeVisual.lon
+            ) === true;
+        }
 
         /*
-          CAPA 2 R63: sólo abre una comprobación independiente si R62 creó
-          un vértice consolidado real. No cambia el vértice en este instante.
+          CAPA 2 R63 sólo se abre si efectivamente existe un vértice R62
+          pendiente en la cola. Si el giro ya llegó tarde, R65 lo dibuja
+          sin alterar la segunda geometría ni inventar un candidato.
         */
-        abrirVerticeGeometricoR63(
-          verticeVisual,
-          lat,
-          lon,
-          createdAt,
-          longitudColaAntesR63
-        );
+        if(
+          verticeAgregadoR65
+        ){
+          abrirVerticeGeometricoR63(
+            verticeVisual,
+            lat,
+            lon,
+            createdAt,
+            longitudColaAntesR63
+          );
+        }
       }
 
       if(
         verticesVisualesPendientes.length >
           0
       ){
-        /*
-          R60 - COLA REAL DE VÉRTICES + VÉRTICE CONSOLIDADO:
-          un GPS nuevo puede actualizar el destino final, pero jamás borrar
-          una esquina que el pin todavía no recorrió.
-        */
         animarMarcadorConColaVertices(
+          latVisual,
+          lonVisual,
+          duracion,
+          velocidadInterna
+        );
+
+      }else if(
+        giroTardioR65
+      ){
+        /*
+          No existe ya un vértice útil por delante. La curva nace en la
+          posición VISUAL actual y conserva tangente de entrada/salida.
+        */
+        animarGiroTardioR65(
           latVisual,
           lonVisual,
           duracion,
@@ -17259,8 +18314,7 @@ if(
 
       }else{
         /*
-          Tramo sin vértices pendientes: conserva exactamente la continuidad
-          R58 que funcionó bien en recta.
+          Tramo sin vértices pendientes: conserva la continuidad recta R58.
         */
         animarMarcadorHasta(
           latVisual,
@@ -17270,6 +18324,13 @@ if(
         );
       }
     }
+
+    /*
+      Cualquier lectura aceptada resuelve el estado provisional R65.
+      Desde aquí vuelve a mandar únicamente la geometría confirmada.
+    */
+    visualProvisionalUrbanoR65Activo =
+      false;
 
     penultimoPuntoServidor =
       ultimoPuntoServidor
@@ -17311,6 +18372,12 @@ if(
 
     forzar =
       forzar === true;
+
+    let consultaDetectoGpsNuevoR65 =
+      false;
+
+    let consultaSnapshotActivoR65 =
+      false;
 
     if(
       terminado
@@ -17483,6 +18550,34 @@ if(
         return;
       }
 
+      consultaSnapshotActivoR65 =
+        true;
+
+      const createdSnapshotR65Ms =
+        new Date(
+          p.created_at
+        )
+        .getTime();
+
+      const createdProcesadoR65Ms =
+        ultimoCreatedAtProcesadoGps
+          ? new Date(
+              ultimoCreatedAtProcesadoGps
+            ).getTime()
+          : NaN;
+
+      consultaDetectoGpsNuevoR65 =
+        Number.isFinite(
+          createdSnapshotR65Ms
+        ) &&
+        (
+          !Number.isFinite(
+            createdProcesadoR65Ms
+          ) ||
+          createdSnapshotR65Ms >
+            createdProcesadoR65Ms
+        );
+
       mostrarHoraLlegada(
         p.client_arrival
       );
@@ -17559,6 +18654,7 @@ if(
           0;
 
         limpiarColaVerticesVisuales();
+        reiniciarContinuidadVisualR65();
 
         if(
           llegadaFisicaConfirmada
@@ -17660,684 +18756,23 @@ if(
 
       ultimaConsultaFinalizadaMs =
         Date.now();
-    }
-  }
 
-
-
-  /* =====================================================================
-     TEMPORAL - CAJA NEGRA R64 PROFUNDA
-
-     Esta capa NO altera decisiones del tracking. Observa funciones ya
-     existentes, registra sus entradas/salidas y envía los eventos en lotes
-     a public.pioca_r64_bb_log_batch().
-
-     IMPORTANTE: retirar este bloque al terminar el diagnóstico.
-     ===================================================================== */
-
-  const PIOCA_R64_BB_TEMPORAL = true;
-
-  let bbSecuenciaEvento = 0;
-  let bbNumeroPaquete = 0;
-  let bbColaEventos = [];
-  let bbFlushTimer = null;
-  let bbFlushEnCurso = false;
-  let bbContextoPaquete = null;
-  let bbAnimacionActiva = null;
-  let bbAnimacionToken = 0;
-  let bbAnimacionSampler = null;
-  let bbUltimaMuestraAnimacion = null;
-  let bbMotivoProximoStop = null;
-  let bbUltimaConfigRuta = null;
-
-  function bbNumeroSeguro(valor){
-    const n = Number(valor);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  function bbPosicionMarcador(){
-    try{
-      if(!marcador){ return null; }
-      const p = marcador.getLatLng();
-      return {
-        lat:bbNumeroSeguro(p.lat),
-        lon:bbNumeroSeguro(p.lng)
-      };
-    }catch(e){
-      return null;
-    }
-  }
-
-  function bbClonarSeguro(valor){
-    try{
-      const texto = JSON.stringify(valor,function(_k,v){
-        if(typeof v === "number" && !Number.isFinite(v)){ return null; }
-        if(typeof v === "function"){ return "[function]"; }
-        return v;
-      });
-      if(!texto){ return {}; }
-      if(texto.length > 12000){
-        return {
-          truncado:true,
-          caracteresOriginales:texto.length,
-          muestra:texto.slice(0,11000)
-        };
-      }
-      return JSON.parse(texto);
-    }catch(e){
-      return {errorSerializacion:String(e && e.message || e)};
-    }
-  }
-
-  function bbSnapshotContinuidad(){
-    return continuidadCurvaVisualR64
-      ? bbClonarSeguro(continuidadCurvaVisualR64)
-      : null;
-  }
-
-  function bbSnapshotCadencia(){
-    try{
-      return {
-        cadenciaMs:bbNumeroSeguro(estadoCadenciaGpsHibrido.cadenciaMs),
-        intervaloRealMs:bbNumeroSeguro(estadoCadenciaGpsHibrido.intervaloRealMs),
-        confianzaModelo:bbNumeroSeguro(estadoCadenciaGpsHibrido.confianzaModelo),
-        confianzaTemporal:bbNumeroSeguro(estadoCadenciaGpsHibrido.confianzaTemporal),
-        muestras:bbNumeroSeguro(estadoCadenciaGpsHibrido.muestras)
-      };
-    }catch(e){
-      return null;
-    }
-  }
-
-  function bbEvento(tipo,payload,gpsCreatedAt){
-    if(!PIOCA_R64_BB_TEMPORAL || !codigo){ return; }
-
-    bbSecuenciaEvento += 1;
-
-    const evento = {
-      event_type:String(tipo || "UNKNOWN").slice(0,80),
-      client_seq:bbSecuenciaEvento,
-      client_time_ms:Date.now(),
-      gps_created_at:
-        gpsCreatedAt ||
-        (bbContextoPaquete ? bbContextoPaquete.gpsCreatedAt : null),
-      payload:bbClonarSeguro(payload || {})
-    };
-
-    bbColaEventos.push(evento);
-
-    if(bbColaEventos.length > 600){
-      bbColaEventos.splice(0,bbColaEventos.length - 600);
-    }
-
-    if(bbColaEventos.length >= 18){
-      bbFlushCajaNegra();
-      return;
-    }
-
-    if(bbFlushTimer === null){
-      bbFlushTimer = setTimeout(function(){
-        bbFlushTimer = null;
-        bbFlushCajaNegra();
-      },650);
-    }
-  }
-
-  function bbFlushCajaNegra(){
-    if(bbFlushEnCurso || !codigo || bbColaEventos.length === 0){ return; }
-
-    if(bbFlushTimer !== null){
-      clearTimeout(bbFlushTimer);
-      bbFlushTimer = null;
-    }
-
-    const lote = bbColaEventos.splice(0,60);
-    bbFlushEnCurso = true;
-
-    fetch(
-      SUPABASE_URL + "/rest/v1/rpc/pioca_r64_bb_log_batch",
-      {
-        method:"POST",
-        headers:{
-          "apikey":SUPABASE_KEY,
-          "Authorization":"Bearer " + SUPABASE_KEY,
-          "Content-Type":"application/json"
-        },
-        body:JSON.stringify({
-          p_code:String(codigo).trim().toUpperCase(),
-          p_events:lote
-        }),
-        keepalive:true
-      }
-    )
-    .then(function(){
-      bbFlushEnCurso = false;
-      if(bbColaEventos.length > 0){
-        setTimeout(bbFlushCajaNegra,80);
-      }
-    })
-    .catch(function(){
-      bbFlushEnCurso = false;
-      if(bbColaEventos.length < 540){
-        bbColaEventos = lote.concat(bbColaEventos);
-      }
-      if(bbFlushTimer === null){
-        bbFlushTimer = setTimeout(function(){
-          bbFlushTimer = null;
-          bbFlushCajaNegra();
-        },1200);
-      }
-    });
-  }
-
-  function bbRegistrarConfigRuta(datos){
-    bbUltimaConfigRuta = bbClonarSeguro(datos || {});
-    bbEvento("RUTA_RENDER_CONFIG",Object.assign({
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      colaVertices:Array.isArray(verticesVisualesPendientes)
-        ? verticesVisualesPendientes.length
-        : null,
-      continuidad:bbSnapshotContinuidad()
-    },bbUltimaConfigRuta));
-  }
-
-  function bbDetenerSamplerAnimacion(){
-    if(bbAnimacionSampler !== null){
-      clearInterval(bbAnimacionSampler);
-      bbAnimacionSampler = null;
-    }
-    bbUltimaMuestraAnimacion = null;
-  }
-
-  function bbCerrarAnimacionDetectada(motivo){
-    if(!bbAnimacionActiva){ return; }
-
-    const ahoraPerf = performance.now();
-    const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
-    const progreso = bbAnimacionActiva.duracionMs > 0
-      ? Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs))
-      : null;
-
-    bbEvento("ANIM_COMPLETE_DETECTED",{
-      packet:bbAnimacionActiva.packet,
-      token:bbAnimacionActiva.token,
-      tipoAnimacion:bbAnimacionActiva.tipo,
-      motivo:String(motivo || "raf_null"),
-      transcurridoMs:transcurridoMs,
-      duracionMs:bbAnimacionActiva.duracionMs,
-      progresoPct:progreso === null ? null : progreso * 100,
-      posicionFinal:bbPosicionMarcador(),
-      colaVertices:verticesVisualesPendientes.length,
-      continuidad:bbSnapshotContinuidad()
-    },bbAnimacionActiva.gpsCreatedAt);
-
-    bbAnimacionActiva = null;
-    bbDetenerSamplerAnimacion();
-  }
-
-  function bbIniciarMonitorAnimacion(tipo,duracionMs,destino,extra){
-    bbDetenerSamplerAnimacion();
-
-    const token = ++bbAnimacionToken;
-    const inicioPos = bbPosicionMarcador();
-    const duracion = Math.max(1,Number(duracionMs) || 1);
-
-    bbAnimacionActiva = {
-      token:token,
-      tipo:tipo,
-      inicioPerf:performance.now(),
-      duracionMs:duracion,
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      gpsCreatedAt:bbContextoPaquete ? bbContextoPaquete.gpsCreatedAt : null,
-      inicioPos:inicioPos,
-      destino:destino
-    };
-
-    bbEvento("ANIM_START",{
-      packet:bbAnimacionActiva.packet,
-      token:token,
-      tipoAnimacion:tipo,
-      renderer:tipo,
-      duracionMs:duracion,
-      inicio:inicioPos,
-      destino:destino,
-      colaVertices:verticesVisualesPendientes.length,
-      continuidad:bbSnapshotContinuidad(),
-      configRuta:bbUltimaConfigRuta,
-      extra:extra || null
-    },bbAnimacionActiva.gpsCreatedAt);
-
-    bbUltimaMuestraAnimacion = {
-      perf:performance.now(),
-      posicion:inicioPos
-    };
-
-    bbAnimacionSampler = setInterval(function(){
-      if(!bbAnimacionActiva){
-        bbDetenerSamplerAnimacion();
-        return;
-      }
-
-      if(animacionMarcadorId === null){
-        bbCerrarAnimacionDetectada("raf_null");
-        return;
-      }
-
-      const ahoraPerf = performance.now();
-      const pos = bbPosicionMarcador();
-      const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
-      const progreso = Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs));
-
-      let desplazamientoM = null;
       if(
-        pos && bbUltimaMuestraAnimacion && bbUltimaMuestraAnimacion.posicion
+        cicloConsultasR65Activo &&
+        !terminado &&
+        codigo
       ){
-        desplazamientoM = distanciaMetros(
-          bbUltimaMuestraAnimacion.posicion.lat,
-          bbUltimaMuestraAnimacion.posicion.lon,
-          pos.lat,
-          pos.lon
+        programarProximaConsultaR65(
+          consultaSnapshotActivoR65
+            ? demoraProximaConsultaR65(
+                consultaDetectoGpsNuevoR65
+              )
+            : ALGORITMO_CONSULTA_R65.DEMORA_MAX_MS
         );
       }
-
-      bbEvento("ANIM_SAMPLE",{
-        packet:bbAnimacionActiva.packet,
-        token:bbAnimacionActiva.token,
-        tipoAnimacion:bbAnimacionActiva.tipo,
-        transcurridoMs:transcurridoMs,
-        duracionMs:bbAnimacionActiva.duracionMs,
-        progresoPct:progreso * 100,
-        posicion:pos,
-        desplazamientoDesdeMuestraM:bbNumeroSeguro(desplazamientoM),
-        colaVertices:verticesVisualesPendientes.length,
-        continuidad:bbSnapshotContinuidad()
-      },bbAnimacionActiva.gpsCreatedAt);
-
-      bbUltimaMuestraAnimacion = {
-        perf:ahoraPerf,
-        posicion:pos
-      };
-    },250);
+    }
   }
 
-  /* --------------------------- wrappers de decisión ---------------------- */
-
-  const bbOriginalDetenerAnimacionMarcador = detenerAnimacionMarcador;
-  detenerAnimacionMarcador = function(){
-    if(bbAnimacionActiva){
-      const ahoraPerf = performance.now();
-      const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
-      const progreso = bbAnimacionActiva.duracionMs > 0
-        ? Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs))
-        : null;
-
-      bbEvento("ANIM_CANCEL",{
-        packet:bbAnimacionActiva.packet,
-        token:bbAnimacionActiva.token,
-        tipoAnimacion:bbAnimacionActiva.tipo,
-        motivo:bbMotivoProximoStop || "stop_directo",
-        transcurridoMs:transcurridoMs,
-        duracionMs:bbAnimacionActiva.duracionMs,
-        progresoPct:progreso === null ? null : progreso * 100,
-        posicionAlCancelar:bbPosicionMarcador(),
-        colaVertices:verticesVisualesPendientes.length,
-        continuidad:bbSnapshotContinuidad()
-      },bbAnimacionActiva.gpsCreatedAt);
-
-      bbAnimacionActiva = null;
-      bbDetenerSamplerAnimacion();
-    }
-
-    bbMotivoProximoStop = null;
-    return bbOriginalDetenerAnimacionMarcador.apply(this,arguments);
-  };
-
-  const bbOriginalAnimarMarcadorHasta = animarMarcadorHasta;
-  animarMarcadorHasta = function(latDestino,lonDestino,duracionMs,velocidadKmh){
-    bbMotivoProximoStop = "NUEVO_RENDER_RECTO";
-    bbUltimaConfigRuta = null;
-
-    const retorno = bbOriginalAnimarMarcadorHasta.apply(this,arguments);
-
-    if(animacionMarcadorId !== null){
-      bbIniciarMonitorAnimacion(
-        "RECTO",
-        duracionMs,
-        {lat:bbNumeroSeguro(latDestino),lon:bbNumeroSeguro(lonDestino)},
-        {velocidadKmh:bbNumeroSeguro(velocidadKmh)}
-      );
-    }else{
-      bbEvento("RENDER_NO_ANIMACION",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        renderer:"RECTO",
-        destino:{lat:latDestino,lon:lonDestino},
-        duracionSolicitadaMs:duracionMs,
-        posicion:bbPosicionMarcador()
-      });
-    }
-
-    return retorno;
-  };
-
-  const bbOriginalAnimarMarcadorConColaVertices = animarMarcadorConColaVertices;
-  animarMarcadorConColaVertices = function(latDestino,lonDestino,duracionTotalMs,velocidadKmh){
-    bbMotivoProximoStop = "NUEVO_RENDER_VERTICES";
-    bbUltimaConfigRuta = null;
-
-    const colaAntes = verticesVisualesPendientes.length;
-    const continuidadAntes = bbSnapshotContinuidad();
-    const retorno = bbOriginalAnimarMarcadorConColaVertices.apply(this,arguments);
-
-    const duracionEfectiva =
-      bbUltimaConfigRuta && Number.isFinite(Number(bbUltimaConfigRuta.duracionRutaMs))
-        ? Number(bbUltimaConfigRuta.duracionRutaMs)
-        : Number(duracionTotalMs);
-
-    if(animacionMarcadorId !== null){
-      bbIniciarMonitorAnimacion(
-        "VERTICES_R64",
-        duracionEfectiva,
-        {lat:bbNumeroSeguro(latDestino),lon:bbNumeroSeguro(lonDestino)},
-        {
-          velocidadKmh:bbNumeroSeguro(velocidadKmh),
-          duracionSolicitadaMs:bbNumeroSeguro(duracionTotalMs),
-          colaAntes:colaAntes,
-          colaDespues:verticesVisualesPendientes.length,
-          continuidadAntes:continuidadAntes,
-          continuidadDespues:bbSnapshotContinuidad()
-        }
-      );
-    }else{
-      bbEvento("RENDER_NO_ANIMACION",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        renderer:"VERTICES_R64",
-        destino:{lat:latDestino,lon:lonDestino},
-        duracionSolicitadaMs:duracionTotalMs,
-        colaAntes:colaAntes,
-        colaDespues:verticesVisualesPendientes.length,
-        continuidadAntes:continuidadAntes,
-        continuidadDespues:bbSnapshotContinuidad(),
-        posicion:bbPosicionMarcador()
-      });
-    }
-
-    return retorno;
-  };
-
-  const bbOriginalEvaluarProteccionGeometrica = evaluarProteccionGeometrica;
-  evaluarProteccionGeometrica = function(lat,lon,createdAt){
-    const r = bbOriginalEvaluarProteccionGeometrica.apply(this,arguments);
-    bbEvento("PROTECCION_GEOMETRICA",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      lat:bbNumeroSeguro(lat),
-      lon:bbNumeroSeguro(lon),
-      resultado:bbClonarSeguro(r),
-      colaVertices:verticesVisualesPendientes.length
-    },createdAt);
-
-    if(!r || r.aceptar !== true){
-      bbEvento("CUARENTENA_GEOMETRICA",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        resultado:bbClonarSeguro(r)
-      },createdAt);
-    }
-    return r;
-  };
-
-  const bbOriginalEvaluarCambioBruscoAutopista = evaluarCambioBruscoAutopista;
-  evaluarCambioBruscoAutopista = function(){
-    const r = bbOriginalEvaluarCambioBruscoAutopista.apply(this,arguments);
-    if(r && r.brusco){
-      bbEvento("CUARENTENA_AUTOPISTA_CANDIDATA",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        resultado:bbClonarSeguro(r)
-      });
-    }
-    return r;
-  };
-
-  const bbOriginalCalcularDuracionAnimacion = calcularDuracionAnimacion;
-  calcularDuracionAnimacion = function(lat,lon,createdAt,velocidadKmh,rumboIncierto,confianzaGps){
-    const duracion = bbOriginalCalcularDuracionAnimacion.apply(this,arguments);
-    bbEvento("DURACION_CALCULADA",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      lat:bbNumeroSeguro(lat),
-      lon:bbNumeroSeguro(lon),
-      velocidadKmh:bbNumeroSeguro(velocidadKmh),
-      rumboIncierto:rumboIncierto === true,
-      confianzaGps:bbNumeroSeguro(confianzaGps),
-      duracionMs:bbNumeroSeguro(duracion),
-      cadencia:bbSnapshotCadencia(),
-      posicionPin:bbPosicionMarcador()
-    },createdAt);
-    return duracion;
-  };
-
-  const bbOriginalEsGiroProtegidoBajaVelocidad = esGiroProtegidoBajaVelocidad;
-  esGiroProtegidoBajaVelocidad = function(lat,lon,velocidadKmh){
-    const r = bbOriginalEsGiroProtegidoBajaVelocidad.apply(this,arguments);
-    bbEvento("GIRO_PROTEGIDO_EVALUADO",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      lat:bbNumeroSeguro(lat),
-      lon:bbNumeroSeguro(lon),
-      velocidadKmh:bbNumeroSeguro(velocidadKmh),
-      giroProtegido:r === true
-    });
-    return r;
-  };
-
-  const bbOriginalEstabilizarPuntoAltaVelocidad = estabilizarPuntoAltaVelocidad;
-  estabilizarPuntoAltaVelocidad = function(){
-    const r = bbOriginalEstabilizarPuntoAltaVelocidad.apply(this,arguments);
-    bbEvento("PUNTO_VISUAL_CALCULADO",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      resultado:bbClonarSeguro(r)
-    });
-    return r;
-  };
-
-  const bbOriginalAgregarVerticeVisualPendiente = agregarVerticeVisualPendiente;
-  agregarVerticeVisualPendiente = function(lat,lon){
-    const antes = verticesVisualesPendientes.length;
-    const pos = bbPosicionMarcador();
-    const retorno = bbOriginalAgregarVerticeVisualPendiente.apply(this,arguments);
-    const despues = verticesVisualesPendientes.length;
-
-    bbEvento(
-      despues > antes ? "VERTICE_AGREGADO" : "VERTICE_NO_AGREGADO",
-      {
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        lat:bbNumeroSeguro(lat),
-        lon:bbNumeroSeguro(lon),
-        colaAntes:antes,
-        colaDespues:despues,
-        posicionPin:pos,
-        cola:bbClonarSeguro(verticesVisualesPendientes)
-      }
-    );
-    return retorno;
-  };
-
-  const bbOriginalLimpiarColaVerticesVisuales = limpiarColaVerticesVisuales;
-  limpiarColaVerticesVisuales = function(){
-    const antes = verticesVisualesPendientes.length;
-    const continuidadAntes = bbSnapshotContinuidad();
-    const retorno = bbOriginalLimpiarColaVerticesVisuales.apply(this,arguments);
-    if(antes > 0 || continuidadAntes){
-      bbEvento("COLA_VERTICES_LIMPIADA",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        colaAntes:antes,
-        colaDespues:verticesVisualesPendientes.length,
-        continuidadAntes:continuidadAntes,
-        continuidadDespues:bbSnapshotContinuidad()
-      });
-    }
-    return retorno;
-  };
-
-  const bbOriginalAbrirVerticeGeometricoR63 = abrirVerticeGeometricoR63;
-  abrirVerticeGeometricoR63 = function(){
-    const antes = bbClonarSeguro(verticeGeometricoPendienteR63);
-    const retorno = bbOriginalAbrirVerticeGeometricoR63.apply(this,arguments);
-    bbEvento("R63_VERTICE_ABRIR",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      antes:antes,
-      despues:bbClonarSeguro(verticeGeometricoPendienteR63),
-      argumentos:bbClonarSeguro(Array.prototype.slice.call(arguments))
-    });
-    return retorno;
-  };
-
-  const bbOriginalActualizarVerticeGeometricoR63 = actualizarVerticeGeometricoR63;
-  actualizarVerticeGeometricoR63 = function(){
-    const antes = bbClonarSeguro(verticeGeometricoPendienteR63);
-    const colaAntes = bbClonarSeguro(verticesVisualesPendientes);
-    const retorno = bbOriginalActualizarVerticeGeometricoR63.apply(this,arguments);
-    const despues = bbClonarSeguro(verticeGeometricoPendienteR63);
-    const colaDespues = bbClonarSeguro(verticesVisualesPendientes);
-
-    if(JSON.stringify(antes) !== JSON.stringify(despues) || JSON.stringify(colaAntes) !== JSON.stringify(colaDespues)){
-      bbEvento("R63_VERTICE_ACTUALIZADO",{
-        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-        antes:antes,
-        despues:despues,
-        colaAntes:colaAntes,
-        colaDespues:colaDespues
-      });
-    }
-    return retorno;
-  };
-
-  const bbOriginalConstruirRutaVisualSuavizadaR64 = construirRutaVisualSuavizadaR64;
-  construirRutaVisualSuavizadaR64 = function(puntosBase,cantidadVertices,velocidadKmh){
-    const r = bbOriginalConstruirRutaVisualSuavizadaR64.apply(this,arguments);
-
-    let distanciaRuta = 0;
-    try{
-      for(let i=0;i<r.puntos.length-1;i++){
-        const d = distanciaMetros(
-          r.puntos[i].lat,r.puntos[i].lon,
-          r.puntos[i+1].lat,r.puntos[i+1].lon
-        );
-        if(Number.isFinite(d)){ distanciaRuta += d; }
-      }
-    }catch(e){}
-
-    bbEvento("RUTA_R64_CONSTRUIDA",{
-      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
-      cantidadVertices:cantidadVertices,
-      velocidadKmh:bbNumeroSeguro(velocidadKmh),
-      puntosBase:bbClonarSeguro(puntosBase),
-      cantidadPuntosSalida:r && Array.isArray(r.puntos) ? r.puntos.length : null,
-      distanciaRutaM:bbNumeroSeguro(distanciaRuta),
-      puntosSalida:r ? bbClonarSeguro(r.puntos) : null
-    });
-    return r;
-  };
-
-  const bbOriginalActualizarMarcador = actualizarMarcador;
-  actualizarMarcador = function(lat,lon,createdAt){
-    bbNumeroPaquete += 1;
-
-    const contextoAnterior = bbContextoPaquete;
-    const inicioPerf = performance.now();
-    const packet = bbNumeroPaquete;
-
-    bbContextoPaquete = {
-      packet:packet,
-      gpsCreatedAt:createdAt,
-      rawLat:bbNumeroSeguro(lat),
-      rawLon:bbNumeroSeguro(lon)
-    };
-
-    bbEvento("PACKET_RECEIVED",{
-      packet:packet,
-      rawLat:bbNumeroSeguro(lat),
-      rawLon:bbNumeroSeguro(lon),
-      createdAt:createdAt,
-      posicionPinAntes:bbPosicionMarcador(),
-      ultimoPuntoServidor:bbClonarSeguro(ultimoPuntoServidor),
-      penultimoPuntoServidor:bbClonarSeguro(penultimoPuntoServidor),
-      ultimoCreatedAtProcesadoGps:ultimoCreatedAtProcesadoGps,
-      colaVertices:verticesVisualesPendientes.length,
-      vertices:bbClonarSeguro(verticesVisualesPendientes),
-      continuidad:bbSnapshotContinuidad(),
-      animacionEnCurso:bbAnimacionActiva ? bbClonarSeguro(bbAnimacionActiva) : null,
-      cadencia:bbSnapshotCadencia()
-    },createdAt);
-
-    try{
-      const resultado = bbOriginalActualizarMarcador.apply(this,arguments);
-      const procesoMs = performance.now() - inicioPerf;
-
-      bbEvento("PACKET_RESULT",{
-        packet:packet,
-        rawLat:bbNumeroSeguro(lat),
-        rawLon:bbNumeroSeguro(lon),
-        resultado:bbClonarSeguro(resultado),
-        procesamientoMs:procesoMs,
-        posicionPinDespues:bbPosicionMarcador(),
-        ultimoPuntoServidor:bbClonarSeguro(ultimoPuntoServidor),
-        penultimoPuntoServidor:bbClonarSeguro(penultimoPuntoServidor),
-        colaVertices:verticesVisualesPendientes.length,
-        vertices:bbClonarSeguro(verticesVisualesPendientes),
-        continuidad:bbSnapshotContinuidad(),
-        animacionDespues:bbAnimacionActiva ? bbClonarSeguro(bbAnimacionActiva) : null,
-        cadencia:bbSnapshotCadencia()
-      },createdAt);
-
-      if(resultado && resultado.cuarentena === true){
-        bbEvento("PACKET_CUARENTENA",{
-          packet:packet,
-          resultado:bbClonarSeguro(resultado)
-        },createdAt);
-      }
-
-      if(resultado && resultado.duplicada === true){
-        bbEvento("PACKET_DUPLICADO",{
-          packet:packet,
-          createdAt:createdAt
-        },createdAt);
-      }
-
-      return resultado;
-    }catch(error){
-      bbEvento("PACKET_ERROR",{
-        packet:packet,
-        error:String(error && error.message || error),
-        stack:error && error.stack ? String(error.stack).slice(0,5000) : null
-      },createdAt);
-      throw error;
-    }finally{
-      bbContextoPaquete = contextoAnterior;
-    }
-  };
-
-  window.addEventListener("pagehide",function(){
-    bbEvento("PAGEHIDE",{
-      posicionPin:bbPosicionMarcador(),
-      colaVertices:verticesVisualesPendientes.length,
-      continuidad:bbSnapshotContinuidad()
-    });
-    bbFlushCajaNegra();
-  });
-
-  document.addEventListener("visibilitychange",function(){
-    bbEvento("VISIBILITY",{
-      state:document.visibilityState,
-      posicionPin:bbPosicionMarcador(),
-      colaVertices:verticesVisualesPendientes.length,
-      continuidad:bbSnapshotContinuidad()
-    });
-    if(document.visibilityState === "hidden"){
-      bbFlushCajaNegra();
-    }
-  });
-
-  bbEvento("CLIENT_TEMPORAL_LOADED",{
-    version:"R64_PROFUNDA_2026-10-06",
-    trackingCode:String(codigo || "").trim().toUpperCase()
-  });
 
   function volverAlPanelTecnico(){
 
