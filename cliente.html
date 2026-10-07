@@ -16043,6 +16043,20 @@ ocultarHoraLlegada();
       )
     );
 
+    bbRegistrarConfigRuta({
+      continuidadAplicableR64:continuidadAplicableR64 === true,
+      distanciaTotal:distanciaTotal,
+      distanciaDirecta:distanciaDirecta,
+      factorRuta:factorRuta,
+      duracionSolicitadaMs:Number.isFinite(duracionTotalMs) ? duracionTotalMs : null,
+      duracionRutaMs:duracionRuta,
+      cantidadPuntos:puntos.length,
+      cantidadSegmentos:segmentos.length,
+      cantidadVerticesRuta:verticesRuta.length,
+      cantidadVerticesUtiles:verticesRutaUtiles.length,
+      umbralesConsumo:umbralesConsumo
+    });
+
     const inicioMs = performance.now();
     let consumosProcesados = 0;
 
@@ -17649,6 +17663,681 @@ if(
     }
   }
 
+
+
+  /* =====================================================================
+     TEMPORAL - CAJA NEGRA R64 PROFUNDA
+
+     Esta capa NO altera decisiones del tracking. Observa funciones ya
+     existentes, registra sus entradas/salidas y envía los eventos en lotes
+     a public.pioca_r64_bb_log_batch().
+
+     IMPORTANTE: retirar este bloque al terminar el diagnóstico.
+     ===================================================================== */
+
+  const PIOCA_R64_BB_TEMPORAL = true;
+
+  let bbSecuenciaEvento = 0;
+  let bbNumeroPaquete = 0;
+  let bbColaEventos = [];
+  let bbFlushTimer = null;
+  let bbFlushEnCurso = false;
+  let bbContextoPaquete = null;
+  let bbAnimacionActiva = null;
+  let bbAnimacionToken = 0;
+  let bbAnimacionSampler = null;
+  let bbUltimaMuestraAnimacion = null;
+  let bbMotivoProximoStop = null;
+  let bbUltimaConfigRuta = null;
+
+  function bbNumeroSeguro(valor){
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function bbPosicionMarcador(){
+    try{
+      if(!marcador){ return null; }
+      const p = marcador.getLatLng();
+      return {
+        lat:bbNumeroSeguro(p.lat),
+        lon:bbNumeroSeguro(p.lng)
+      };
+    }catch(e){
+      return null;
+    }
+  }
+
+  function bbClonarSeguro(valor){
+    try{
+      const texto = JSON.stringify(valor,function(_k,v){
+        if(typeof v === "number" && !Number.isFinite(v)){ return null; }
+        if(typeof v === "function"){ return "[function]"; }
+        return v;
+      });
+      if(!texto){ return {}; }
+      if(texto.length > 12000){
+        return {
+          truncado:true,
+          caracteresOriginales:texto.length,
+          muestra:texto.slice(0,11000)
+        };
+      }
+      return JSON.parse(texto);
+    }catch(e){
+      return {errorSerializacion:String(e && e.message || e)};
+    }
+  }
+
+  function bbSnapshotContinuidad(){
+    return continuidadCurvaVisualR64
+      ? bbClonarSeguro(continuidadCurvaVisualR64)
+      : null;
+  }
+
+  function bbSnapshotCadencia(){
+    try{
+      return {
+        cadenciaMs:bbNumeroSeguro(estadoCadenciaGpsHibrido.cadenciaMs),
+        intervaloRealMs:bbNumeroSeguro(estadoCadenciaGpsHibrido.intervaloRealMs),
+        confianzaModelo:bbNumeroSeguro(estadoCadenciaGpsHibrido.confianzaModelo),
+        confianzaTemporal:bbNumeroSeguro(estadoCadenciaGpsHibrido.confianzaTemporal),
+        muestras:bbNumeroSeguro(estadoCadenciaGpsHibrido.muestras)
+      };
+    }catch(e){
+      return null;
+    }
+  }
+
+  function bbEvento(tipo,payload,gpsCreatedAt){
+    if(!PIOCA_R64_BB_TEMPORAL || !codigo){ return; }
+
+    bbSecuenciaEvento += 1;
+
+    const evento = {
+      event_type:String(tipo || "UNKNOWN").slice(0,80),
+      client_seq:bbSecuenciaEvento,
+      client_time_ms:Date.now(),
+      gps_created_at:
+        gpsCreatedAt ||
+        (bbContextoPaquete ? bbContextoPaquete.gpsCreatedAt : null),
+      payload:bbClonarSeguro(payload || {})
+    };
+
+    bbColaEventos.push(evento);
+
+    if(bbColaEventos.length > 600){
+      bbColaEventos.splice(0,bbColaEventos.length - 600);
+    }
+
+    if(bbColaEventos.length >= 18){
+      bbFlushCajaNegra();
+      return;
+    }
+
+    if(bbFlushTimer === null){
+      bbFlushTimer = setTimeout(function(){
+        bbFlushTimer = null;
+        bbFlushCajaNegra();
+      },650);
+    }
+  }
+
+  function bbFlushCajaNegra(){
+    if(bbFlushEnCurso || !codigo || bbColaEventos.length === 0){ return; }
+
+    if(bbFlushTimer !== null){
+      clearTimeout(bbFlushTimer);
+      bbFlushTimer = null;
+    }
+
+    const lote = bbColaEventos.splice(0,60);
+    bbFlushEnCurso = true;
+
+    fetch(
+      SUPABASE_URL + "/rest/v1/rpc/pioca_r64_bb_log_batch",
+      {
+        method:"POST",
+        headers:{
+          "apikey":SUPABASE_KEY,
+          "Authorization":"Bearer " + SUPABASE_KEY,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          p_code:String(codigo).trim().toUpperCase(),
+          p_events:lote
+        }),
+        keepalive:true
+      }
+    )
+    .then(function(){
+      bbFlushEnCurso = false;
+      if(bbColaEventos.length > 0){
+        setTimeout(bbFlushCajaNegra,80);
+      }
+    })
+    .catch(function(){
+      bbFlushEnCurso = false;
+      if(bbColaEventos.length < 540){
+        bbColaEventos = lote.concat(bbColaEventos);
+      }
+      if(bbFlushTimer === null){
+        bbFlushTimer = setTimeout(function(){
+          bbFlushTimer = null;
+          bbFlushCajaNegra();
+        },1200);
+      }
+    });
+  }
+
+  function bbRegistrarConfigRuta(datos){
+    bbUltimaConfigRuta = bbClonarSeguro(datos || {});
+    bbEvento("RUTA_RENDER_CONFIG",Object.assign({
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      colaVertices:Array.isArray(verticesVisualesPendientes)
+        ? verticesVisualesPendientes.length
+        : null,
+      continuidad:bbSnapshotContinuidad()
+    },bbUltimaConfigRuta));
+  }
+
+  function bbDetenerSamplerAnimacion(){
+    if(bbAnimacionSampler !== null){
+      clearInterval(bbAnimacionSampler);
+      bbAnimacionSampler = null;
+    }
+    bbUltimaMuestraAnimacion = null;
+  }
+
+  function bbCerrarAnimacionDetectada(motivo){
+    if(!bbAnimacionActiva){ return; }
+
+    const ahoraPerf = performance.now();
+    const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
+    const progreso = bbAnimacionActiva.duracionMs > 0
+      ? Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs))
+      : null;
+
+    bbEvento("ANIM_COMPLETE_DETECTED",{
+      packet:bbAnimacionActiva.packet,
+      token:bbAnimacionActiva.token,
+      tipoAnimacion:bbAnimacionActiva.tipo,
+      motivo:String(motivo || "raf_null"),
+      transcurridoMs:transcurridoMs,
+      duracionMs:bbAnimacionActiva.duracionMs,
+      progresoPct:progreso === null ? null : progreso * 100,
+      posicionFinal:bbPosicionMarcador(),
+      colaVertices:verticesVisualesPendientes.length,
+      continuidad:bbSnapshotContinuidad()
+    },bbAnimacionActiva.gpsCreatedAt);
+
+    bbAnimacionActiva = null;
+    bbDetenerSamplerAnimacion();
+  }
+
+  function bbIniciarMonitorAnimacion(tipo,duracionMs,destino,extra){
+    bbDetenerSamplerAnimacion();
+
+    const token = ++bbAnimacionToken;
+    const inicioPos = bbPosicionMarcador();
+    const duracion = Math.max(1,Number(duracionMs) || 1);
+
+    bbAnimacionActiva = {
+      token:token,
+      tipo:tipo,
+      inicioPerf:performance.now(),
+      duracionMs:duracion,
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      gpsCreatedAt:bbContextoPaquete ? bbContextoPaquete.gpsCreatedAt : null,
+      inicioPos:inicioPos,
+      destino:destino
+    };
+
+    bbEvento("ANIM_START",{
+      packet:bbAnimacionActiva.packet,
+      token:token,
+      tipoAnimacion:tipo,
+      renderer:tipo,
+      duracionMs:duracion,
+      inicio:inicioPos,
+      destino:destino,
+      colaVertices:verticesVisualesPendientes.length,
+      continuidad:bbSnapshotContinuidad(),
+      configRuta:bbUltimaConfigRuta,
+      extra:extra || null
+    },bbAnimacionActiva.gpsCreatedAt);
+
+    bbUltimaMuestraAnimacion = {
+      perf:performance.now(),
+      posicion:inicioPos
+    };
+
+    bbAnimacionSampler = setInterval(function(){
+      if(!bbAnimacionActiva){
+        bbDetenerSamplerAnimacion();
+        return;
+      }
+
+      if(animacionMarcadorId === null){
+        bbCerrarAnimacionDetectada("raf_null");
+        return;
+      }
+
+      const ahoraPerf = performance.now();
+      const pos = bbPosicionMarcador();
+      const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
+      const progreso = Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs));
+
+      let desplazamientoM = null;
+      if(
+        pos && bbUltimaMuestraAnimacion && bbUltimaMuestraAnimacion.posicion
+      ){
+        desplazamientoM = distanciaMetros(
+          bbUltimaMuestraAnimacion.posicion.lat,
+          bbUltimaMuestraAnimacion.posicion.lon,
+          pos.lat,
+          pos.lon
+        );
+      }
+
+      bbEvento("ANIM_SAMPLE",{
+        packet:bbAnimacionActiva.packet,
+        token:bbAnimacionActiva.token,
+        tipoAnimacion:bbAnimacionActiva.tipo,
+        transcurridoMs:transcurridoMs,
+        duracionMs:bbAnimacionActiva.duracionMs,
+        progresoPct:progreso * 100,
+        posicion:pos,
+        desplazamientoDesdeMuestraM:bbNumeroSeguro(desplazamientoM),
+        colaVertices:verticesVisualesPendientes.length,
+        continuidad:bbSnapshotContinuidad()
+      },bbAnimacionActiva.gpsCreatedAt);
+
+      bbUltimaMuestraAnimacion = {
+        perf:ahoraPerf,
+        posicion:pos
+      };
+    },250);
+  }
+
+  /* --------------------------- wrappers de decisión ---------------------- */
+
+  const bbOriginalDetenerAnimacionMarcador = detenerAnimacionMarcador;
+  detenerAnimacionMarcador = function(){
+    if(bbAnimacionActiva){
+      const ahoraPerf = performance.now();
+      const transcurridoMs = Math.max(0,ahoraPerf - bbAnimacionActiva.inicioPerf);
+      const progreso = bbAnimacionActiva.duracionMs > 0
+        ? Math.max(0,Math.min(1,transcurridoMs / bbAnimacionActiva.duracionMs))
+        : null;
+
+      bbEvento("ANIM_CANCEL",{
+        packet:bbAnimacionActiva.packet,
+        token:bbAnimacionActiva.token,
+        tipoAnimacion:bbAnimacionActiva.tipo,
+        motivo:bbMotivoProximoStop || "stop_directo",
+        transcurridoMs:transcurridoMs,
+        duracionMs:bbAnimacionActiva.duracionMs,
+        progresoPct:progreso === null ? null : progreso * 100,
+        posicionAlCancelar:bbPosicionMarcador(),
+        colaVertices:verticesVisualesPendientes.length,
+        continuidad:bbSnapshotContinuidad()
+      },bbAnimacionActiva.gpsCreatedAt);
+
+      bbAnimacionActiva = null;
+      bbDetenerSamplerAnimacion();
+    }
+
+    bbMotivoProximoStop = null;
+    return bbOriginalDetenerAnimacionMarcador.apply(this,arguments);
+  };
+
+  const bbOriginalAnimarMarcadorHasta = animarMarcadorHasta;
+  animarMarcadorHasta = function(latDestino,lonDestino,duracionMs,velocidadKmh){
+    bbMotivoProximoStop = "NUEVO_RENDER_RECTO";
+    bbUltimaConfigRuta = null;
+
+    const retorno = bbOriginalAnimarMarcadorHasta.apply(this,arguments);
+
+    if(animacionMarcadorId !== null){
+      bbIniciarMonitorAnimacion(
+        "RECTO",
+        duracionMs,
+        {lat:bbNumeroSeguro(latDestino),lon:bbNumeroSeguro(lonDestino)},
+        {velocidadKmh:bbNumeroSeguro(velocidadKmh)}
+      );
+    }else{
+      bbEvento("RENDER_NO_ANIMACION",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        renderer:"RECTO",
+        destino:{lat:latDestino,lon:lonDestino},
+        duracionSolicitadaMs:duracionMs,
+        posicion:bbPosicionMarcador()
+      });
+    }
+
+    return retorno;
+  };
+
+  const bbOriginalAnimarMarcadorConColaVertices = animarMarcadorConColaVertices;
+  animarMarcadorConColaVertices = function(latDestino,lonDestino,duracionTotalMs,velocidadKmh){
+    bbMotivoProximoStop = "NUEVO_RENDER_VERTICES";
+    bbUltimaConfigRuta = null;
+
+    const colaAntes = verticesVisualesPendientes.length;
+    const continuidadAntes = bbSnapshotContinuidad();
+    const retorno = bbOriginalAnimarMarcadorConColaVertices.apply(this,arguments);
+
+    const duracionEfectiva =
+      bbUltimaConfigRuta && Number.isFinite(Number(bbUltimaConfigRuta.duracionRutaMs))
+        ? Number(bbUltimaConfigRuta.duracionRutaMs)
+        : Number(duracionTotalMs);
+
+    if(animacionMarcadorId !== null){
+      bbIniciarMonitorAnimacion(
+        "VERTICES_R64",
+        duracionEfectiva,
+        {lat:bbNumeroSeguro(latDestino),lon:bbNumeroSeguro(lonDestino)},
+        {
+          velocidadKmh:bbNumeroSeguro(velocidadKmh),
+          duracionSolicitadaMs:bbNumeroSeguro(duracionTotalMs),
+          colaAntes:colaAntes,
+          colaDespues:verticesVisualesPendientes.length,
+          continuidadAntes:continuidadAntes,
+          continuidadDespues:bbSnapshotContinuidad()
+        }
+      );
+    }else{
+      bbEvento("RENDER_NO_ANIMACION",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        renderer:"VERTICES_R64",
+        destino:{lat:latDestino,lon:lonDestino},
+        duracionSolicitadaMs:duracionTotalMs,
+        colaAntes:colaAntes,
+        colaDespues:verticesVisualesPendientes.length,
+        continuidadAntes:continuidadAntes,
+        continuidadDespues:bbSnapshotContinuidad(),
+        posicion:bbPosicionMarcador()
+      });
+    }
+
+    return retorno;
+  };
+
+  const bbOriginalEvaluarProteccionGeometrica = evaluarProteccionGeometrica;
+  evaluarProteccionGeometrica = function(lat,lon,createdAt){
+    const r = bbOriginalEvaluarProteccionGeometrica.apply(this,arguments);
+    bbEvento("PROTECCION_GEOMETRICA",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      lat:bbNumeroSeguro(lat),
+      lon:bbNumeroSeguro(lon),
+      resultado:bbClonarSeguro(r),
+      colaVertices:verticesVisualesPendientes.length
+    },createdAt);
+
+    if(!r || r.aceptar !== true){
+      bbEvento("CUARENTENA_GEOMETRICA",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        resultado:bbClonarSeguro(r)
+      },createdAt);
+    }
+    return r;
+  };
+
+  const bbOriginalEvaluarCambioBruscoAutopista = evaluarCambioBruscoAutopista;
+  evaluarCambioBruscoAutopista = function(){
+    const r = bbOriginalEvaluarCambioBruscoAutopista.apply(this,arguments);
+    if(r && r.brusco){
+      bbEvento("CUARENTENA_AUTOPISTA_CANDIDATA",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        resultado:bbClonarSeguro(r)
+      });
+    }
+    return r;
+  };
+
+  const bbOriginalCalcularDuracionAnimacion = calcularDuracionAnimacion;
+  calcularDuracionAnimacion = function(lat,lon,createdAt,velocidadKmh,rumboIncierto,confianzaGps){
+    const duracion = bbOriginalCalcularDuracionAnimacion.apply(this,arguments);
+    bbEvento("DURACION_CALCULADA",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      lat:bbNumeroSeguro(lat),
+      lon:bbNumeroSeguro(lon),
+      velocidadKmh:bbNumeroSeguro(velocidadKmh),
+      rumboIncierto:rumboIncierto === true,
+      confianzaGps:bbNumeroSeguro(confianzaGps),
+      duracionMs:bbNumeroSeguro(duracion),
+      cadencia:bbSnapshotCadencia(),
+      posicionPin:bbPosicionMarcador()
+    },createdAt);
+    return duracion;
+  };
+
+  const bbOriginalEsGiroProtegidoBajaVelocidad = esGiroProtegidoBajaVelocidad;
+  esGiroProtegidoBajaVelocidad = function(lat,lon,velocidadKmh){
+    const r = bbOriginalEsGiroProtegidoBajaVelocidad.apply(this,arguments);
+    bbEvento("GIRO_PROTEGIDO_EVALUADO",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      lat:bbNumeroSeguro(lat),
+      lon:bbNumeroSeguro(lon),
+      velocidadKmh:bbNumeroSeguro(velocidadKmh),
+      giroProtegido:r === true
+    });
+    return r;
+  };
+
+  const bbOriginalEstabilizarPuntoAltaVelocidad = estabilizarPuntoAltaVelocidad;
+  estabilizarPuntoAltaVelocidad = function(){
+    const r = bbOriginalEstabilizarPuntoAltaVelocidad.apply(this,arguments);
+    bbEvento("PUNTO_VISUAL_CALCULADO",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      resultado:bbClonarSeguro(r)
+    });
+    return r;
+  };
+
+  const bbOriginalAgregarVerticeVisualPendiente = agregarVerticeVisualPendiente;
+  agregarVerticeVisualPendiente = function(lat,lon){
+    const antes = verticesVisualesPendientes.length;
+    const pos = bbPosicionMarcador();
+    const retorno = bbOriginalAgregarVerticeVisualPendiente.apply(this,arguments);
+    const despues = verticesVisualesPendientes.length;
+
+    bbEvento(
+      despues > antes ? "VERTICE_AGREGADO" : "VERTICE_NO_AGREGADO",
+      {
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        lat:bbNumeroSeguro(lat),
+        lon:bbNumeroSeguro(lon),
+        colaAntes:antes,
+        colaDespues:despues,
+        posicionPin:pos,
+        cola:bbClonarSeguro(verticesVisualesPendientes)
+      }
+    );
+    return retorno;
+  };
+
+  const bbOriginalLimpiarColaVerticesVisuales = limpiarColaVerticesVisuales;
+  limpiarColaVerticesVisuales = function(){
+    const antes = verticesVisualesPendientes.length;
+    const continuidadAntes = bbSnapshotContinuidad();
+    const retorno = bbOriginalLimpiarColaVerticesVisuales.apply(this,arguments);
+    if(antes > 0 || continuidadAntes){
+      bbEvento("COLA_VERTICES_LIMPIADA",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        colaAntes:antes,
+        colaDespues:verticesVisualesPendientes.length,
+        continuidadAntes:continuidadAntes,
+        continuidadDespues:bbSnapshotContinuidad()
+      });
+    }
+    return retorno;
+  };
+
+  const bbOriginalAbrirVerticeGeometricoR63 = abrirVerticeGeometricoR63;
+  abrirVerticeGeometricoR63 = function(){
+    const antes = bbClonarSeguro(verticeGeometricoPendienteR63);
+    const retorno = bbOriginalAbrirVerticeGeometricoR63.apply(this,arguments);
+    bbEvento("R63_VERTICE_ABRIR",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      antes:antes,
+      despues:bbClonarSeguro(verticeGeometricoPendienteR63),
+      argumentos:bbClonarSeguro(Array.prototype.slice.call(arguments))
+    });
+    return retorno;
+  };
+
+  const bbOriginalActualizarVerticeGeometricoR63 = actualizarVerticeGeometricoR63;
+  actualizarVerticeGeometricoR63 = function(){
+    const antes = bbClonarSeguro(verticeGeometricoPendienteR63);
+    const colaAntes = bbClonarSeguro(verticesVisualesPendientes);
+    const retorno = bbOriginalActualizarVerticeGeometricoR63.apply(this,arguments);
+    const despues = bbClonarSeguro(verticeGeometricoPendienteR63);
+    const colaDespues = bbClonarSeguro(verticesVisualesPendientes);
+
+    if(JSON.stringify(antes) !== JSON.stringify(despues) || JSON.stringify(colaAntes) !== JSON.stringify(colaDespues)){
+      bbEvento("R63_VERTICE_ACTUALIZADO",{
+        packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+        antes:antes,
+        despues:despues,
+        colaAntes:colaAntes,
+        colaDespues:colaDespues
+      });
+    }
+    return retorno;
+  };
+
+  const bbOriginalConstruirRutaVisualSuavizadaR64 = construirRutaVisualSuavizadaR64;
+  construirRutaVisualSuavizadaR64 = function(puntosBase,cantidadVertices,velocidadKmh){
+    const r = bbOriginalConstruirRutaVisualSuavizadaR64.apply(this,arguments);
+
+    let distanciaRuta = 0;
+    try{
+      for(let i=0;i<r.puntos.length-1;i++){
+        const d = distanciaMetros(
+          r.puntos[i].lat,r.puntos[i].lon,
+          r.puntos[i+1].lat,r.puntos[i+1].lon
+        );
+        if(Number.isFinite(d)){ distanciaRuta += d; }
+      }
+    }catch(e){}
+
+    bbEvento("RUTA_R64_CONSTRUIDA",{
+      packet:bbContextoPaquete ? bbContextoPaquete.packet : null,
+      cantidadVertices:cantidadVertices,
+      velocidadKmh:bbNumeroSeguro(velocidadKmh),
+      puntosBase:bbClonarSeguro(puntosBase),
+      cantidadPuntosSalida:r && Array.isArray(r.puntos) ? r.puntos.length : null,
+      distanciaRutaM:bbNumeroSeguro(distanciaRuta),
+      puntosSalida:r ? bbClonarSeguro(r.puntos) : null
+    });
+    return r;
+  };
+
+  const bbOriginalActualizarMarcador = actualizarMarcador;
+  actualizarMarcador = function(lat,lon,createdAt){
+    bbNumeroPaquete += 1;
+
+    const contextoAnterior = bbContextoPaquete;
+    const inicioPerf = performance.now();
+    const packet = bbNumeroPaquete;
+
+    bbContextoPaquete = {
+      packet:packet,
+      gpsCreatedAt:createdAt,
+      rawLat:bbNumeroSeguro(lat),
+      rawLon:bbNumeroSeguro(lon)
+    };
+
+    bbEvento("PACKET_RECEIVED",{
+      packet:packet,
+      rawLat:bbNumeroSeguro(lat),
+      rawLon:bbNumeroSeguro(lon),
+      createdAt:createdAt,
+      posicionPinAntes:bbPosicionMarcador(),
+      ultimoPuntoServidor:bbClonarSeguro(ultimoPuntoServidor),
+      penultimoPuntoServidor:bbClonarSeguro(penultimoPuntoServidor),
+      ultimoCreatedAtProcesadoGps:ultimoCreatedAtProcesadoGps,
+      colaVertices:verticesVisualesPendientes.length,
+      vertices:bbClonarSeguro(verticesVisualesPendientes),
+      continuidad:bbSnapshotContinuidad(),
+      animacionEnCurso:bbAnimacionActiva ? bbClonarSeguro(bbAnimacionActiva) : null,
+      cadencia:bbSnapshotCadencia()
+    },createdAt);
+
+    try{
+      const resultado = bbOriginalActualizarMarcador.apply(this,arguments);
+      const procesoMs = performance.now() - inicioPerf;
+
+      bbEvento("PACKET_RESULT",{
+        packet:packet,
+        rawLat:bbNumeroSeguro(lat),
+        rawLon:bbNumeroSeguro(lon),
+        resultado:bbClonarSeguro(resultado),
+        procesamientoMs:procesoMs,
+        posicionPinDespues:bbPosicionMarcador(),
+        ultimoPuntoServidor:bbClonarSeguro(ultimoPuntoServidor),
+        penultimoPuntoServidor:bbClonarSeguro(penultimoPuntoServidor),
+        colaVertices:verticesVisualesPendientes.length,
+        vertices:bbClonarSeguro(verticesVisualesPendientes),
+        continuidad:bbSnapshotContinuidad(),
+        animacionDespues:bbAnimacionActiva ? bbClonarSeguro(bbAnimacionActiva) : null,
+        cadencia:bbSnapshotCadencia()
+      },createdAt);
+
+      if(resultado && resultado.cuarentena === true){
+        bbEvento("PACKET_CUARENTENA",{
+          packet:packet,
+          resultado:bbClonarSeguro(resultado)
+        },createdAt);
+      }
+
+      if(resultado && resultado.duplicada === true){
+        bbEvento("PACKET_DUPLICADO",{
+          packet:packet,
+          createdAt:createdAt
+        },createdAt);
+      }
+
+      return resultado;
+    }catch(error){
+      bbEvento("PACKET_ERROR",{
+        packet:packet,
+        error:String(error && error.message || error),
+        stack:error && error.stack ? String(error.stack).slice(0,5000) : null
+      },createdAt);
+      throw error;
+    }finally{
+      bbContextoPaquete = contextoAnterior;
+    }
+  };
+
+  window.addEventListener("pagehide",function(){
+    bbEvento("PAGEHIDE",{
+      posicionPin:bbPosicionMarcador(),
+      colaVertices:verticesVisualesPendientes.length,
+      continuidad:bbSnapshotContinuidad()
+    });
+    bbFlushCajaNegra();
+  });
+
+  document.addEventListener("visibilitychange",function(){
+    bbEvento("VISIBILITY",{
+      state:document.visibilityState,
+      posicionPin:bbPosicionMarcador(),
+      colaVertices:verticesVisualesPendientes.length,
+      continuidad:bbSnapshotContinuidad()
+    });
+    if(document.visibilityState === "hidden"){
+      bbFlushCajaNegra();
+    }
+  });
+
+  bbEvento("CLIENT_TEMPORAL_LOADED",{
+    version:"R64_PROFUNDA_2026-10-06",
+    trackingCode:String(codigo || "").trim().toUpperCase()
+  });
 
   function volverAlPanelTecnico(){
 
