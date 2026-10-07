@@ -4212,6 +4212,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 (function(){
 
   /*
+    R67 DEFINITIVA V1 (base R65) - geometría vial sectorizada + caché Cloudflare 07/10/2026:
+    Base íntegra R65; map matching visual con geometría vial por sectores.
+    El cliente ya no consulta Overpass directamente: solicita sectores al mismo dominio,
+    que Cloudflare sirve desde caché y sólo construye externamente cuando falta un sector.
+
     R65 - continuidad urbana y vértices 06/10/2026:
     - conserva íntegra la autoridad física R63/R64 (GPS, cuarentenas,
       TLS/PCA, ETA, 300 m, 50 m, T0, HEMOS LLEGADO y cierre);
@@ -12046,6 +12051,633 @@ ocultarHoraLlegada();
   }
 
 
+
+  /* ==========================================================
+     R67 DEFINITIVA V1 - MAP MATCHING VISUAL SECTORIZADO
+
+     PRINCIPIO:
+     - R65 permanece como autoridad física completa.
+     - R67 sólo corrige la POSICIÓN VISUAL del pin por debajo de 40 km/h.
+     - La geometría llega desde /__r67/sector en pequeños sectores.
+     - Cloudflare cachea cada sector; el navegador también puede reutilizarlo.
+     - Si un sector no está disponible, fallback inmediato a R65.
+     - NO modifica ETA, 300 m, 50 m, T0, llegada, cierres, cuarentenas,
+       TLS/PCA, GPS confirmado ni lógica de alta velocidad.
+     ========================================================== */
+
+  const R67_MAP_MATCH = Object.freeze({
+    ACTIVO:true,
+    ENDPOINT_SECTOR:'/__r67/sector',
+    VERSION_CARTOGRAFIA:'r67-v1-20261007',
+
+    /* Misma malla que usa _worker.js. */
+    PASO_LAT_GRADOS:0.025,
+    PASO_LON_GRADOS:0.030,
+
+    VELOCIDAD_MAX_KMH:39.9,
+    VELOCIDAD_MIN_CAMBIO_SEGMENTO_KMH:2.5,
+    DISTANCIA_MAX_BASE_M:22,
+    DISTANCIA_MAX_CONTINUIDAD_M:30,
+    PENALIDAD_RUMBO_POR_GRADO:0.095,
+    BONO_MISMA_VIA:-5.5,
+    BONO_SEGMENTO_CONECTADO:-4.0,
+    PENALIDAD_CAMBIO_DESCONECTADO:9.0,
+    CONFIRMACIONES_CAMBIO_DESCONECTADO:2,
+
+    /* Rendimiento / precarga. */
+    DISTANCIA_PRECarga_BORDE_M:650,
+    DEMORA_PRECARGA_MS:700,
+    MAX_SECTORES_MEMORIA:9,
+    MAX_SOLICITUDES_SIMULTANEAS:2,
+
+    /* Índice espacial local: evita recorrer todas las calles del sector en cada GPS. */
+    CELDA_INDICE_LAT:0.0010,
+    CELDA_INDICE_LON:0.0012
+  });
+
+  let r67SegmentosViales = [];
+  let r67SegmentoActual = null;
+  let r67CambioPendiente = null;
+  let r67SectorActualId = null;
+  let r67IndiceEspacial = new Map();
+
+  const r67SectoresMemoria = new Map();
+  const r67SectoresEnCurso = new Map();
+  let r67SolicitudesActivas = 0;
+  const r67ColaSolicitudes = [];
+  let r67TimerPrecarga = null;
+
+  function r67EsViaAdmitida(tipo){
+    return /^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|road)$/.test(
+      String(tipo || '')
+    );
+  }
+
+  function r67ClaveSegmento(seg){
+    if(!seg){ return ''; }
+    return String(seg.wayId) + ':' + String(seg.indice);
+  }
+
+  function r67SegmentosConectados(a,b){
+    if(!a || !b){ return false; }
+    if(a.wayId === b.wayId){ return true; }
+    const nodosA = [a.nodeA,a.nodeB];
+    return nodosA.includes(b.nodeA) || nodosA.includes(b.nodeB);
+  }
+
+  function r67SectorIndices(lat,lon){
+    if(!Number.isFinite(lat) || !Number.isFinite(lon)){ return null; }
+    const y = Math.floor((lat + 90) / R67_MAP_MATCH.PASO_LAT_GRADOS);
+    const x = Math.floor((lon + 180) / R67_MAP_MATCH.PASO_LON_GRADOS);
+    return {x:x,y:y,id:String(y)+'_'+String(x)};
+  }
+
+  function r67BoundsSector(x,y){
+    const south = y * R67_MAP_MATCH.PASO_LAT_GRADOS - 90;
+    const west = x * R67_MAP_MATCH.PASO_LON_GRADOS - 180;
+    return {
+      south:south,
+      west:west,
+      north:south + R67_MAP_MATCH.PASO_LAT_GRADOS,
+      east:west + R67_MAP_MATCH.PASO_LON_GRADOS
+    };
+  }
+
+  function r67MetrosAproximadosBorde(lat,lon,idx){
+    const b = r67BoundsSector(idx.x,idx.y);
+    const latM = 111320;
+    const lonM = Math.max(20000,111320*Math.cos(lat*Math.PI/180));
+    return {
+      norte:(b.north-lat)*latM,
+      sur:(lat-b.south)*latM,
+      este:(b.east-lon)*lonM,
+      oeste:(lon-b.west)*lonM
+    };
+  }
+
+  function r67TocarSector(id){
+    const dato = r67SectoresMemoria.get(id);
+    if(!dato){ return; }
+    r67SectoresMemoria.delete(id);
+    r67SectoresMemoria.set(id,dato);
+  }
+
+  function r67RecortarMemoria(){
+    while(r67SectoresMemoria.size > R67_MAP_MATCH.MAX_SECTORES_MEMORIA){
+      const primero = r67SectoresMemoria.keys().next().value;
+      if(primero === r67SectorActualId){
+        r67TocarSector(primero);
+        continue;
+      }
+      r67SectoresMemoria.delete(primero);
+    }
+  }
+
+  function r67ClaveCelda(lat,lon){
+    const cy = Math.floor((lat + 90) / R67_MAP_MATCH.CELDA_INDICE_LAT);
+    const cx = Math.floor((lon + 180) / R67_MAP_MATCH.CELDA_INDICE_LON);
+    return String(cy)+':'+String(cx);
+  }
+
+  function r67AgregarIndice(indice,clave,seg){
+    let arr = indice.get(clave);
+    if(!arr){ arr=[]; indice.set(clave,arr); }
+    arr.push(seg);
+  }
+
+  function r67ReconstruirSegmentosActivos(){
+    const lista = [];
+    const indice = new Map();
+
+    for(const dato of r67SectoresMemoria.values()){
+      if(!dato || !Array.isArray(dato.segmentos)){ continue; }
+      for(const seg of dato.segmentos){
+        lista.push(seg);
+
+        /*
+          Un segmento se registra en las celdas que toca, con un pequeño margen.
+          Después cada GPS sólo consulta su celda y vecinas inmediatas.
+        */
+        const margenLat=0.00055;
+        const margenLon=0.00070;
+        const minLat=Math.min(seg.lat1,seg.lat2)-margenLat;
+        const maxLat=Math.max(seg.lat1,seg.lat2)+margenLat;
+        const minLon=Math.min(seg.lon1,seg.lon2)-margenLon;
+        const maxLon=Math.max(seg.lon1,seg.lon2)+margenLon;
+        const y0=Math.floor((minLat+90)/R67_MAP_MATCH.CELDA_INDICE_LAT);
+        const y1=Math.floor((maxLat+90)/R67_MAP_MATCH.CELDA_INDICE_LAT);
+        const x0=Math.floor((minLon+180)/R67_MAP_MATCH.CELDA_INDICE_LON);
+        const x1=Math.floor((maxLon+180)/R67_MAP_MATCH.CELDA_INDICE_LON);
+
+        /* Defensa ante un segmento rural anormalmente largo. */
+        if((y1-y0)>10 || (x1-x0)>10){
+          r67AgregarIndice(indice,r67ClaveCelda(seg.latMid,seg.lonMid),seg);
+          r67AgregarIndice(indice,r67ClaveCelda(seg.lat1,seg.lon1),seg);
+          r67AgregarIndice(indice,r67ClaveCelda(seg.lat2,seg.lon2),seg);
+        }else{
+          for(let cy=y0;cy<=y1;cy++){
+            for(let cx=x0;cx<=x1;cx++){
+              r67AgregarIndice(indice,String(cy)+':'+String(cx),seg);
+            }
+          }
+        }
+      }
+    }
+
+    r67SegmentosViales = lista;
+    r67IndiceEspacial = indice;
+
+    if(r67SegmentoActual){
+      const clave = r67ClaveSegmento(r67SegmentoActual);
+      r67SegmentoActual =
+        r67SegmentosViales.find(s => r67ClaveSegmento(s) === clave) || null;
+    }
+  }
+
+  function r67CandidatosIndice(lat,lon){
+    if(!(r67IndiceEspacial instanceof Map) || r67IndiceEspacial.size===0){
+      return r67SegmentosViales;
+    }
+
+    const cy=Math.floor((lat+90)/R67_MAP_MATCH.CELDA_INDICE_LAT);
+    const cx=Math.floor((lon+180)/R67_MAP_MATCH.CELDA_INDICE_LON);
+    const vistos=new Set();
+    const resultado=[];
+
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        const arr=r67IndiceEspacial.get(String(cy+dy)+':'+String(cx+dx));
+        if(!arr){ continue; }
+        for(const seg of arr){
+          const clave=r67ClaveSegmento(seg);
+          if(vistos.has(clave)){ continue; }
+          vistos.add(clave);
+          resultado.push(seg);
+        }
+      }
+    }
+
+    return resultado.length ? resultado : r67SegmentosViales;
+  }
+
+  function r67DecodificarSector(payload){
+    if(!payload || !Array.isArray(payload.s)){ return []; }
+    const tipos = Array.isArray(payload.t) ? payload.t : [];
+    const segmentos = [];
+
+    for(const a of payload.s){
+      if(!Array.isArray(a) || a.length < 10){ continue; }
+      const lat1=Number(a[4]), lon1=Number(a[5]);
+      const lat2=Number(a[6]), lon2=Number(a[7]);
+      if(![lat1,lon1,lat2,lon2].every(Number.isFinite)){ continue; }
+      const highway = tipos[Number(a[9])] || '';
+      if(!r67EsViaAdmitida(highway)){ continue; }
+      segmentos.push({
+        wayId:a[0],
+        indice:Number(a[1]),
+        nodeA:a[2],
+        nodeB:a[3],
+        lat1:lat1,
+        lon1:lon1,
+        lat2:lat2,
+        lon2:lon2,
+        latMid:(lat1+lat2)/2,
+        lonMid:(lon1+lon2)/2,
+        rumbo:Number.isFinite(Number(a[8])) ? Number(a[8]) : rumboGrados(lat1,lon1,lat2,lon2),
+        highway:highway
+      });
+    }
+    return segmentos;
+  }
+
+  function r67ProcesarCola(){
+    while(
+      r67SolicitudesActivas < R67_MAP_MATCH.MAX_SOLICITUDES_SIMULTANEAS &&
+      r67ColaSolicitudes.length > 0
+    ){
+      const tarea = r67ColaSolicitudes.shift();
+      r67SolicitudesActivas++;
+      tarea()
+        .catch(()=>{})
+        .finally(()=>{
+          r67SolicitudesActivas--;
+          r67ProcesarCola();
+        });
+    }
+  }
+
+  function r67CargarSector(x,y,prioridad){
+    const id = String(y)+'_'+String(x);
+    if(r67SectoresMemoria.has(id)){
+      r67TocarSector(id);
+      return Promise.resolve(r67SectoresMemoria.get(id));
+    }
+    if(r67SectoresEnCurso.has(id)){
+      return r67SectoresEnCurso.get(id);
+    }
+
+    let resolver, rechazar;
+    const promesa = new Promise((res,rej)=>{ resolver=res; rechazar=rej; });
+    r67SectoresEnCurso.set(id,promesa);
+
+    const ejecutar = async()=>{
+      try{
+        const url =
+          R67_MAP_MATCH.ENDPOINT_SECTOR +
+          '?v=' + encodeURIComponent(R67_MAP_MATCH.VERSION_CARTOGRAFIA) +
+          '&x=' + encodeURIComponent(x) +
+          '&y=' + encodeURIComponent(y);
+
+        const respuesta = await fetch(url,{
+          method:'GET',
+          cache:'force-cache',
+          credentials:'same-origin'
+        });
+
+        if(!respuesta.ok){
+          throw new Error('sector '+id+' HTTP '+respuesta.status);
+        }
+
+        const payload = await respuesta.json();
+        const segmentos = r67DecodificarSector(payload);
+        if(segmentos.length === 0){
+          throw new Error('sector '+id+' sin geometría');
+        }
+
+        const dato = {id:id,x:x,y:y,segmentos:segmentos,cargadoMs:Date.now()};
+        r67SectoresMemoria.set(id,dato);
+        r67RecortarMemoria();
+        r67ReconstruirSegmentosActivos();
+        resolver(dato);
+        return dato;
+      }catch(error){
+        console.warn('R67 sector no disponible; continúa R65.',id,error);
+        rechazar(error);
+        throw error;
+      }finally{
+        r67SectoresEnCurso.delete(id);
+      }
+    };
+
+    if(prioridad === true){
+      r67ColaSolicitudes.unshift(ejecutar);
+    }else{
+      r67ColaSolicitudes.push(ejecutar);
+    }
+    r67ProcesarCola();
+    return promesa;
+  }
+
+  function r67ProgramarPrecarga(lat,lon,idx){
+    if(r67TimerPrecarga){
+      clearTimeout(r67TimerPrecarga);
+    }
+
+    r67TimerPrecarga = setTimeout(()=>{
+      r67TimerPrecarga = null;
+      const bordes = r67MetrosAproximadosBorde(lat,lon,idx);
+      const limite = R67_MAP_MATCH.DISTANCIA_PRECarga_BORDE_M;
+      const candidatos = [];
+
+      if(bordes.norte < limite){ candidatos.push([idx.x,idx.y+1]); }
+      if(bordes.sur < limite){ candidatos.push([idx.x,idx.y-1]); }
+      if(bordes.este < limite){ candidatos.push([idx.x+1,idx.y]); }
+      if(bordes.oeste < limite){ candidatos.push([idx.x-1,idx.y]); }
+
+      /* Si estamos cerca de una esquina de sector, precargamos diagonal. */
+      if(bordes.norte < limite && bordes.este < limite){ candidatos.push([idx.x+1,idx.y+1]); }
+      if(bordes.norte < limite && bordes.oeste < limite){ candidatos.push([idx.x-1,idx.y+1]); }
+      if(bordes.sur < limite && bordes.este < limite){ candidatos.push([idx.x+1,idx.y-1]); }
+      if(bordes.sur < limite && bordes.oeste < limite){ candidatos.push([idx.x-1,idx.y-1]); }
+
+      for(const [x,y] of candidatos){
+        r67CargarSector(x,y,false).catch(()=>{});
+      }
+    },R67_MAP_MATCH.DEMORA_PRECARGA_MS);
+  }
+
+  function r67AsegurarGeometriaCerca(lat,lon){
+    if(
+      R67_MAP_MATCH.ACTIVO !== true ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    const idx = r67SectorIndices(lat,lon);
+    if(!idx){ return; }
+
+    r67SectorActualId = idx.id;
+    r67CargarSector(idx.x,idx.y,true).catch(()=>{});
+    r67ProgramarPrecarga(lat,lon,idx);
+  }
+
+  function r67ProyectarSobreSegmento(lat,lon,seg){
+    const rad = Math.PI / 180;
+    const R = 6371000;
+    const latRef = ((lat + seg.lat1 + seg.lat2) / 3) * rad;
+    const cosLat = Math.max(0.20, Math.cos(latRef));
+
+    const bx = (seg.lon2 - seg.lon1) * rad * R * cosLat;
+    const by = (seg.lat2 - seg.lat1) * rad * R;
+    const px = (lon - seg.lon1) * rad * R * cosLat;
+    const py = (lat - seg.lat1) * rad * R;
+    const vv = bx*bx + by*by;
+
+    if(vv < 0.01){
+      return {
+        lat:seg.lat1,
+        lon:seg.lon1,
+        distancia:distanciaMetros(lat,lon,seg.lat1,seg.lon1),
+        t:0
+      };
+    }
+
+    let t = (px*bx + py*by) / vv;
+    t = Math.max(0,Math.min(1,t));
+    const qx = t*bx;
+    const qy = t*by;
+
+    const qLat = seg.lat1 + (qy / R) / rad;
+    const qLon = seg.lon1 + (qx / (R*cosLat)) / rad;
+
+    return {
+      lat:qLat,
+      lon:qLon,
+      distancia:Math.hypot(px-qx,py-qy),
+      t:t
+    };
+  }
+
+  function r67DiferenciaRumboEje(a,b){
+    if(!Number.isFinite(a) || !Number.isFinite(b)){ return 0; }
+    const d = diferenciaRumboGrados(a,b);
+    return Math.min(d,Math.abs(180-d));
+  }
+
+  function r67RumboMovimiento(lat,lon,velocidadKmh){
+    if(
+      !ultimoPuntoServidor ||
+      !Number.isFinite(velocidadKmh) ||
+      velocidadKmh < 4
+    ){
+      return null;
+    }
+
+    const d = distanciaMetros(
+      ultimoPuntoServidor.lat,
+      ultimoPuntoServidor.lon,
+      lat,
+      lon
+    );
+
+    if(!Number.isFinite(d) || d < 4){ return null; }
+
+    return rumboGrados(
+      ultimoPuntoServidor.lat,
+      ultimoPuntoServidor.lon,
+      lat,
+      lon
+    );
+  }
+
+  function r67BuscarCandidato(lat,lon,velocidadKmh,confianzaGps){
+    if(!Array.isArray(r67SegmentosViales) || r67SegmentosViales.length === 0){
+      return null;
+    }
+
+    const rumboMov = r67RumboMovimiento(lat,lon,velocidadKmh);
+    const confianza = Number.isFinite(confianzaGps)
+      ? Math.max(0,Math.min(1,confianzaGps))
+      : 0.55;
+
+    const distanciaMax = Math.max(
+      14,
+      Math.min(
+        R67_MAP_MATCH.DISTANCIA_MAX_BASE_M,
+        14 + (1-confianza)*10
+      )
+    );
+
+    let mejor = null;
+    const candidatosLocales = r67CandidatosIndice(lat,lon);
+
+    for(const seg of candidatosLocales){
+      if(Math.abs(lat-seg.latMid) > 0.00042){ continue; }
+      if(Math.abs(lon-seg.lonMid) > 0.00055){ continue; }
+
+      const proy = r67ProyectarSobreSegmento(lat,lon,seg);
+      if(!proy || !Number.isFinite(proy.distancia) || proy.distancia > distanciaMax){
+        continue;
+      }
+
+      let score = proy.distancia;
+
+      if(Number.isFinite(rumboMov)){
+        const dif = r67DiferenciaRumboEje(rumboMov,seg.rumbo);
+        score += dif * R67_MAP_MATCH.PENALIDAD_RUMBO_POR_GRADO;
+      }
+
+      if(r67SegmentoActual){
+        if(seg.wayId === r67SegmentoActual.wayId){
+          score += R67_MAP_MATCH.BONO_MISMA_VIA;
+        }else if(r67SegmentosConectados(seg,r67SegmentoActual)){
+          score += R67_MAP_MATCH.BONO_SEGMENTO_CONECTADO;
+        }else{
+          score += R67_MAP_MATCH.PENALIDAD_CAMBIO_DESCONECTADO;
+        }
+      }
+
+      if(!mejor || score < mejor.score){
+        mejor = {
+          segmento:seg,
+          lat:proy.lat,
+          lon:proy.lon,
+          distancia:proy.distancia,
+          score:score,
+          rumboMovimiento:rumboMov
+        };
+      }
+    }
+
+    return mejor;
+  }
+
+  function r67ConfirmarCambioSegmento(candidato,lat,lon,velocidadKmh){
+    if(!candidato || !candidato.segmento){ return null; }
+
+    if(!r67SegmentoActual){
+      r67SegmentoActual = candidato.segmento;
+      r67CambioPendiente = null;
+      return candidato;
+    }
+
+    const misma =
+      candidato.segmento.wayId === r67SegmentoActual.wayId ||
+      r67SegmentosConectados(candidato.segmento,r67SegmentoActual);
+
+    if(misma){
+      r67SegmentoActual = candidato.segmento;
+      r67CambioPendiente = null;
+      return candidato;
+    }
+
+    if(
+      !Number.isFinite(velocidadKmh) ||
+      velocidadKmh < R67_MAP_MATCH.VELOCIDAD_MIN_CAMBIO_SEGMENTO_KMH
+    ){
+      const actualProy = r67ProyectarSobreSegmento(lat,lon,r67SegmentoActual);
+      if(
+        actualProy &&
+        actualProy.distancia <= R67_MAP_MATCH.DISTANCIA_MAX_CONTINUIDAD_M
+      ){
+        return {
+          segmento:r67SegmentoActual,
+          lat:actualProy.lat,
+          lon:actualProy.lon,
+          distancia:actualProy.distancia,
+          score:actualProy.distancia,
+          continuidad:true
+        };
+      }
+      return null;
+    }
+
+    const clave = r67ClaveSegmento(candidato.segmento);
+
+    if(r67CambioPendiente && r67CambioPendiente.clave === clave){
+      r67CambioPendiente.conteo += 1;
+    }else{
+      r67CambioPendiente = {clave:clave,conteo:1};
+    }
+
+    if(
+      r67CambioPendiente.conteo >=
+        R67_MAP_MATCH.CONFIRMACIONES_CAMBIO_DESCONECTADO
+    ){
+      r67SegmentoActual = candidato.segmento;
+      r67CambioPendiente = null;
+      return candidato;
+    }
+
+    const actualProy = r67ProyectarSobreSegmento(lat,lon,r67SegmentoActual);
+    if(
+      actualProy &&
+      actualProy.distancia <= R67_MAP_MATCH.DISTANCIA_MAX_CONTINUIDAD_M
+    ){
+      return {
+        segmento:r67SegmentoActual,
+        lat:actualProy.lat,
+        lon:actualProy.lon,
+        distancia:actualProy.distancia,
+        score:actualProy.distancia,
+        continuidad:true
+      };
+    }
+
+    return null;
+  }
+
+  function ajustarPuntoVisualR67(
+    latBase,
+    lonBase,
+    latGps,
+    lonGps,
+    velocidadKmh,
+    confianzaGps,
+    filtradoBase
+  ){
+    if(
+      R67_MAP_MATCH.ACTIVO !== true ||
+      !Number.isFinite(latGps) ||
+      !Number.isFinite(lonGps) ||
+      !Number.isFinite(velocidadKmh) ||
+      velocidadKmh >= R67_MAP_MATCH.VELOCIDAD_MAX_KMH ||
+      r67SegmentosViales.length === 0
+    ){
+      return {
+        lat:latBase,
+        lon:lonBase,
+        filtrado:filtradoBase === true,
+        ajustadoR67:false
+      };
+    }
+
+    const candidato = r67BuscarCandidato(
+      latGps,
+      lonGps,
+      velocidadKmh,
+      confianzaGps
+    );
+
+    const confirmado = r67ConfirmarCambioSegmento(
+      candidato,
+      latGps,
+      lonGps,
+      velocidadKmh
+    );
+
+    if(!confirmado){
+      return {
+        lat:latBase,
+        lon:lonBase,
+        filtrado:filtradoBase === true,
+        ajustadoR67:false
+      };
+    }
+
+    return {
+      lat:confirmado.lat,
+      lon:confirmado.lon,
+      filtrado:filtradoBase === true,
+      ajustadoR67:true,
+      distanciaAjusteM:confirmado.distancia,
+      wayId:confirmado.segmento && confirmado.segmento.wayId
+    };
+  }
+
+
   function estabilizarPuntoAltaVelocidad(
     latNuevo,
     lonNuevo,
@@ -17617,6 +18249,9 @@ if(
       !marcador
     ){
 
+      /* R67: precarga asíncrona de la geometría vial; no bloquea R65. */
+      r67AsegurarGeometriaCerca(lat,lon);
+
       marcador =
         L.marker(
           [lat, lon],
@@ -17925,13 +18560,29 @@ if(
     /*
       El punto bruto sigue alimentando velocidad y memoria real.
       Sólo el destino VISUAL puede ser estabilizado a alta velocidad.
+
+      R67 añade después un map matching VISUAL (<40 km/h) contra una
+      geometría vial independiente. La física R65 continúa usando lat/lon.
     */
-    const puntoVisual =
+    r67AsegurarGeometriaCerca(lat,lon);
+
+    const puntoVisualBase =
       estabilizarPuntoAltaVelocidad(
         lat,
         lon,
         velocidadInterna,
         confianzaGpsVisual
+      );
+
+    const puntoVisual =
+      ajustarPuntoVisualR67(
+        puntoVisualBase.lat,
+        puntoVisualBase.lon,
+        lat,
+        lon,
+        velocidadInterna,
+        confianzaGpsVisual,
+        puntoVisualBase.filtrado
       );
 
     const latVisual =
@@ -19039,6 +19690,9 @@ if(
 })();
 
 </script>
+
+
+  <div id="r67OsmAttribution" style="position:fixed;left:8px;bottom:4px;z-index:9999;font:9px/1.2 Arial,sans-serif;color:#555;background:rgba(255,255,255,.78);padding:2px 4px;border-radius:3px;pointer-events:none;">Geometría vial R67 · © OpenStreetMap contributors</div>
 
 </body>
 
