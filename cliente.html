@@ -4235,13 +4235,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     - varias cuarentenas urbanas produjeron pausas visuales de ~4 s;
     - numerosas curvas fueron interrumpidas por el siguiente paquete.
 
-    R66 - ensayo urbano 07/10/2026:
-    - extiende a 18-40 km/h la estabilización visual de rumbo ya probada >=40;
-    - conserva íntegro el detector/renderer de vértices R65 y lo libera ante
-      cualquier giro protegido urbano;
-    - el punto bruto continúa alimentando física y TLS/PCA: R66 sólo corrige
-      el destino visual de las rectas urbanas.
-
     R65 corrige exclusivamente el movimiento visual y la oportunidad de
     consulta. Ninguna muestra provisional tiene autoridad sobre proximidad,
     llegada, ETA, memoria física ni filtros de seguridad.
@@ -6082,22 +6075,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   */
   const VELOCIDAD_FILTRO_LATERAL_DESDE_KMH =
     40;
-
-  /*
-    R66 - ENSAYO DE ESTABILIZACIÓN LATERAL URBANA
-
-    Extiende únicamente al DESTINO VISUAL la misma idea de rumbo estable
-    que ya funcionaba desde 40 km/h. No modifica GPS físico, ETA, proximidad,
-    T0, llegada, cuarentenas ni la geometría TLS/PCA de los vértices.
-
-    El umbral de 18 km/h está alineado con la cadencia habitual ~2 s y con
-    la barrera histórica de 10 m del propio filtro: por debajo de esa
-    geometría el ensayo queda naturalmente inactivo. Ante un giro protegido
-    urbano (>=28° con evidencia suficiente), se libera inmediatamente el
-    filtro y manda íntegramente R65.
-  */
-  const VELOCIDAD_ESTABILIZACION_URBANA_R66_DESDE_KMH =
-    18;
 
 
   /*
@@ -12081,45 +12058,12 @@ ocultarHoraLlegada();
         velocidadKmh
       ) ||
       velocidadKmh <
-        VELOCIDAD_ESTABILIZACION_URBANA_R66_DESDE_KMH ||
+        VELOCIDAD_FILTRO_LATERAL_DESDE_KMH ||
       !penultimoPuntoServidor ||
       !ultimoPuntoServidor
     ){
       desviosAltaVelocidadConsecutivos =
         0;
-
-      return {
-        lat:latNuevo,
-        lon:lonNuevo,
-        filtrado:false
-      };
-    }
-
-    const modoUrbanoR66 =
-      velocidadKmh <
-        VELOCIDAD_FILTRO_LATERAL_DESDE_KMH;
-
-    /*
-      R66 - prioridad absoluta al giro urbano R65.
-
-      En 18-40 km/h el filtro lateral sólo estabiliza rectas. Si la lectura
-      ya constituye un giro protegido de baja velocidad, no proyectamos sobre
-      el rumbo anterior: liberamos el punto bruto para que vértice, cuarentena
-      y renderer R65 resuelvan la maniobra exactamente como antes.
-    */
-    if(
-      modoUrbanoR66 &&
-      esGiroProtegidoBajaVelocidad(
-        latNuevo,
-        lonNuevo,
-        velocidadKmh
-      )
-    ){
-      desviosAltaVelocidadConsecutivos =
-        0;
-
-      historialRumbosAltaVelocidad =
-        [];
 
       return {
         lat:latNuevo,
