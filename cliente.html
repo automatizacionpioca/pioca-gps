@@ -5796,6 +5796,45 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   let verticesVisualesPendientes =
     [];
 
+  /* ==========================================================
+     FILTRO VISUAL FINAL - ANTI SALTO LATERAL EN LLEGADA
+
+     OBJETIVO:
+     - actúa exclusivamente sobre la REPRESENTACIÓN VISUAL del pin;
+     - NO modifica GPS confirmado, ETA, distancia física, T0, 50 m,
+       300 m, HEMOS LLEGADO, cierre ni persistencia física;
+     - se activa con ETA <= 1 min o desde que la llegada física queda
+       confirmada durante el minuto de gracia;
+     - en ese régimen, una lectura urbana en cuarentena no puede mover
+       provisionalmente la camioneta hacia una deriva lateral;
+     - además eleva a 4 m el umbral de micro movimiento visual para
+       absorber el temblor residual propio del último zoom.
+     ========================================================== */
+  const ALGORITMO_FILTRO_VISUAL_FINAL = Object.freeze({
+    ETA_ACTIVACION_MIN:1,
+    DISTANCIA_MICRO_RUIDO_M:4
+  });
+
+  function filtroVisualFinalAntiSaltoActivo(){
+    if(
+      llegadaFisicaConfirmada === true
+    ){
+      return true;
+    }
+
+    const faltanMin =
+      obtenerFaltanMinEta(
+        Date.now()
+      );
+
+    return (
+      Number.isFinite(faltanMin) &&
+      faltanMin <=
+        ALGORITMO_FILTRO_VISUAL_FINAL.ETA_ACTIVACION_MIN
+    );
+  }
+
+
   const ALGORITMO_PROTECCION_GEOMETRICA = Object.freeze({
     VELOCIDAD_PISO_REFERENCIA_KMH:18,
     VELOCIDAD_SOSPECHA_MIN_KMH:85,
@@ -16533,6 +16572,31 @@ ocultarHoraLlegada();
       return false;
     }
 
+    /*
+      FILTRO VISUAL FINAL:
+      en el último minuto de ETA y durante la llegada física confirmada,
+      una lectura que YA fue puesta en cuarentena por desvío lateral urbano
+      o salto desde detenido no obtiene ningún avance visual provisional.
+
+      La muestra conserva su tratamiento normal en la capa geométrica y la
+      siguiente lectura puede confirmarla como movimiento real. Lo único que
+      evitamos es mostrar al cliente el salto previo de hasta 5,5 / 10,5 m.
+    */
+    if(
+      filtroVisualFinalAntiSaltoActivo()
+    ){
+      if(
+        visualProvisionalUrbanoR65Activo === true
+      ){
+        detenerAnimacionMarcador();
+      }
+
+      visualProvisionalUrbanoR65Activo =
+        false;
+
+      return false;
+    }
+
     const actual =
       marcador.getLatLng();
 
@@ -18841,11 +18905,16 @@ if(
         distanciaDesdeUltimo
       ) &&
       distanciaDesdeUltimo <
-        DISTANCIA_MINIMA_MOVIMIENTO_VISUAL_METROS
+        (
+          filtroVisualFinalAntiSaltoActivo()
+            ? ALGORITMO_FILTRO_VISUAL_FINAL.DISTANCIA_MICRO_RUIDO_M
+            : DISTANCIA_MINIMA_MOVIMIENTO_VISUAL_METROS
+        )
     ){
 
       /*
         Deriva mínima: no dibujamos una mini-animación nerviosa.
+        En el tramo final el umbral visual sube de 2,5 m a 4 m.
       */
       detenerAnimacionMarcador();
 
