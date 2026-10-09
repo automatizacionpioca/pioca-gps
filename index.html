@@ -866,6 +866,13 @@
   let reactivandoGps = false;
 
   /*
+    PANEL B15: estado de presentación independiente de la consulta.
+    Ni la ETA ni el chequeo de mensajes bloquean la interfaz.
+  */
+  let panelInicializado = false;
+  let etaEsperandoServidor = false;
+
+  /*
     V9 - monitor visual de transmisión real.
     Se alimenta exclusivamente de last_position_at recibido desde Supabase.
   */
@@ -1289,7 +1296,7 @@
       (async function(){
 
         try{
-          const {data,error} = await supabaseClient.rpc(
+          const {data,error} = await rpcLecturaConPlazo(
             "get_unread_tracking_message",
             {p_code:trackingCode}
           );
@@ -1504,7 +1511,7 @@
     consultaVistaEnCurso =
       (async function(){
         try{
-          const {data,error} = await supabaseClient.rpc(
+          const {data,error} = await rpcLecturaConPlazo(
             "get_client_view_status",
             {p_code:trackingCode}
           );
@@ -1778,6 +1785,13 @@
 
   function pintarHoraCliente(){
 
+    if(etaEsperandoServidor){
+      horaCliente.textContent = "-- min";
+      horaClienteTexto.textContent = "Actualizando ETA...";
+      actualizarBotonesHora();
+      return;
+    }
+
     if(
       !llegadaClienteMs ||
       !Number.isFinite(
@@ -1943,6 +1957,9 @@
       )
     ){
 
+      // El servidor confirmó el dato; reactivamos solamente el reloj ETA.
+      etaEsperandoServidor = false;
+
       if(s.client_arrival){
         const nuevaLlegadaMs =
           new Date(
@@ -2079,6 +2096,25 @@
     }
   }
 
+  /*
+    PANEL B15: un fetch de lectura que se demora no puede retener para
+    siempre el bloqueo anti-consultas superpuestas.
+    Supabase v2 / PostgREST admite AbortSignal en la consulta.
+    Los comandos update/finish/start quedan totalmente fuera del timeout.
+  */
+  async function rpcLecturaConPlazo(nombre,parametros){
+    const controlador = new AbortController();
+    const timeout = setTimeout(function(){
+      controlador.abort();
+    },8000);
+    try{
+      return await supabaseClient.rpc(nombre,parametros)
+        .abortSignal(controlador.signal);
+    }finally{
+      clearTimeout(timeout);
+    }
+  }
+
   async function obtenerEstadoServidor(){
 
     if(
@@ -2092,7 +2128,7 @@
       data,
       error
     } =
-      await supabaseClient.rpc(
+      await rpcLecturaConPlazo(
         "get_my_tracking",
         {
           p_code:
@@ -2282,83 +2318,41 @@
   let reactivandoPanel =
     false;
 
-  async function reactivarPanelAhora(){
-
+  function reactivarPanelAhora(){
     if(
       seguimientoFinalizado ||
-      reactivandoPanel ||
-      !trackingCode
+      !trackingCode ||
+      !panelInicializado
     ){
       return;
     }
 
-    reactivandoPanel =
-      true;
-
-    /*
-      REANUDACIÓN SIN ETA VIEJA
-
-      sincronizarServidor() ya actualiza tracking, vista del cliente y
-      mensajes. No repetimos esas consultas al volver de segundo plano.
-    */
-    /*
-      No alteramos modificandoHora al reanudar: si un ajuste de ETA está
-      realmente en curso, conserva su bloqueo hasta que termine su RPC.
-    */
-    if(
-      horaClienteBox
-    ){
-      horaClienteBox.style.visibility =
-        "hidden";
+    // Presentación inmediata. Nunca se oculta el panel ETA esperando RPCs.
+    if(horaClienteBox){
+      horaClienteBox.style.visibility = "visible";
     }
+    etaEsperandoServidor = true;
+    pintarHoraCliente();
+    pintarEstadoTransmision();
 
-    let sincronizado =
-      false;
+    if(reactivandoPanel){
+      return;
+    }
+    reactivandoPanel = true;
 
-    try{
-      sincronizado =
-        await sincronizarServidor();
-
-    }catch(e){
-      sincronizado = false;
-
-    }finally{
-
-      if(
-        !seguimientoFinalizado
-      ){
-
-        if(
-          sincronizado
-        ){
+    // La consulta corre desacoplada. Cualquier demora deja los botones vivos.
+    sincronizarServidor()
+      .catch(function(){
+        // La siguiente ronda de 3 s volverá a consultar.
+      })
+      .finally(function(){
+        reactivandoPanel = false;
+        if(!seguimientoFinalizado){
           pintarHoraCliente();
-
-        }else if(
-          !modificandoHora
-        ){
-          horaCliente.textContent =
-            "-- min";
-
-          horaClienteTexto.textContent =
-            "Actualizando ETA...";
+          pintarEstadoTransmision();
         }
-
-        actualizarBotonesHora();
-        pintarEstadoTransmision();
-
-        if(
-          horaClienteBox
-        ){
-          horaClienteBox.style.visibility =
-            "visible";
-        }
-      }
-
-      reactivandoPanel =
-        false;
-    }
+      });
   }
-
 
   async function sincronizarServidor(){
 
@@ -2436,10 +2430,11 @@
           );
 
           /*
-            Son consultas independientes: en paralelo reducen latencia sin
-            generar duplicados porque cada una tiene su propio single-flight.
+            Estado de tracking y ETA disponibles ahora. Mensajes y vista
+            del cliente se consultan EN PARALELO, sin bloquear este ciclo.
+            Cada consulta conserva su proteccion single-flight y plazo.
           */
-          await Promise.all([
+          void Promise.allSettled([
             consultarVistaCliente(),
             consultarMensajeCliente()
           ]);
@@ -2583,6 +2578,7 @@
         la única fuente de verdad. El tablero se recalcula
         desde esa hora contra el reloj actual.
       */
+      etaEsperandoServidor = false;
       pintarHoraCliente();
 
       localStorage.setItem(
@@ -2696,6 +2692,15 @@
       linkCliente +
       separador +
       "preview=1";
+
+    // El cliente usa history.back() para retornar. No cambiar href
+    // por replace: se perderia la entrada del panel en el historial.
+    try{
+      sessionStorage.setItem(
+        "pioca_preview_retorno_panel",
+        JSON.stringify({codigo:trackingCode,fecha:Date.now()})
+      );
+    }catch(e){}
 
     window.location.href =
       urlPreview;
@@ -3725,14 +3730,6 @@
         document.visibilityState ===
           "hidden"
       ){
-
-        if(
-          horaClienteBox
-        ){
-          horaClienteBox.style.visibility =
-            "hidden";
-        }
-
         return;
       }
 
@@ -3748,6 +3745,29 @@
   window.addEventListener(
     "pageshow",
     function(){
+      let retornoPreview = null;
+      try{
+        const texto = sessionStorage.getItem("pioca_preview_retorno_panel");
+        if(texto){
+          sessionStorage.removeItem("pioca_preview_retorno_panel");
+          retornoPreview = JSON.parse(texto);
+        }
+      }catch(e){}
+
+      if(
+        retornoPreview &&
+        retornoPreview.codigo &&
+        Number.isFinite(Number(retornoPreview.fecha)) &&
+        Date.now() - Number(retornoPreview.fecha) < 86400000
+      ){
+        // Regreso con history.back(): nunca revivimos timers WebView viejos.
+        window.location.replace(
+          "index.html?tracking=" +
+          encodeURIComponent(String(retornoPreview.codigo))
+        );
+        return;
+      }
+
       reactivarPanelAhora();
     }
   );
@@ -3762,12 +3782,14 @@
 
     iniciarGPS();
 
-    await Promise.all([
+    panelInicializado = true;
+    actualizarBotonesHora();
+
+    // El tablero ya esta activo, no esperando mensajes ni visualizacion.
+    void Promise.allSettled([
       consultarVistaCliente(),
       consultarMensajeCliente()
     ]);
-
-    actualizarBotonesHora();
 
     /*
       El reloj del tablero se actualiza localmente.
@@ -3778,7 +3800,6 @@
       function(){
         if(
           !seguimientoFinalizado &&
-          !reactivandoPanel &&
           document.visibilityState ===
             "visible"
         ){
