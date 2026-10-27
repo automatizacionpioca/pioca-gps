@@ -5000,10 +5000,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   });
 
   /*
-    R44 - ENCUADRE INICIAL CAMIONETA + DESTINO
+    R44/R68 - ENCUADRE INICIAL CAMIONETA + DESTINO
     Se ejecuta una sola vez cuando ambos pines ya existen.
-    Durante 2 segundos bloquea únicamente el zoom/recentrado automático.
-    Después devuelve el control a la lógica ETA vigente.
+    Durante la presentación conserva el zoom, pero acompaña al pin.
+    La transición posterior sigue la posición visual vigente, y un
+    watchdog libera la cámara si Google no completa el encuadre.
   */
   let encuadreInicialMapaActivo =
     false;
@@ -5012,6 +5013,20 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     false;
 
   let encuadreInicialMapaTimer =
+    null;
+
+  /*
+    R68 - SEGUIMIENTO DE CÁMARA DURANTE EL ENCUADRE INICIAL.
+    Estas variables pertenecen sólo a la cámara. No cambian GPS,
+    interpolación del pin, ETA ni geometría de movimiento.
+  */
+  let encuadreInicialMapaWatchdogId =
+    null;
+
+  let encuadreInicialMapaSeguimientoHabilitado =
+    false;
+
+  let ultimaPosicionEncuadreInicial =
     null;
 
   /*
@@ -9719,6 +9734,103 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
   }
 
+  /*
+    R68 - Acompañar el pin mientras se conserva el zoom de presentación.
+    Trasladar el centro la misma distancia Mercator recorrida por el pin
+    mantiene su posición visual sin cambiar zoom, rumbo ni filtros GPS.
+  */
+  function acompanarPinEnEncuadreInicial(lat,lon){
+
+    if(
+      !encuadreInicialMapaActivo ||
+      !encuadreInicialMapaSeguimientoHabilitado ||
+      !mapa ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ){
+      return;
+    }
+
+    const anterior =
+      ultimaPosicionEncuadreInicial;
+
+    ultimaPosicionEncuadreInicial = {
+      lat:lat,
+      lon:lon
+    };
+
+    if(!anterior){
+      return;
+    }
+
+    try{
+      const mapaGoogle = mapa._map;
+      const centro = mapaGoogle && mapaGoogle.getCenter();
+      const zoom = Number(mapa.getZoom());
+
+      if(!centro || !Number.isFinite(zoom)){
+        return;
+      }
+
+      const puntoAnterior =
+        mapa.project([anterior.lat,anterior.lon],zoom);
+      const puntoActual =
+        mapa.project([lat,lon],zoom);
+      const puntoCentro =
+        mapa.project([centro.lat(),centro.lng()],zoom);
+
+      const centroNuevo = mapa.unproject(
+        [
+          puntoCentro.x + puntoActual.x - puntoAnterior.x,
+          puntoCentro.y + puntoActual.y - puntoAnterior.y
+        ],
+        zoom
+      );
+
+      if(
+        Number.isFinite(centroNuevo.lat) &&
+        Number.isFinite(centroNuevo.lng)
+      ){
+        mapaGoogle.setCenter(centroNuevo);
+      }
+    }catch(e){}
+  }
+
+  /*
+    R68 - Una señal tardía o ausente de Google Maps nunca debe dejar
+    el seguimiento de cámara bloqueado después de la presentación.
+  */
+  function liberarEncuadreInicialYSeguirPin(){
+
+    if(encuadreInicialMapaWatchdogId !== null){
+      clearTimeout(encuadreInicialMapaWatchdogId);
+      encuadreInicialMapaWatchdogId = null;
+    }
+
+    if(encuadreInicialMapaTimer !== null){
+      clearTimeout(encuadreInicialMapaTimer);
+      encuadreInicialMapaTimer = null;
+    }
+
+    encuadreInicialMapaActivo = false;
+    encuadreInicialMapaSeguimientoHabilitado = false;
+    ultimaPosicionEncuadreInicial = null;
+
+    if(terminado || !mapa || !marcador){
+      return;
+    }
+
+    try{
+      const posicion = marcador.getLatLng();
+      centrarMapaEnAreaUtil(
+        Number(posicion.lat),
+        Number(posicion.lng),
+        {animate:false}
+      );
+    }catch(e){}
+  }
+
+
   function intentarEncuadreInicialMapa(){
 
     if(
@@ -9786,6 +9898,28 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     encuadreInicialMapaActivo =
       true;
 
+    encuadreInicialMapaSeguimientoHabilitado =
+      false;
+
+    ultimaPosicionEncuadreInicial = {
+      lat:Number(posicionCamioneta.lat),
+      lon:Number(posicionCamioneta.lng)
+    };
+
+    /*
+      Si el primer evento idle no llega, recuperamos el seguimiento.
+      Este watchdog NO depende de la carga de los mosaicos del mapa.
+    */
+    encuadreInicialMapaWatchdogId =
+      setTimeout(function(){
+        if(
+          encuadreInicialMapaActivo &&
+          !encuadreInicialMapaSeguimientoHabilitado
+        ){
+          liberarEncuadreInicialYSeguirPin();
+        }
+      },3000);
+
     try{
 
       const mapaGoogle =
@@ -9831,19 +9965,6 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         El padding evita que alguno de los dos pines quede tapado
         por el logo superior o por el panel inferior.
       */
-      mapaGoogle.fitBounds(
-        limites,
-        {
-          top:150,
-          right:38,
-          bottom:Math.max(
-            50,
-            altoPanel + 34
-          ),
-          left:38
-        }
-      );
-
       /*
         R45:
         El tiempo de lectura inicial empieza recién cuando Google terminó
@@ -9857,6 +9978,27 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           terminado
         ){
           return;
+        }
+
+        if(encuadreInicialMapaWatchdogId !== null){
+          clearTimeout(encuadreInicialMapaWatchdogId);
+          encuadreInicialMapaWatchdogId = null;
+        }
+
+        /*
+          El mapa ya acomodó ambos pines. Mientras se muestran,
+          la cámara acompaña al pin sin alterar el zoom de presentación.
+        */
+        encuadreInicialMapaSeguimientoHabilitado = true;
+
+        if(marcador){
+          try{
+            const posicionVigente = marcador.getLatLng();
+            acompanarPinEnEncuadreInicial(
+              Number(posicionVigente.lat),
+              Number(posicionVigente.lng)
+            );
+          }catch(e){}
         }
 
         if(
@@ -9896,6 +10038,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
               tramoZoomEtaActual =
                 null;
 
+              /* La transición R50/R68 acompaña ahora al pin vigente. */
+              encuadreInicialMapaSeguimientoHabilitado = false;
+
               const faltanMinDespues =
                 obtenerFaltanMinEta();
 
@@ -9906,10 +10051,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
                   faltanMinDespues
                 );
               }else{
-                encuadreInicialMapaActivo =
-                  false;
-
-                recentrarPinTrasCambioZoom();
+                liberarEncuadreInicialYSeguirPin();
               }
 
             },
@@ -9923,48 +10065,82 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         Si hay que corregir ese zoom, esperamos también a que termine
         esa corrección antes de iniciar los 3,5 segundos.
       */
-      google.maps.event.addListenerOnce(
-        mapaGoogle,
-        "idle",
-        function(){
-
-          if(
-            !encuadreInicialMapaActivo
-          ){
-            return;
-          }
-
-          const zoomFit =
-            Number(
-              mapaGoogle.getZoom()
-            );
-
-          if(
-            Number.isFinite(zoomFit) &&
-            zoomFit > zoomMaximoEncuadre
-          ){
-
-            google.maps.event.addListenerOnce(
-              mapaGoogle,
-              "idle",
-              iniciarPausaEncuadreInicial
-            );
-
-            mapaGoogle.setZoom(
-              zoomMaximoEncuadre
-            );
-
-            return;
-          }
-
-          iniciarPausaEncuadreInicial();
+      /*
+        Registrar idle inmediatamente ANTES de fitBounds evita perder
+        su señal, sin capturar el idle de la inicialización anterior.
+        Esperar un frame deja medir el contenedor visible.
+      */
+      requestAnimationFrame(function(){
+        if(!encuadreInicialMapaActivo){
+          return;
         }
-      );
+
+        try{
+          const rect = mapaGoogle.getDiv().getBoundingClientRect();
+
+          if(rect.width <= 0 || rect.height <= 0){
+            liberarEncuadreInicialYSeguirPin();
+            return;
+          }
+
+          google.maps.event.addListenerOnce(
+            mapaGoogle,
+            "idle",
+            function(){
+    
+              if(
+                !encuadreInicialMapaActivo
+              ){
+                return;
+              }
+    
+              const zoomFit =
+                Number(
+                  mapaGoogle.getZoom()
+                );
+    
+              if(
+                Number.isFinite(zoomFit) &&
+                zoomFit > zoomMaximoEncuadre
+              ){
+    
+                google.maps.event.addListenerOnce(
+                  mapaGoogle,
+                  "idle",
+                  iniciarPausaEncuadreInicial
+                );
+    
+                mapaGoogle.setZoom(
+                  zoomMaximoEncuadre
+                );
+    
+                return;
+              }
+    
+              iniciarPausaEncuadreInicial();
+            }
+          );
+
+          mapaGoogle.fitBounds(
+            limites,
+            {
+              top:150,
+              right:38,
+              bottom:Math.max(
+                50,
+                altoPanel + 34
+              ),
+              left:38
+            }
+          );
+        }catch(e){
+          liberarEncuadreInicialYSeguirPin();
+        }
+      });
 
     }catch(e){
 
-      encuadreInicialMapaActivo =
-        false;
+      liberarEncuadreInicialYSeguirPin();
 
       tramoZoomEtaActual =
         null;
@@ -10172,6 +10348,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       !mapa ||
       !marcador
     ){
+      liberarEncuadreInicialYSeguirPin();
       return;
     }
 
@@ -10186,8 +10363,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       if(
         !mapaGoogle
       ){
-        encuadreInicialMapaActivo =
-          false;
+        liberarEncuadreInicialYSeguirPin();
         mapa.setZoom(
           tramo.zoom
         );
@@ -10209,8 +10385,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         !Number.isFinite(zoomInicio) ||
         !Number.isFinite(zoomDestino)
       ){
-        encuadreInicialMapaActivo =
-          false;
+        liberarEncuadreInicialYSeguirPin();
         mapaGoogle.setZoom(
           zoomDestino
         );
@@ -10252,8 +10427,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       if(
         !centroGoogle
       ){
-        encuadreInicialMapaActivo =
-          false;
+        liberarEncuadreInicialYSeguirPin();
         mapaGoogle.setZoom(
           zoomDestino
         );
@@ -10376,9 +10550,19 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         headingActual
       ){
 
+        /*
+          R68: usar el pin VISUAL vigente en cada frame.
+          El punto capturado al comenzar puede estar desactualizado.
+        */
+        let posicionVigente = posicionCamioneta;
+
+        try{
+          posicionVigente = marcador.getLatLng();
+        }catch(e){}
+
         return calcularCentroPuntoEnPantallaConRumbo(
-          Number(posicionCamioneta.lat),
-          Number(posicionCamioneta.lng),
+          Number(posicionVigente.lat),
+          Number(posicionVigente.lng),
           zoomActual,
           xPantalla,
           yPantalla,
@@ -10439,8 +10623,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           mapaGoogle.setOptions({
             isFractionalZoomEnabled:false
           });
-          encuadreInicialMapaActivo =
-            false;
+          liberarEncuadreInicialYSeguirPin();
           return;
         }
 
@@ -10516,6 +10699,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         if(
           !centroInterpolado
         ){
+          liberarEncuadreInicialYSeguirPin();
           return;
         }
 
@@ -10577,6 +10761,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         if(
           !centroFinal
         ){
+          liberarEncuadreInicialYSeguirPin();
           return;
         }
 
@@ -10614,10 +10799,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         });
 
         /*
-          Recién ahora liberamos el seguimiento automático.
+          R68: liberar y sincronizar inmediatamente con el pin vigente.
+          No esperamos un nuevo GPS para corregir el centro final.
         */
-        encuadreInicialMapaActivo =
-          false;
+        liberarEncuadreInicialYSeguirPin();
       }
 
       requestAnimationFrame(
@@ -10626,8 +10811,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     }catch(e){
 
-      encuadreInicialMapaActivo =
-        false;
+      liberarEncuadreInicialYSeguirPin();
 
       try{
         mapa.setZoom(
@@ -10937,6 +11121,17 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     encuadreInicialMapaActivo =
       false;
+
+    encuadreInicialMapaSeguimientoHabilitado =
+      false;
+
+    ultimaPosicionEncuadreInicial =
+      null;
+
+    if(encuadreInicialMapaWatchdogId !== null){
+      clearTimeout(encuadreInicialMapaWatchdogId);
+      encuadreInicialMapaWatchdogId = null;
+    }
 
     borrarPersistenciaTrayectoLegacy();
 
@@ -17956,14 +18151,20 @@ ocultarHoraLlegada();
   ){
 
     /*
-      R44:
-      durante el pantallazo inicial conservamos fijo el encuadre
-      camioneta + destino. El seguimiento visual sigue actualizando
-      el marcador, pero no mueve la cámara hasta terminar los 2 s.
+      R44/R68:
+      durante el pantallazo inicial se conserva el zoom de la
+      presentación. El centro acompaña al pin cuando termina fitBounds;
+      durante la transición la cámara sigue el pin vigente.
     */
     if(
       encuadreInicialMapaActivo
     ){
+      /*
+        R68: durante el pantallazo de camioneta + destino seguimos
+        la posición real sin alterar el zoom. La transición inicial
+        usa el pin vivo en cada frame y gestiona su propio centro.
+      */
+      acompanarPinEnEncuadreInicial(lat,lon);
       return;
     }
 
