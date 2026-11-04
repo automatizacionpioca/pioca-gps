@@ -1,0 +1,108 @@
+name: piOca B16 - Compilar FLUIDEZ (un solo proceso)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publicar_html:
+        description: 'Publicar admin/index/cliente B16 en GitHub Pages al terminar la compilación (modifica la web operativa)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  compilar-b16:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener originales vigentes del repositorio
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Configurar Node.js para comprobaciones
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Android 35 y herramientas
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Configurar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Generar versiones completas desde originales verificados
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 .github/scripts/pioca_seguimiento_B16_fluidez_builder.py .
+          python3 .github/scripts/validar_archivos_pioca_B16.py pioca_B16_FLUIDEZ_ENTREGA
+
+      - name: Construir proyecto Android B15 verificado, sin modificar producción
+        run: |
+          python3 .github/scripts/pioca_b16_ejecutar_base.py
+
+      - name: Aplicar estabilización nativa B16 y verificar versión
+        run: |
+          python3 pioca_B16_FLUIDEZ_ENTREGA/.github/scripts/patch_android_b16_webview.py
+          grep -q 'versionCode 16' android-pioca/app/build.gradle
+          grep -q 'onRenderProcessGone' android-pioca/app/src/main/java/ar/com/pioca/seguimiento/MainActivity.java
+
+      - name: Compilar APK B16
+        working-directory: android-pioca
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK descargable
+        run: |
+          cp android-pioca/app/build/outputs/apk/debug/app-debug.apk piOca-Seguimiento-B16-FLUIDEZ.apk
+          test -s piOca-Seguimiento-B16-FLUIDEZ.apk
+
+      - name: Subir APK B16
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-Seguimiento-APK-B16-FLUIDEZ
+          path: piOca-Seguimiento-B16-FLUIDEZ.apk
+          retention-days: 30
+
+      - name: Subir HTML completos y parches para respaldo
+        uses: actions/upload-artifact@v4
+        with:
+          name: piOca-B16-ARCHIVOS-COMPLETOS
+          path: pioca_B16_FLUIDEZ_ENTREGA/
+          retention-days: 30
+          include-hidden-files: true
+
+      - name: Publicar paginas B16 - solo si lo autorizaste en Run workflow
+        if: ${{ inputs.publicar_html == true }}
+        run: |
+          cp pioca_B16_FLUIDEZ_ENTREGA/admin.html admin.html
+          cp pioca_B16_FLUIDEZ_ENTREGA/index.html index.html
+          cp pioca_B16_FLUIDEZ_ENTREGA/cliente.html cliente.html
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin.html index.html cliente.html
+          if git diff --cached --quiet; then
+            echo 'No hay HTML modificados para publicar.'
+          else
+            git commit -m 'B16: mejorar fluidez y recuperacion de navegacion'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
