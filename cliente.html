@@ -11,6 +11,10 @@
 
   <title></title>
 
+  <!-- B16: calentamiento de conexiones para el mapa/recursos visuales. -->
+  <link rel="preconnect" href="https://maps.googleapis.com">
+  <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
   <style>
     :root{
       --pioca-azul:#0833A2;
@@ -3398,8 +3402,25 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   Volver al panel
 </button>
 
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDE0iExc9s5QeZBPIN6BNYCucNFDrjmyKM&v=weekly">
+<!-- B16 FLUIDEZ: Google Maps se carga en paralelo con el panel visual. -->
+<script>
+(function(){
+  window.piocaGoogleMapsCargado=false;
+  window.piocaGoogleMapsListo=new Promise(function(resolve,reject){
+    window.piocaGoogleMapsOk=function(){
+      window.piocaGoogleMapsCargado=true;
+      console.info('[piOcaPERF] mapa API '+Math.round(performance.now())+'ms');
+      resolve(true);
+    };
+    window.piocaGoogleMapsError=function(){
+      reject(new Error('MAPS_NO_DISPONIBLE'));
+    };
+  });
+})();
+</script>
+<script async
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDE0iExc9s5QeZBPIN6BNYCucNFDrjmyKM&v=weekly&loading=async&callback=piocaGoogleMapsOk"
+  onerror="piocaGoogleMapsError()">
 </script>
 
 <script>
@@ -19249,6 +19270,9 @@ if(
   async function consultar(
     forzar
   ){
+    // B16: si Google Maps sigue cargando, conservar la interfaz y esperar
+    // sin tocar estados físicos ni iniciar un renderer inexistente.
+    if(!window.piocaGoogleMapsCargado) return;
 
     forzar =
       forzar === true;
@@ -19654,28 +19678,35 @@ if(
   }
 
 
+  // B16 COMPLEMENTO: un único regreso al controlador, también con doble toque.
+  let piocaRetornoPanelEnCurso = false;
+
   function volverAlPanelTecnico(){
 
     if(
-      !esPreviewTecnico
+      !esPreviewTecnico ||
+      piocaRetornoPanelEnCurso
     ){
       return;
     }
 
-    try{
-      if(
-        window.history.length > 1
-      ){
-        window.history.back();
-        return;
-      }
-    }catch(e){}
+    piocaRetornoPanelEnCurso = true;
 
-    window.location.href =
+    // Confirmación visual inmediata sin iniciar consultas nuevas.
+    [btnVolverPanelPreview, btnVolverPanelPreviewFinal].forEach(function(b){
+      if(!b) return;
+      b.disabled = true;
+      b.textContent = "VOLVIENDO AL PANEL...";
+    });
+
+    // Una sola navegación, sin history.back() ni reactivación de timers viejos.
+    try{ sessionStorage.removeItem('pioca_preview_retorno_panel'); }catch(e){}
+    window.location.replace(
       "index.html?tracking=" +
       encodeURIComponent(
         String(codigo || "").trim().toUpperCase()
-      );
+      )
+    );
   }
 
   if(
@@ -19908,12 +19939,60 @@ if(
     ocultarTodo();
 
   }else{
+    // B16 COMPLEMENTO: mostrar la pantalla mientras Google Maps se inicializa.
+    // El reloj de 12 s sólo informa una demora; NO cancela la descarga.
+    // Si Maps carga tarde, el seguimiento arranca normalmente.
+    var piocaMapaAviso = document.getElementById('estado');
+    var piocaMapaAvisoId = 'piocaMapaCargaB16';
+    var piocaMapaInicioFinalizado = false;
+    if(piocaMapaAviso){
+      piocaMapaAviso.textContent = 'Cargando mapa de seguimiento...';
+      piocaMapaAviso.dataset[piocaMapaAvisoId] = '1';
+      piocaMapaAviso.classList.remove('estadoOculto');
+      piocaMapaAviso.style.display = 'block';
+    }
+    var piocaMapaAvisoDemora = setTimeout(function(){
+      if(piocaMapaInicioFinalizado || terminado) return;
+      if(piocaMapaAviso && piocaMapaAviso.dataset[piocaMapaAvisoId] === '1'){
+        piocaMapaAviso.textContent = 'Google Maps está tardando en responder. Seguimos intentando...';
+      }
+      console.warn('[piOcaPERF] Google Maps demora más de 12 s');
+    },12000);
 
-    consultar(true);
-
-    iniciarCicloConsultas();
-
-    iniciarHeartbeatCliente();
+    window.piocaGoogleMapsListo.then(function(){
+      piocaMapaInicioFinalizado = true;
+      clearTimeout(piocaMapaAvisoDemora);
+      if(terminado) return;
+      if(piocaMapaAviso && piocaMapaAviso.dataset[piocaMapaAvisoId] === '1'){
+        delete piocaMapaAviso.dataset[piocaMapaAvisoId];
+        piocaMapaAviso.textContent = '';
+        piocaMapaAviso.classList.add('estadoOculto');
+        piocaMapaAviso.style.display = '';
+      }
+      consultar(true);
+      iniciarCicloConsultas();
+      iniciarHeartbeatCliente();
+    }).catch(function(){
+      piocaMapaInicioFinalizado = true;
+      clearTimeout(piocaMapaAvisoDemora);
+      if(terminado) return;
+      if(piocaMapaAviso){
+        delete piocaMapaAviso.dataset[piocaMapaAvisoId];
+        piocaMapaAviso.textContent = 'No se pudo cargar Google Maps. Revisá la conexión y reintentá.';
+        piocaMapaAviso.classList.remove('estadoOculto');
+        piocaMapaAviso.style.display = 'block';
+        // Únicamente reintento manual; no se crean bucles de recarga.
+        if(!document.getElementById('piocaMapaReintentoB16')){
+          var botonReintento = document.createElement('button');
+          botonReintento.id = 'piocaMapaReintentoB16';
+          botonReintento.type = 'button';
+          botonReintento.textContent = 'REINTENTAR';
+          botonReintento.style.cssText = 'display:block;margin:12px auto 0;padding:10px 14px;border-radius:8px;border:0;background:#1769aa;color:white;font-weight:bold;';
+          botonReintento.addEventListener('click',function(){window.location.reload();});
+          piocaMapaAviso.appendChild(botonReintento);
+        }
+      }
+    });
   }
 
 })();
