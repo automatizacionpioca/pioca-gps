@@ -2691,10 +2691,11 @@
     const urlPreview =
       linkCliente +
       separador +
-      "preview=1";
+      "preview=tecnico";
 
-    // El cliente usa history.back() para retornar. No cambiar href
-    // por replace: se perderia la entrada del panel en el historial.
+    // El retroceso nativo de Android/WebView vuelve al panel anterior.
+    // Mantener href conserva esa entrada en el historial (no usar replace).
+    // preview=tecnico evita el bloqueo nativo heredado para preview=1.
     try{
       sessionStorage.setItem(
         "pioca_preview_retorno_panel",
@@ -3760,7 +3761,7 @@
         Number.isFinite(Number(retornoPreview.fecha)) &&
         Date.now() - Number(retornoPreview.fecha) < 86400000
       ){
-        // Regreso con history.back(): nunca revivimos timers WebView viejos.
+        // Regreso por el historial del WebView: reconstruir panel limpio.
         window.location.replace(
           "index.html?tracking=" +
           encodeURIComponent(String(retornoPreview.codigo))
