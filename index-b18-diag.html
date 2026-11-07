@@ -1,0 +1,3930 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>piOca Seguimiento</title>
+
+  
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://apxrmkdegjnblkbyjsbp.supabase.co" crossorigin>
+  <style>
+    :root{
+      --azul:#1769aa;
+      --azul2:#0d5aa8;
+      --azulOscuro:#17314b;
+      --verde:#249447;
+      --verde2:#1a7f3c;
+      --rojo:#e1262d;
+      --grisFondo:#f3f6f9;
+      --grisBorde:#dfe6ed;
+      --grisTexto:#5c6773;
+      --sombra:0 8px 28px rgba(25,47,70,.08);
+    }
+
+    *{box-sizing:border-box;}
+
+    html,body{
+      margin:0;
+      min-height:100%;
+      font-family:Arial,sans-serif;
+      background:var(--grisFondo);
+      color:#203246;
+    }
+
+    body{padding:14px;}
+
+    .panel{
+      width:100%;
+      max-width:620px;
+      margin:0 auto;
+      background:#fff;
+      border:1px solid var(--grisBorde);
+      border-radius:22px;
+      box-shadow:var(--sombra);
+      padding:0 18px 20px;
+      overflow:hidden;
+    }
+
+    .panel::before{
+      content:"";
+      display:block;
+      height:8px;
+      margin:0 -18px 18px;
+      background:linear-gradient(90deg,var(--azul2),#2581d2);
+    }
+
+    .logoSeguimiento{
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      min-height:110px;
+      margin-bottom:4px;
+    }
+
+    .logoSeguimiento img{
+      width:112px;
+      max-width:30vw;
+      height:auto;
+      display:block;
+    }
+
+    .subtitulo{
+      position:absolute;
+      right:max(28px,calc((100vw - 620px)/2 + 28px));
+      top:38px;
+      min-width:200px;
+      max-width:310px;
+      margin:0;
+      padding:14px 16px;
+      border:1px solid #d9e3eb;
+      border-radius:16px;
+      background:#fff;
+      color:#24733a;
+      font-size:16px;
+      font-weight:800;
+      text-align:center;
+      box-shadow:0 4px 14px rgba(25,47,70,.05);
+    }
+
+    .subtitulo::before{
+      content:"✓";
+      display:inline-flex;
+      width:30px;
+      height:30px;
+      margin-right:8px;
+      border-radius:50%;
+      align-items:center;
+      justify-content:center;
+      background:#2fa64f;
+      color:#fff;
+      vertical-align:middle;
+    }
+
+    #bloqueGPS,
+    #bloqueFinalizado,
+    #bloqueDenegado{
+      display:none;
+    }
+
+    #bloqueDenegado{
+      text-align:center;
+      padding:24px 8px;
+    }
+
+    #bloqueFinalizado{
+      min-height:calc(100dvh - 165px);
+      text-align:center;
+      padding:24px 8px 34px;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+    }
+
+    #bloqueFinalizado > *{
+      width:100%;
+      max-width:470px;
+    }
+
+    .subtitulo.estadoDetenido{
+      color:#8d2b2f;
+      border-color:#efc7c9;
+      background:#fff5f5;
+    }
+
+    .subtitulo.estadoDetenido::before{
+      content:"■";
+      background:#d83b42;
+      color:#fff;
+      font-size:12px;
+    }
+
+    #trackingBox{
+      padding:12px 14px;
+      background:#f2f6fa;
+      border:1px solid #dde7ef;
+      border-radius:13px;
+      text-align:center;
+      font-weight:800;
+      margin-bottom:12px;
+      color:#26445e;
+      letter-spacing:.15px;
+    }
+
+    #gpsEstado{
+      position:relative;
+      padding:14px 14px 14px 50px;
+      background:#fff4cf;
+      border:1px solid #ead99b;
+      border-radius:13px;
+      text-align:left;
+      font-size:15px;
+      font-weight:800;
+      margin-bottom:14px;
+      color:#6f5a13;
+    }
+
+    #gpsEstado::before{
+      content:"⌖";
+      position:absolute;
+      left:15px;
+      top:50%;
+      transform:translateY(-50%);
+      width:26px;
+      height:26px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#fff;
+      color:inherit;
+      font-size:18px;
+    }
+
+    button{
+      width:100%;
+      padding:15px;
+      border:0;
+      border-radius:13px;
+      font-size:15px;
+      font-weight:800;
+      cursor:pointer;
+      margin-top:10px;
+      transition:transform .12s ease, filter .12s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    button:active{transform:scale(.985);}
+    button:disabled{opacity:.55;cursor:default;}
+
+    #btnWhatsapp{
+      background:linear-gradient(135deg,#14823a,#24a24c);
+      color:#fff;
+      display:none;
+      min-height:54px;
+      box-shadow:0 6px 16px rgba(31,145,65,.17);
+    }
+
+    #btnFinalizar{
+      background:linear-gradient(135deg,#c91e27,#ed3535);
+      color:#fff;
+      min-height:54px;
+      box-shadow:0 6px 16px rgba(206,42,42,.14);
+    }
+
+    #btnReactivar{
+      background:linear-gradient(135deg,#0d5aa8,#2580cf);
+      color:#fff;
+      display:none;
+    }
+
+    #btnVolver{
+      background:linear-gradient(135deg,#0d5aa8,#2580cf);
+      color:#fff;
+    }
+
+    .datos{
+      border:1px solid var(--grisBorde);
+      border-radius:15px;
+      overflow:hidden;
+      background:#fff;
+      font-size:13px;
+      line-height:1.25;
+      margin-bottom:14px;
+    }
+
+    .datos > div{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      align-items:center;
+      padding:11px 14px;
+      border-bottom:1px solid #edf1f4;
+    }
+
+    .datos > div:last-child{border-bottom:0;}
+
+    .datos strong{
+      color:#2d4154;
+      font-weight:800;
+    }
+
+    .datos span{
+      text-align:right;
+      color:#3a4e61;
+    }
+
+    #horaClienteBox{
+      margin-top:14px;
+      padding:16px;
+      border:1px solid #cfddeb;
+      border-radius:15px;
+      background:linear-gradient(180deg,#f7fbff,#eff6fc);
+      text-align:center;
+    }
+
+    .horaClienteTitulo{
+      font-size:12px;
+      font-weight:800;
+      color:#2b68a1;
+      text-transform:uppercase;
+      letter-spacing:.35px;
+    }
+
+    #horaCliente{
+      font-size:34px;
+      line-height:1.05;
+      font-weight:800;
+      color:#1769aa;
+      margin:7px 0 4px;
+    }
+
+    .horaClienteTexto{
+      font-size:12px;
+      color:#5e6b77;
+    }
+
+    #controlesHora{
+      display:none;
+      gap:10px;
+      margin-top:12px;
+    }
+
+    #controlesHora button{
+      flex:1;
+      width:auto;
+      margin-top:0;
+      padding:12px 8px;
+      font-size:14px;
+    }
+
+    #btnRestar5{
+      background:#fff;
+      color:#1769aa;
+      border:1px solid #cbd8e3;
+    }
+
+    #btnSumar5{
+      background:linear-gradient(135deg,#0d5aa8,#2580cf);
+      color:#fff;
+    }
+
+    #horaEstado{
+      display:none;
+      margin-top:10px;
+      font-size:11.5px;
+      line-height:1.4;
+    }
+
+    #gpsError{
+      display:none;
+      margin-top:12px;
+      padding:11px 12px;
+      background:#fff1f1;
+      border:1px solid #e8b8b8;
+      border-radius:11px;
+      font-size:12px;
+      color:#8d2a30;
+      line-height:1.4;
+    }
+
+    #clienteVistaBox{
+      margin-top:12px;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #d7e0e8;
+      background:#f8fafc;
+      text-align:center;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    #clienteVistaBox.online{
+      background:#e9f7ec;
+      border-color:#b8dfc0;
+      color:#247238;
+    }
+
+    #clienteVistaBox.offline{
+      background:#f7f9fb;
+      color:#58636e;
+    }
+
+    #clienteVistaBox.never{
+      background:#fff7df;
+      border-color:#ead49a;
+      color:#745c1c;
+    }
+
+    #clienteVistaFinal{
+      margin-top:14px;
+      font-size:14px;
+      font-weight:700;
+    }
+
+    .finalizadoTitulo{
+      font-size:21px;
+      font-weight:800;
+      margin-bottom:10px;
+      color:#25643a;
+    }
+
+    .finalizadoTexto{
+      color:#52606c;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    @media(max-width:460px){
+      body{padding:8px;}
+
+      .panel{
+        border-radius:17px;
+        padding:0 12px 14px;
+      }
+
+      .panel::before{
+        margin:0 -12px 14px;
+      }
+
+      .logoSeguimiento{
+        min-height:86px;
+      }
+
+      .logoSeguimiento img{
+        width:84px;
+      }
+
+      .subtitulo{
+        right:20px;
+        top:30px;
+        min-width:165px;
+        max-width:205px;
+        padding:10px 11px;
+        font-size:12px;
+      }
+
+      .subtitulo::before{
+        width:24px;
+        height:24px;
+        margin-right:5px;
+      }
+
+      .datos > div{
+        padding:9px 10px;
+        font-size:12px;
+      }
+
+      #horaCliente{
+        font-size:30px;
+      }
+    }
+  
+/* ==========================================================
+   MENSAJES DEL CLIENTE - MÓDULO ADITIVO
+   ========================================================== */
+#mensajeClienteBox{
+  display:none;
+  margin:12px 0 2px;
+  padding:13px;
+  border:1px solid #b8dfc0;
+  border-radius:13px;
+  background:#eef9f1;
+  box-shadow:0 4px 14px rgba(31,145,65,.08);
+}
+#mensajeClienteBox.visible{display:block;}
+#mensajeClienteTitulo{
+  color:#247238;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.25px;
+}
+#mensajeClienteTexto{
+  margin-top:7px;
+  color:#263746;
+  font-size:13px;
+  line-height:1.35;
+  font-weight:700;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+#mensajeClienteHora{
+  margin-top:5px;
+  color:#6a7680;
+  font-size:9.5px;
+}
+#btnMensajeLeido{
+  margin-top:9px;
+  padding:10px;
+  min-height:0;
+  background:linear-gradient(135deg,#14823a,#24a24c);
+  color:#fff;
+  font-size:11px;
+}
+
+
+/* ==========================================================
+   MENSAJES R2 - BOTÓN SIEMPRE VISIBLE
+   ========================================================== */
+#btnAbrirMensajes{
+  width:100%;
+  min-height:46px;
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #c8d8e5;
+  border-radius:13px;
+  background:#f7fbff;
+  color:#1955A3;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:none;
+}
+#btnAbrirMensajes.nuevo{
+  border-color:#b8dfc0;
+  background:#eef9f1;
+  color:#247238;
+  animation:piocaMensajeTecnicoPulso 1.35s ease-in-out infinite;
+}
+@keyframes piocaMensajeTecnicoPulso{
+  0%,100%{box-shadow:0 0 0 0 rgba(56,224,111,0);}
+  50%{box-shadow:0 0 0 6px rgba(56,224,111,.16);}
+}
+#mensajeClienteBox{
+  display:none;
+}
+#mensajeClienteBox.visible{
+  display:block;
+}
+#mensajeClienteSinNuevos{
+  color:#66727d;
+  font-size:11px;
+  line-height:1.35;
+  text-align:center;
+}
+
+/* ==========================================================
+   PREVIEW TÉCNICO - VER SEGUIMIENTO
+   Sólo agrega acceso visual al mismo link del cliente.
+   ========================================================== */
+#btnVerSeguimiento{
+  width:auto;
+  min-height:0;
+  margin:10px 0 0;
+  padding:8px 11px;
+  border:1px solid #c8d8e5;
+  border-radius:999px;
+  background:#f7fbff;
+  color:#1955A3;
+  font-size:10px;
+  font-weight:800;
+  box-shadow:none;
+}
+#btnVerSeguimiento:disabled{
+  opacity:.5;
+}
+
+</style>
+
+<script>
+/* piOca B17-DIAG | perfilador web, solo cuando existe el puente nativo.
+   No recoge coordenadas, URLs completas, nombres, tokens ni textos. */
+(function(){
+  'use strict';
+  if (!window.PiocaDiag || typeof window.PiocaDiag.metric !== 'function') return;
+  const values = new Map();
+  function metric(name, ms, fail){
+    try {
+      name = String(name).slice(0,64).replace(/[^a-z0-9._-]/gi,'_');
+      ms = Number(ms);
+      if(!Number.isFinite(ms) || ms < 0 || ms > 120000 || !name) return;
+      let v=values.get(name);
+      if(!v){v={n:0,sum:0,min:ms,max:0,fail:0};values.set(name,v);}
+      v.n++;v.sum+=ms;v.min=Math.min(v.min,ms);v.max=Math.max(v.max,ms);
+      if(fail)v.fail++;
+    } catch(_){}
+  }
+  window.__piocaDiagMetric=metric;
+  function flush(){
+    if(!values.size)return;
+    const snapshot=Array.from(values.entries());values.clear();
+    for(const [k,v] of snapshot){
+      try{window.PiocaDiag.aggregate(k,v.n,v.sum,v.min,v.max,v.fail);}catch(_){}
+    }
+  }
+  setInterval(flush,30000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush();});
+  window.addEventListener('pagehide',flush);
+
+  const started=performance.now();
+  window.addEventListener('load',()=>metric('web.window_load',performance.now()-started,0),{once:true});
+  try{
+    if ('PerformanceObserver' in window){
+      new PerformanceObserver(list=>{
+        for(const e of list.getEntries())metric('web.long_task',e.duration,0);
+      }).observe({entryTypes:['longtask']});
+    }
+  }catch(_){}
+  let lastRaf=0;
+  function frame(t){
+    if(document.visibilityState==='visible' && lastRaf){
+      const d=t-lastRaf;
+      if(d>45 && d<120000)metric('web.frame_over_45ms',d,0);
+    }
+    lastRaf=t;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  let expected=performance.now()+1000;
+  setInterval(()=>{
+    const now=performance.now(), lag=Math.max(0,now-expected);
+    if(lag>50&&lag<120000)metric('web.event_loop_lag',lag,0);
+    expected=now+1000;
+  },1000);
+
+  // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
+  if(typeof window.fetch==='function'){
+    const originalFetch=window.fetch;
+    window.fetch=function(){
+      const t=performance.now();
+      let cat='web.fetch.other';
+      try{
+        const arg=arguments[0];const url=typeof arg==='string'?arg:(arg&&arg.url)||'';
+        if(/supabase\.co/i.test(url))cat='web.fetch.supabase';
+        else if(/__r67\/sector/i.test(url))cat='web.fetch.r67_sector';
+        else if(/googleapis|gstatic/i.test(url))cat='web.fetch.google';
+      }catch(_){}
+      let p;
+      try{p=originalFetch.apply(this,arguments);}catch(e){metric(cat,performance.now()-t,1);throw e;}
+      if(p&&typeof p.then==='function')p.then(
+        r=>metric(cat,performance.now()-t,(!r||!r.ok)?1:0),
+        ()=>metric(cat,performance.now()-t,1));
+      return p;
+    };
+  }
+  function updateAuth(){
+    try{
+      const raw=localStorage.getItem('sb-apxrmkdegjnblkbyjsbp-auth-token');
+      if(!raw)return;
+      const obj=JSON.parse(raw);
+      if(obj&&typeof obj.access_token==='string'&&obj.access_token.length>32){
+        window.PiocaDiag.setAuth(obj.access_token);
+      }
+    }catch(_){}
+  }
+  setTimeout(updateAuth,3000);setInterval(updateAuth,60000);
+  window.addEventListener('online',()=>metric('web.online_event',0,0));
+  window.addEventListener('offline',()=>metric('web.offline_event',0,1));
+  window.addEventListener('error',()=>metric('web.script_error',0,1));
+  window.addEventListener('unhandledrejection',()=>metric('web.promise_rejection',0,1));
+})();
+
+</script>
+</head>
+
+<body>
+
+<div class="panel">
+
+  <div class="logoSeguimiento">
+
+    <img
+      src="logo-pioca.png"
+      alt="piOca"
+    >
+
+  </div>
+
+  <div class="subtitulo" id="estadoCabecera">
+    Seguimiento activo
+  </div>
+
+  <div id="bloqueDenegado">
+    <strong>Acceso no autorizado</strong>
+  </div>
+
+  <div id="bloqueFinalizado">
+    <div class="finalizadoTitulo">
+      ✅ SEGUIMIENTO FINALIZADO
+    </div>
+
+    <div class="finalizadoTexto" id="finalizadoTexto">
+      El cliente ya no puede ver la ubicación de la camioneta.
+    </div>
+
+    <div id="clienteVistaFinal"></div>
+
+    <button
+      id="btnVolver"
+      type="button">
+      VOLVER AL PANEL
+    </button>
+  </div>
+
+  <div id="bloqueGPS">
+
+    <div id="trackingBox">
+      Seguimiento: -
+    </div>
+
+    <div id="gpsEstado">
+      Iniciando GPS...
+    </div>
+
+    <div class="datos">
+
+      <div>
+        <strong>Cliente:</strong>
+        <span id="clienteTxt">-</span>
+      </div>
+
+      <div>
+        <strong>Latitud:</strong>
+        <span id="gpsLat">-</span>
+      </div>
+
+      <div>
+        <strong>Longitud:</strong>
+        <span id="gpsLon">-</span>
+      </div>
+
+      <div>
+        <strong>Precisión:</strong>
+        <span id="gpsAcc">-</span>
+      </div>
+
+      <div>
+        <strong>Última posición:</strong>
+        <span id="gpsHora">-</span>
+      </div>
+
+      <div>
+        <strong>Transmisión:</strong>
+        <span id="gpsEnvios">⏳ ESPERANDO GPS</span>
+      </div>
+
+    </div>
+
+    <div id="horaClienteBox">
+
+      <div class="horaClienteTitulo">
+        LLEGAMOS EN
+      </div>
+
+      <div id="horaCliente">
+        -- min
+      </div>
+
+      <div class="horaClienteTexto" id="horaClienteTexto">
+        El cliente ve: --:-- hs
+      </div>
+
+      <div id="controlesHora">
+
+        <button
+          id="btnRestar5"
+          type="button">
+          − 5 min
+        </button>
+
+        <button
+          id="btnSumar5"
+          type="button">
+          + 5 min
+        </button>
+
+      </div>
+
+
+      <button
+        id="btnVerSeguimiento"
+        type="button">
+        👁 VER SEGUIMIENTO
+      </button>
+
+      <div id="horaEstado"></div>
+
+    </div>
+
+    <div id="clienteVistaBox" class="never">
+      AÚN NO VISUALIZADO
+    </div>
+
+    <button id="btnAbrirMensajes" type="button">
+      💬 MENSAJES DEL CLIENTE
+    </button>
+
+    <div id="mensajeClienteBox">
+      <div id="mensajeClienteTitulo">💬 MENSAJE DEL CLIENTE</div>
+      <div id="mensajeClienteSinNuevos">Sin mensajes nuevos.</div>
+      <div id="mensajeClienteTexto"></div>
+      <div id="mensajeClienteHora"></div>
+      <button id="btnMensajeLeido" type="button">✓ MARCAR COMO LEÍDO</button>
+    </div>
+
+    <button
+      id="btnReactivar"
+      type="button">
+      📍 REACTIVAR GPS
+    </button>
+
+    <button
+      id="btnWhatsapp"
+      type="button">
+      💬 COMPARTIR POR WHATSAPP
+    </button>
+
+    <button
+      id="btnFinalizar"
+      type="button">
+      ⛔ FINALIZAR SEGUIMIENTO
+    </button>
+
+    <div id="gpsError"></div>
+
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+(async function(){
+
+  const SUPABASE_URL =
+    "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+  const SUPABASE_KEY =
+    "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  const supabaseClient =
+    supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+  /*
+    V9 - ARQUITECTURA DE EMISOR ÚNICO
+
+    Dentro de la APK Android:
+    - TrackingService nativo es la única fuente que escribe GPS.
+    - El WebView funciona solamente como panel de control.
+    - Se evita que navigator.geolocation/heartbeat JS reenvíen
+      una posición vieja al desbloquear el teléfono.
+
+    Fuera de la APK (navegador común), el GPS JavaScript
+    sigue disponible como respaldo.
+  */
+  const usaGpsNativo =
+    !!(
+      window.PiocaNative &&
+      typeof window.PiocaNative.startTracking ===
+        "function"
+    );
+
+  const bloqueGPS =
+    document.getElementById("bloqueGPS");
+
+  const bloqueDenegado =
+    document.getElementById("bloqueDenegado");
+
+  const bloqueFinalizado =
+    document.getElementById("bloqueFinalizado");
+
+  const estadoCabecera =
+    document.getElementById("estadoCabecera");
+
+  const finalizadoTexto =
+    document.getElementById("finalizadoTexto");
+
+  const btnVolver =
+    document.getElementById("btnVolver");
+
+  const trackingBox =
+    document.getElementById("trackingBox");
+
+  const estado =
+    document.getElementById("gpsEstado");
+
+  const clienteTxt =
+    document.getElementById("clienteTxt");
+
+  const lat =
+    document.getElementById("gpsLat");
+
+  const lon =
+    document.getElementById("gpsLon");
+
+  const acc =
+    document.getElementById("gpsAcc");
+
+  const hora =
+    document.getElementById("gpsHora");
+
+  const enviosTxt =
+    document.getElementById("gpsEnvios");
+
+  const btnWhatsapp =
+    document.getElementById("btnWhatsapp");
+
+  const btnFinalizar =
+    document.getElementById("btnFinalizar");
+
+  const btnReactivar =
+    document.getElementById("btnReactivar");
+
+  const errorBox =
+    document.getElementById("gpsError");
+
+  const horaCliente =
+    document.getElementById("horaCliente");
+
+  const horaClienteTexto =
+    document.getElementById("horaClienteTexto");
+
+  const horaClienteBox =
+    document.getElementById("horaClienteBox");
+
+  const btnRestar5 =
+    document.getElementById("btnRestar5");
+
+  const btnSumar5 =
+    document.getElementById("btnSumar5");
+
+  const btnVerSeguimiento =
+    document.getElementById("btnVerSeguimiento");
+
+  const horaEstado =
+    document.getElementById("horaEstado");
+
+  const clienteVistaBox =
+    document.getElementById("clienteVistaBox");
+
+  const clienteVistaFinal =
+    document.getElementById("clienteVistaFinal");
+
+  const btnAbrirMensajes =
+    document.getElementById("btnAbrirMensajes");
+
+  const mensajeClienteBox =
+    document.getElementById("mensajeClienteBox");
+
+  const mensajeClienteSinNuevos =
+    document.getElementById("mensajeClienteSinNuevos");
+
+  const mensajeClienteTexto =
+    document.getElementById("mensajeClienteTexto");
+
+  const mensajeClienteHora =
+    document.getElementById("mensajeClienteHora");
+
+  const btnMensajeLeido =
+    document.getElementById("btnMensajeLeido");
+
+  let mensajeClienteActualId = null;
+  let mensajeClienteUltimoAvisadoId = null;
+  let audioMensajesDesbloqueado = false;
+
+  let trackingCode = null;
+  let serviceId = null;
+  let watchId = null;
+  let heartbeatId = null;
+  let syncId = null;
+  let envios = 0;
+  let ultimoEnvio = 0;
+  let ultimaPosicion = null;
+  let enviando = false;
+  let seguimientoFinalizado = false;
+  let llegadaClienteMs = null;
+  let modificandoHora = false;
+  let minutosSelector = null;
+  let clienteFueVisualizado = false;
+  let clienteUltimaVistaMs = null;
+
+  /*
+    V11 - COORDINACIÓN DE OPERACIONES ASÍNCRONAS
+
+    Evita consultas superpuestas, respuestas fuera de orden y dobles
+    ejecuciones por pulsaciones rápidas o por varios eventos de reanudación.
+  */
+  let sincronizacionEnCurso = null;
+  let revisionEstado = 0;
+  let consultaMensajesEnCurso = null;
+  let revisionMensajes = 0;
+  let consultaVistaEnCurso = null;
+  let abriendoWhatsApp = false;
+  let reactivandoGps = false;
+
+  /*
+    PANEL B15: estado de presentación independiente de la consulta.
+    Ni la ETA ni el chequeo de mensajes bloquean la interfaz.
+  */
+  let panelInicializado = false;
+  let etaEsperandoServidor = false;
+
+  /*
+    V9 - monitor visual de transmisión real.
+    Se alimenta exclusivamente de last_position_at recibido desde Supabase.
+  */
+  let ultimoReporteServidorMs = null;
+
+  let nombreCliente = "";
+  let telefonoCliente = "";
+  let linkCliente = "";
+  let informacionAdicional = "";
+
+  function mostrarError(texto){
+    errorBox.textContent = texto;
+    errorBox.style.display = "block";
+  }
+
+  function ocultarError(){
+    errorBox.textContent = "";
+    errorBox.style.display = "none";
+  }
+
+
+  /*
+    V9 - FINALIZACION SEGURA
+
+    Un campo state/status ausente, null o temporalmente incompleto
+    NUNCA se interpreta como seguimiento finalizado.
+
+    El cierre automático ocurre solamente cuando Supabase devuelve
+    explícitamente "finished".
+  */
+  function servidorConfirmaFinalizado(
+    s
+  ){
+
+    if(
+      !s ||
+      typeof s !== "object"
+    ){
+      return false;
+    }
+
+    const state =
+      String(
+        s.state || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    const status =
+      String(
+        s.status || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    return (
+      state === "finished" ||
+      status === "finished"
+    );
+  }
+
+
+  function servidorConfirmaActivo(
+    s
+  ){
+
+    if(
+      !s ||
+      typeof s !== "object" ||
+      servidorConfirmaFinalizado(s)
+    ){
+      return false;
+    }
+
+    const state =
+      String(
+        s.state || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    const status =
+      String(
+        s.status || ""
+      )
+      .trim()
+      .toLowerCase();
+
+    return (
+      state === "active" ||
+      status === "active"
+    );
+  }
+
+  function mostrarEstadoHora(texto,ok){
+    horaEstado.textContent = texto;
+    horaEstado.style.display = "block";
+    horaEstado.style.color =
+      ok
+        ? "#2d7a38"
+        : "#b00020";
+  }
+
+  function minutosRestantesCliente(){
+
+    if(
+      !llegadaClienteMs ||
+      !Number.isFinite(llegadaClienteMs)
+    ){
+      return null;
+    }
+
+    return (
+      llegadaClienteMs -
+      Date.now()
+    ) / 60000;
+  }
+
+  function minutosTableroActuales(){
+
+    const actuales =
+      minutosRestantesCliente();
+
+    if(
+      actuales === null ||
+      !Number.isFinite(actuales)
+    ){
+      return null;
+    }
+
+    /*
+      El panel muestra la diferencia real entre AHORA
+      y la hora de llegada. Ceil evita mostrar 0 min
+      mientras todavía quedan segundos.
+    */
+    return Math.max(
+      0,
+      Math.ceil(actuales)
+    );
+  }
+
+  function deltaRestarSelector(){
+
+    const minutos =
+      minutosTableroActuales();
+
+    if(
+      minutos === null ||
+      minutos <= 0
+    ){
+      return 0;
+    }
+
+    return -1;
+  }
+
+  function deltaSumarSelector(){
+    return 1;
+  }
+
+  function actualizarBotonesHora(){
+
+    const deltaMenos =
+      deltaRestarSelector();
+
+    btnRestar5.disabled =
+      modificandoHora ||
+      deltaMenos === 0;
+
+    btnSumar5.disabled =
+      modificandoHora;
+
+    btnRestar5.textContent =
+      "− 1 min";
+
+    btnSumar5.textContent =
+      "+ 1 min";
+  }
+
+  function pintarEstadoTransmision(){
+
+    /*
+      Si el WebView está oculto por bloqueo de pantalla no generamos
+      un estado visual falso de "SIN REPORTE". Al volver visible,
+      reactivarPanelAhora() consulta Supabase inmediatamente.
+    */
+    if(
+      document.visibilityState ===
+        "hidden"
+    ){
+      return;
+    }
+
+    if(
+      !ultimoReporteServidorMs ||
+      !Number.isFinite(
+        ultimoReporteServidorMs
+      )
+    ){
+      enviosTxt.textContent =
+        "⏳ ESPERANDO GPS";
+
+      enviosTxt.style.color =
+        "#6f5a13";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    const segundos =
+      Math.max(
+        0,
+        Math.floor(
+          (
+            Date.now() -
+            ultimoReporteServidorMs
+          ) / 1000
+        )
+      );
+
+    if(
+      segundos <= 5
+    ){
+      enviosTxt.textContent =
+        "🟢 REPORTANDO · hace " +
+        segundos +
+        " s";
+
+      enviosTxt.style.color =
+        "#1f7a35";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    if(
+      segundos <= 10
+    ){
+      enviosTxt.textContent =
+        "🟡 DEMORA · hace " +
+        segundos +
+        " s";
+
+      enviosTxt.style.color =
+        "#9a6a00";
+
+      enviosTxt.style.fontWeight =
+        "800";
+
+      return;
+    }
+
+    enviosTxt.textContent =
+      "🔴 SIN REPORTE · hace " +
+      segundos +
+      " s";
+
+    enviosTxt.style.color =
+      "#b3262e";
+
+    enviosTxt.style.fontWeight =
+      "800";
+  }
+
+
+  function textoHace(ms){
+    if(!ms || !Number.isFinite(ms)){
+      return "";
+    }
+    const seg = Math.max(0,Math.floor((Date.now()-ms)/1000));
+    if(seg < 60){ return "hace " + seg + " s"; }
+    const min = Math.floor(seg/60);
+    if(min < 60){ return "hace " + min + (min === 1 ? " min" : " min"); }
+    const h = Math.floor(min/60);
+    return "hace " + h + (h === 1 ? " h" : " h");
+  }
+
+  function pintarVistaCliente(estadoVista,valor){
+    if(valor){
+      const d = new Date(valor).getTime();
+      if(Number.isFinite(d)){
+        clienteUltimaVistaMs = d;
+        clienteFueVisualizado = true;
+      }
+    }
+
+    if(estadoVista === "online"){
+      clienteVistaBox.className = "online";
+      clienteVistaBox.textContent = "🟢 CLIENTE MIRANDO EN LÍNEA";
+      return;
+    }
+
+    if(clienteFueVisualizado && clienteUltimaVistaMs){
+      clienteVistaBox.className = "offline";
+      clienteVistaBox.textContent = "Última visualización: " + textoHace(clienteUltimaVistaMs);
+      return;
+    }
+
+    clienteVistaBox.className = "never";
+    clienteVistaBox.textContent = "AÚN NO VISUALIZADO";
+  }
+
+
+  function sonidoMensajeCliente(){
+
+    try{
+
+      const AudioCtx =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+      if(
+        AudioCtx
+      ){
+
+        const ctx =
+          new AudioCtx();
+
+        /*
+          Aviso fuerte: 5 pips, uno por segundo.
+          La intensidad se lleva alta dentro de WebAudio,
+          pero el volumen físico final depende del teléfono.
+        */
+        for(
+          let i = 0;
+          i < 5;
+          i++
+        ){
+
+          const inicio =
+            ctx.currentTime +
+            i;
+
+          const osc =
+            ctx.createOscillator();
+
+          const gain =
+            ctx.createGain();
+
+          osc.type =
+            "sine";
+
+          osc.frequency.setValueAtTime(
+            1050,
+            inicio
+          );
+
+          gain.gain.setValueAtTime(
+            0.0001,
+            inicio
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.9,
+            inicio + 0.025
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            inicio + 0.38
+          );
+
+          osc.connect(
+            gain
+          );
+
+          gain.connect(
+            ctx.destination
+          );
+
+          osc.start(
+            inicio
+          );
+
+          osc.stop(
+            inicio + 0.40
+          );
+        }
+      }
+
+    }catch(e){}
+
+    try{
+
+      if(
+        navigator.vibrate
+      ){
+
+        navigator.vibrate([
+          180,820,
+          180,820,
+          180,820,
+          180,820,
+          180
+        ]);
+      }
+
+    }catch(e){}
+  }
+
+
+  async function consultarMensajeCliente(){
+    if(seguimientoFinalizado || !trackingCode){ return false; }
+
+    /*
+      Si ya hay una consulta en curso, todos los disparadores comparten
+      la misma promesa en lugar de abrir otra llamada a Supabase.
+    */
+    if(consultaMensajesEnCurso){
+      return consultaMensajesEnCurso;
+    }
+
+    const revisionAlIniciar =
+      revisionMensajes;
+
+    consultaMensajesEnCurso =
+      (async function(){
+
+        try{
+          const {data,error} = await rpcLecturaConPlazo(
+            "get_unread_tracking_message",
+            {p_code:trackingCode}
+          );
+
+          if(error){
+            throw error;
+          }
+
+          /*
+            Si mientras esperábamos cambió el estado de mensajes
+            (por ejemplo, se marcó uno como leído), esta respuesta ya
+            no tiene permiso para volver a pintar información anterior.
+          */
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionMensajes
+          ){
+            return false;
+          }
+
+          const r =
+            Array.isArray(data) && data.length
+              ? data[0]
+              : null;
+
+          if(!r || !r.message_id){
+
+            mensajeClienteActualId = null;
+
+            btnAbrirMensajes.classList.remove(
+              "nuevo"
+            );
+
+            mensajeClienteSinNuevos.style.display =
+              "block";
+
+            mensajeClienteSinNuevos.textContent =
+              "Sin mensajes nuevos.";
+
+            mensajeClienteTexto.textContent =
+              "";
+
+            mensajeClienteHora.textContent =
+              "";
+
+            btnMensajeLeido.style.display =
+              "none";
+
+            return true;
+          }
+
+          mensajeClienteActualId =
+            r.message_id;
+
+          mensajeClienteSinNuevos.style.display =
+            "none";
+
+          mensajeClienteTexto.textContent =
+            r.message_text || "";
+
+          mensajeClienteHora.textContent =
+            r.created_at
+              ? "Recibido " +
+                new Date(r.created_at)
+                .toLocaleTimeString(
+                  "es-AR",
+                  {
+                    hour:"2-digit",
+                    minute:"2-digit"
+                  }
+                )
+              : "";
+
+          btnMensajeLeido.style.display =
+            "block";
+
+          btnAbrirMensajes.classList.add(
+            "nuevo"
+          );
+
+          if(
+            mensajeClienteUltimoAvisadoId !==
+              r.message_id
+          ){
+            mensajeClienteUltimoAvisadoId =
+              r.message_id;
+
+            sonidoMensajeCliente();
+
+            /*
+              Si llega uno nuevo, abrimos la tarjeta automáticamente.
+            */
+            mensajeClienteBox.classList.add(
+              "visible"
+            );
+          }
+
+          return true;
+
+        }catch(e){
+
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionMensajes
+          ){
+            return false;
+          }
+
+          /*
+            La función deja un diagnóstico visible sólo si el usuario
+            abre MENSAJES. No afecta el resto del panel.
+          */
+          mensajeClienteSinNuevos.style.display =
+            "block";
+
+          mensajeClienteSinNuevos.textContent =
+            "No se pudo consultar mensajes.";
+
+          mensajeClienteTexto.textContent =
+            "";
+
+          mensajeClienteHora.textContent =
+            "";
+
+          btnMensajeLeido.style.display =
+            "none";
+
+          return false;
+        }
+      })();
+
+    try{
+      return await consultaMensajesEnCurso;
+    }finally{
+      consultaMensajesEnCurso = null;
+    }
+  }
+
+  async function marcarMensajeClienteLeido(){
+    if(!trackingCode || !mensajeClienteActualId){ return; }
+
+    const idMarcado =
+      mensajeClienteActualId;
+
+    /*
+      Invalida cualquier lectura de mensajes iniciada antes del toque.
+    */
+    revisionMensajes++;
+
+    btnMensajeLeido.disabled = true;
+
+    try{
+      const {data,error} = await supabaseClient.rpc(
+        "mark_tracking_message_read",
+        {
+          p_code:trackingCode,
+          p_message_id:idMarcado
+        }
+      );
+
+      if(error){ throw error; }
+
+      if(seguimientoFinalizado){ return; }
+
+      mensajeClienteActualId = null;
+
+      btnAbrirMensajes.classList.remove(
+        "nuevo"
+      );
+
+      mensajeClienteSinNuevos.style.display =
+        "block";
+
+      mensajeClienteSinNuevos.textContent =
+        "Sin mensajes nuevos.";
+
+      mensajeClienteTexto.textContent =
+        "";
+
+      mensajeClienteHora.textContent =
+        "";
+
+      btnMensajeLeido.style.display =
+        "none";
+
+      /*
+        Si había una consulta vieja en vuelo, esperamos que termine y
+        luego consultamos de nuevo para mostrar el siguiente mensaje,
+        si existe, sin que el anterior pueda reaparecer.
+      */
+      if(consultaMensajesEnCurso){
+        try{ await consultaMensajesEnCurso; }catch(e){}
+        consultaMensajesEnCurso = null;
+      }
+
+      await consultarMensajeCliente();
+
+    }catch(e){
+      mostrarError("No se pudo confirmar la lectura del mensaje.");
+    }finally{
+      btnMensajeLeido.disabled = false;
+    }
+  }
+
+  async function consultarVistaCliente(){
+    if(seguimientoFinalizado || !trackingCode){ return false; }
+
+    if(consultaVistaEnCurso){
+      return consultaVistaEnCurso;
+    }
+
+    consultaVistaEnCurso =
+      (async function(){
+        try{
+          const {data,error} = await rpcLecturaConPlazo(
+            "get_client_view_status",
+            {p_code:trackingCode}
+          );
+
+          if(error){ throw error; }
+          if(seguimientoFinalizado){ return false; }
+
+          const r =
+            Array.isArray(data) && data.length
+              ? data[0]
+              : null;
+
+          if(!r){ return false; }
+
+          pintarVistaCliente(
+            r.view_state,
+            r.client_last_seen
+          );
+
+          return true;
+
+        }catch(e){
+          return false;
+        }
+      })();
+
+    try{
+      return await consultaVistaEnCurso;
+    }finally{
+      consultaVistaEnCurso = null;
+    }
+  }
+
+  function negarAcceso(){
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueFinalizado.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "block";
+  }
+
+  function limpiarEstadoLocal(){
+
+    localStorage.removeItem(
+      "pioca_tracking_code"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_active"
+    );
+
+    localStorage.removeItem(
+      "pioca_tracking_expires_at"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_name"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_phone"
+    );
+
+    localStorage.removeItem(
+      "pioca_client_link"
+    );
+
+    localStorage.removeItem(
+      "pioca_additional_info"
+    );
+  }
+
+  function detenerNativo(){
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.stopTracking ===
+        "function"
+    ){
+
+      try{
+
+        window.PiocaNative
+        .stopTracking();
+
+      }catch(e){}
+    }
+  }
+
+  function detenerRelojes(){
+
+    if(
+      syncId !== null
+    ){
+
+      clearInterval(
+        syncId
+      );
+
+      syncId = null;
+    }
+
+    if(
+      heartbeatId !== null
+    ){
+
+      clearInterval(
+        heartbeatId
+      );
+
+      heartbeatId = null;
+    }
+
+  }
+
+  function mostrarFinalizado(
+    nombre
+  ){
+
+    if(
+      seguimientoFinalizado
+    ){
+      return;
+    }
+
+    seguimientoFinalizado =
+      true;
+
+    if(
+      watchId !== null
+    ){
+
+      try{
+
+        navigator.geolocation
+        .clearWatch(
+          watchId
+        );
+
+      }catch(e){}
+
+      watchId =
+        null;
+    }
+
+    detenerRelojes();
+
+    detenerNativo();
+
+    clienteVistaFinal.textContent =
+      clienteFueVisualizado
+        ? "Visualizado por el cliente: SÍ"
+        : "Visualizado por el cliente: NO";
+
+    minutosSelector =
+      null;
+
+    limpiarEstadoLocal();
+
+    bloqueGPS.style.display =
+      "none";
+
+    bloqueDenegado.style.display =
+      "none";
+
+    if(
+      estadoCabecera
+    ){
+      estadoCabecera.textContent =
+        "Rastreo detenido";
+
+      estadoCabecera.classList.add(
+        "estadoDetenido"
+      );
+    }
+
+    bloqueFinalizado.style.display =
+      "flex";
+
+    finalizadoTexto.textContent =
+
+      (
+        nombre
+          ? "El seguimiento de " +
+            nombre +
+            " ha finalizado. "
+          : "El seguimiento ha finalizado. "
+      ) +
+
+      "El cliente ya no puede ver la ubicación de la camioneta.";
+
+    /*
+      V10 - SALIDA AUTOMÁTICA DEL CONTROLADOR ETA
+
+      Cuando Supabase ya confirmó "finished", este controlador
+      deja de ser válido. Android puede mostrar su aviso de
+      finalización; el WebView vuelve automáticamente al panel.
+    */
+    setTimeout(
+      function(){
+
+        window.location.replace(
+          "admin-b18-diag.html"
+        );
+
+      },
+      350
+    );
+  }
+
+  function formatearHora(
+    fechaMs
+  ){
+
+    if(
+      !fechaMs ||
+      !Number.isFinite(
+        fechaMs
+      )
+    ){
+
+      return "--:--";
+    }
+
+    return new Date(
+      fechaMs
+    )
+    .toLocaleTimeString(
+      "es-AR",
+      {
+        hour:"2-digit",
+        minute:"2-digit",
+        hour12:false
+      }
+    );
+  }
+
+  function formatearFechaHora(
+    valor
+  ){
+
+    if(
+      !valor
+    ){
+
+      return "-";
+    }
+
+    const d =
+      new Date(
+        valor
+      );
+
+    if(
+      !Number.isFinite(
+        d.getTime()
+      )
+    ){
+
+      return "-";
+    }
+
+    return d.toLocaleTimeString(
+      "es-AR"
+    );
+  }
+
+  function pintarHoraCliente(){
+
+    if(etaEsperandoServidor){
+      horaCliente.textContent = "-- min";
+      horaClienteTexto.textContent = "Actualizando ETA...";
+      actualizarBotonesHora();
+      return;
+    }
+
+    if(
+      !llegadaClienteMs ||
+      !Number.isFinite(
+        llegadaClienteMs
+      )
+    ){
+
+      horaCliente.textContent =
+        "-- min";
+
+      horaClienteTexto.textContent =
+        "El cliente ve: --:-- hs";
+
+      actualizarBotonesHora();
+
+      return;
+    }
+
+    const minutosActuales =
+      minutosTableroActuales();
+
+    horaCliente.textContent =
+      (
+        minutosActuales === null
+          ? "--"
+          : Math.max(
+              0,
+              minutosActuales
+            )
+      ) +
+      " min";
+
+    horaClienteTexto.textContent =
+      "El cliente ve: " +
+      formatearHora(
+        llegadaClienteMs
+      ) +
+      " hs";
+
+    actualizarBotonesHora();
+  }
+
+  function guardarServidorEnLocal(
+    s
+  ){
+
+    /*
+      Una respuesta que llegue tarde nunca puede revivir un seguimiento
+      que ya fue finalizado localmente.
+    */
+    if(
+      seguimientoFinalizado ||
+      !s ||
+      typeof s !== "object"
+    ){
+      return false;
+    }
+
+    trackingCode =
+      String(
+        s.tracking_code || ""
+      )
+      .trim()
+      .toUpperCase();
+
+    serviceId =
+      s.id ||
+      serviceId;
+
+    nombreCliente =
+      s.client_name ||
+      "";
+
+    telefonoCliente =
+      s.client_phone ||
+      "";
+
+    informacionAdicional =
+      s.additional_info ||
+      "";
+
+    linkCliente =
+
+      "https://trackingpioca.com/?id=" +
+
+      encodeURIComponent(
+        trackingCode
+      );
+
+
+    /*
+      V9:
+      El botón de WhatsApp depende de que exista un seguimiento
+      activo con link válido, NO de los envíos GPS JavaScript.
+
+      Dentro de la APK el GPS lo transmite TrackingService nativo,
+      por eso "envios" del WebView puede quedar en 0 aunque el
+      seguimiento esté funcionando perfectamente.
+    */
+    if(
+      trackingCode &&
+      linkCliente
+    ){
+      btnWhatsapp.style.display =
+        "block";
+      btnVerSeguimiento.disabled =
+        false;
+    }else{
+      btnWhatsapp.style.display =
+        "none";
+      btnVerSeguimiento.disabled =
+        true;
+    }
+
+    localStorage.setItem(
+      "pioca_tracking_code",
+      trackingCode
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_active",
+      "1"
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_expires_at",
+      s.expires_at ||
+      ""
+    );
+
+    localStorage.setItem(
+      "pioca_client_name",
+      nombreCliente
+    );
+
+    localStorage.setItem(
+      "pioca_client_phone",
+      telefonoCliente
+    );
+
+    localStorage.setItem(
+      "pioca_client_link",
+      linkCliente
+    );
+
+    localStorage.setItem(
+      "pioca_additional_info",
+      informacionAdicional
+    );
+
+    clienteTxt.textContent =
+      nombreCliente ||
+      "-";
+
+    trackingBox.textContent =
+      "Seguimiento: " +
+      trackingCode;
+
+    if(
+      Object.prototype.hasOwnProperty.call(
+        s,
+        "client_arrival"
+      )
+    ){
+
+      // El servidor confirmó el dato; reactivamos solamente el reloj ETA.
+      etaEsperandoServidor = false;
+
+      if(s.client_arrival){
+        const nuevaLlegadaMs =
+          new Date(
+            s.client_arrival
+          )
+          .getTime();
+
+        llegadaClienteMs =
+          Number.isFinite(nuevaLlegadaMs)
+            ? nuevaLlegadaMs
+            : null;
+      }else{
+        llegadaClienteMs = null;
+      }
+
+      pintarHoraCliente();
+    }
+
+    if(
+      s.latitude !== null &&
+      s.latitude !== undefined
+    ){
+
+      lat.textContent =
+        Number(
+          s.latitude
+        )
+        .toFixed(
+          6
+        );
+    }
+
+    if(
+      s.longitude !== null &&
+      s.longitude !== undefined
+    ){
+
+      lon.textContent =
+        Number(
+          s.longitude
+        )
+        .toFixed(
+          6
+        );
+    }
+
+    if(
+      s.accuracy !== null &&
+      s.accuracy !== undefined
+    ){
+
+      acc.textContent =
+
+        Math.round(
+          Number(
+            s.accuracy
+          )
+        ) +
+
+        " metros";
+    }
+
+    if(
+      s.last_position_at
+    ){
+
+      ultimoReporteServidorMs =
+        new Date(
+          s.last_position_at
+        ).getTime();
+
+      hora.textContent =
+        formatearFechaHora(
+          s.last_position_at
+        );
+
+      pintarEstadoTransmision();
+    }
+  }
+
+  async function iniciarNativoConServidor(
+    s
+  ){
+
+    if(
+      !window.PiocaNative ||
+      typeof window.PiocaNative.startTracking !==
+        "function"
+    ){
+
+      return false;
+    }
+
+    try{
+
+      const {
+        data
+      } =
+        await supabaseClient.auth
+        .getSession();
+
+      if(
+        !data ||
+        !data.session
+      ){
+        return false;
+      }
+
+      window.PiocaNative
+      .startTracking(
+
+        trackingCode,
+
+        String(
+          data.session.access_token ||
+          ""
+        ),
+
+        String(
+          data.session.refresh_token ||
+          ""
+        ),
+
+        nombreCliente,
+
+        s.expires_at ||
+        ""
+      );
+
+      return true;
+
+    }catch(e){
+      return false;
+    }
+  }
+
+  /*
+    PANEL B15: un fetch de lectura que se demora no puede retener para
+    siempre el bloqueo anti-consultas superpuestas.
+    Supabase v2 / PostgREST admite AbortSignal en la consulta.
+    Los comandos update/finish/start quedan totalmente fuera del timeout.
+  */
+  async function rpcLecturaConPlazo(nombre,parametros){
+    const controlador = new AbortController();
+    const timeout = setTimeout(function(){
+      controlador.abort();
+    },8000);
+    try{
+      return await supabaseClient.rpc(nombre,parametros)
+        .abortSignal(controlador.signal);
+    }finally{
+      clearTimeout(timeout);
+    }
+  }
+
+  async function obtenerEstadoServidor(){
+
+    if(
+      !trackingCode
+    ){
+
+      return null;
+    }
+
+    const {
+      data,
+      error
+    } =
+      await rpcLecturaConPlazo(
+        "get_my_tracking",
+        {
+          p_code:
+            trackingCode
+        }
+      );
+
+    if(
+      error
+    ){
+
+      throw error;
+    }
+
+    if(
+      !Array.isArray(
+        data
+      ) ||
+      data.length === 0
+    ){
+
+      return null;
+    }
+
+    return data[0];
+  }
+
+  async function validarAcceso(){
+
+    const {
+      data:
+      sessionData
+    } =
+      await supabaseClient.auth
+      .getSession();
+
+    if(
+      !sessionData ||
+      !sessionData.session
+    ){
+
+      negarAcceso();
+
+      return false;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    trackingCode =
+      params.get(
+        "tracking"
+      );
+
+    if(
+      !trackingCode
+    ){
+
+      trackingCode =
+        localStorage.getItem(
+          "pioca_tracking_code"
+        );
+    }
+
+    /*
+      ARRANQUE LIMPIO
+
+      El controlador sólo puede recuperar:
+      - el ID recibido explícitamente en ?tracking=...
+      - o el ID específico guardado localmente.
+
+      Ya NO consulta "cualquier seguimiento activo" de la cuenta.
+      Si no existe un ID concreto, vuelve limpio al panel principal.
+    */
+    if(
+      !trackingCode
+    ){
+
+      limpiarEstadoLocal();
+
+      window.location.replace(
+        "admin-b18-diag.html"
+      );
+
+      return false;
+    }
+
+    try{
+
+      trackingCode =
+        trackingCode
+        .trim()
+        .toUpperCase();
+
+      const s =
+        await obtenerEstadoServidor();
+
+      if(
+        !s
+      ){
+
+        limpiarEstadoLocal();
+
+        window.location.replace(
+          "admin-b18-diag.html"
+        );
+
+        return false;
+      }
+
+      if(
+        servidorConfirmaFinalizado(
+          s
+        )
+      ){
+
+        mostrarFinalizado(
+          s.client_name ||
+          ""
+        );
+
+        return false;
+      }
+
+      if(
+        !servidorConfirmaActivo(
+          s
+        )
+      ){
+
+        limpiarEstadoLocal();
+
+        window.location.replace(
+          "admin-b18-diag.html"
+        );
+
+        return false;
+      }
+
+      guardarServidorEnLocal(
+        s
+      );
+
+      bloqueDenegado.style.display =
+        "none";
+
+      bloqueFinalizado.style.display =
+        "none";
+
+      if(
+        estadoCabecera
+      ){
+        estadoCabecera.textContent =
+          "Seguimiento activo";
+
+        estadoCabecera.classList.remove(
+          "estadoDetenido"
+        );
+      }
+
+      bloqueGPS.style.display =
+        "block";
+
+      await iniciarNativoConServidor(
+        s
+      );
+
+      return true;
+
+    }catch(error){
+
+      mostrarError(
+
+        "No se pudo recuperar este seguimiento desde el servidor. Reintentá con conexión."
+
+      );
+
+      bloqueGPS.style.display =
+        "block";
+
+      return false;
+    }
+  }
+
+  let reactivandoPanel =
+    false;
+
+  function reactivarPanelAhora(){
+    if(
+      seguimientoFinalizado ||
+      !trackingCode ||
+      !panelInicializado
+    ){
+      return;
+    }
+
+    // Presentación inmediata. Nunca se oculta el panel ETA esperando RPCs.
+    if(horaClienteBox){
+      horaClienteBox.style.visibility = "visible";
+    }
+    etaEsperandoServidor = true;
+    pintarHoraCliente();
+    pintarEstadoTransmision();
+
+    if(reactivandoPanel){
+      return;
+    }
+    reactivandoPanel = true;
+
+    // La consulta corre desacoplada. Cualquier demora deja los botones vivos.
+    sincronizarServidor()
+      .catch(function(){
+        // La siguiente ronda de 3 s volverá a consultar.
+      })
+      .finally(function(){
+        reactivandoPanel = false;
+        if(!seguimientoFinalizado){
+          pintarHoraCliente();
+          pintarEstadoTransmision();
+        }
+      });
+  }
+
+  async function sincronizarServidor(){
+
+    if(
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+      return false;
+    }
+
+    /*
+      Una sola sincronización puede estar activa. Los intervalos, focus,
+      pageshow y visibilitychange comparten esta misma operación.
+    */
+    if(sincronizacionEnCurso){
+      return sincronizacionEnCurso;
+    }
+
+    const revisionAlIniciar =
+      revisionEstado;
+
+    sincronizacionEnCurso =
+      (async function(){
+
+        try{
+
+          const s =
+            await obtenerEstadoServidor();
+
+          /*
+            Si durante la espera hubo una modificación de ETA o un cierre,
+            esta respuesta pertenece a un estado anterior y se descarta.
+          */
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionEstado
+          ){
+            return false;
+          }
+
+          if(
+            !s
+          ){
+            return false;
+          }
+
+          if(
+            servidorConfirmaFinalizado(
+              s
+            )
+          ){
+
+            mostrarFinalizado(
+              s.client_name ||
+              nombreCliente
+            );
+
+            return false;
+          }
+
+          if(
+            !servidorConfirmaActivo(
+              s
+            )
+          ){
+            /*
+              Respuesta transitoria/incompleta:
+              conservamos el panel y esperamos la próxima sincronización.
+            */
+            return false;
+          }
+
+          guardarServidorEnLocal(
+            s
+          );
+
+          /*
+            Estado de tracking y ETA disponibles ahora. Mensajes y vista
+            del cliente se consultan EN PARALELO, sin bloquear este ciclo.
+            Cada consulta conserva su proteccion single-flight y plazo.
+          */
+          void Promise.allSettled([
+            consultarVistaCliente(),
+            consultarMensajeCliente()
+          ]);
+
+          if(
+            seguimientoFinalizado ||
+            revisionAlIniciar !== revisionEstado
+          ){
+            return false;
+          }
+
+          ocultarError();
+
+          return true;
+
+        }catch(error){
+          /*
+            Si falla temporalmente la consulta, NO borramos ni ocultamos
+            el panel ni el estado que ya estaba confirmado.
+          */
+          return false;
+        }
+      })();
+
+    try{
+      return await sincronizacionEnCurso;
+    }finally{
+      sincronizacionEnCurso = null;
+    }
+  }
+
+
+  async function moverHoraCliente(
+    minutos
+  ){
+
+    if(
+      modificandoHora ||
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+
+      return;
+    }
+
+    modificandoHora =
+      true;
+
+    /*
+      Toda sincronización que haya empezado antes de este toque queda vieja.
+    */
+    revisionEstado++;
+
+    btnRestar5.disabled =
+      true;
+
+    btnSumar5.disabled =
+      true;
+
+    horaEstado.style.display =
+      "none";
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "update_tracking_eta",
+          {
+
+            p_code:
+              trackingCode,
+
+            p_delta_minutes:
+              minutos
+
+          }
+        );
+
+      if(
+        error
+      ){
+
+        throw error;
+      }
+
+      const r =
+
+        Array.isArray(
+          data
+        ) &&
+        data.length
+
+          ? data[0]
+          : null;
+
+      if(
+        !r ||
+        r.success !==
+          true
+      ){
+
+        if(
+          servidorConfirmaFinalizado(
+            r
+          )
+        ){
+
+          mostrarFinalizado(
+            nombreCliente
+          );
+
+          return;
+        }
+
+        throw new Error(
+          "No se pudo actualizar."
+        );
+      }
+
+      if(seguimientoFinalizado){
+        return;
+      }
+
+      llegadaClienteMs =
+        new Date(
+          r.client_arrival
+        )
+        .getTime();
+
+      if(!Number.isFinite(llegadaClienteMs)){
+        throw new Error(
+          "ETA inválida devuelta por el servidor."
+        );
+      }
+
+      /*
+        La nueva ETA devuelta por el servidor pasa a ser
+        la única fuente de verdad. El tablero se recalcula
+        desde esa hora contra el reloj actual.
+      */
+      etaEsperandoServidor = false;
+      pintarHoraCliente();
+
+      localStorage.setItem(
+        "pioca_tracking_expires_at",
+        r.expires_at ||
+        ""
+      );
+
+      await iniciarNativoConServidor({
+        expires_at:
+          r.expires_at
+      });
+
+      mostrarEstadoHora(
+
+        "✓ Tiempo actualizado. El cliente ve " +
+
+        formatearHora(
+          llegadaClienteMs
+        ) +
+        " hs",
+
+        true
+      );
+
+    }catch(error){
+
+      mostrarEstadoHora(
+        "No se pudo actualizar la hora. La hora anterior sigue vigente.",
+        false
+      );
+
+    }finally{
+
+      modificandoHora =
+        false;
+
+      /*
+        Recalcula el estado matemático real de ambos botones.
+        No fuerza RESTAR a habilitado cuando la ETA ya está en cero.
+      */
+      actualizarBotonesHora();
+    }
+  }
+
+  function telefonoWhatsAppArgentina(
+    numero
+  ){
+
+    let n =
+      String(
+        numero ||
+        ""
+      )
+      .replace(
+        /\D/g,
+        ""
+      );
+
+    if(
+      n.startsWith(
+        "549"
+      )
+    ){
+
+      return n;
+    }
+
+    if(
+      n.startsWith(
+        "54"
+      )
+    ){
+
+      return n;
+    }
+
+    if(
+      n.startsWith(
+        "0"
+      )
+    ){
+
+      n =
+        n.substring(
+          1
+        );
+    }
+
+    return "549" + n;
+  }
+
+  function abrirSeguimientoPreview(){
+
+    if(
+      !trackingCode ||
+      !linkCliente
+    ){
+      mostrarError(
+        "No hay un seguimiento activo disponible para visualizar."
+      );
+      return;
+    }
+
+    const separador =
+      linkCliente.includes("?")
+        ? "&"
+        : "?";
+
+    const urlPreview =
+      "https://automatizacionpioca.github.io/pioca-gps/cliente-b18-diag.html?id=" +
+      encodeURIComponent(trackingCode) +
+      "&preview=tecnico";
+
+    // El retroceso nativo de Android/WebView vuelve al panel anterior.
+    // Mantener href conserva esa entrada en el historial (no usar replace).
+    // preview=tecnico evita el bloqueo nativo heredado para preview=1.
+    try{
+      sessionStorage.setItem(
+        "pioca_preview_retorno_panel",
+        JSON.stringify({codigo:trackingCode,fecha:Date.now()})
+      );
+    }catch(e){}
+
+    window.location.href =
+      urlPreview;
+  }
+
+  function formatearEtaWhatsApp(
+    minutos
+  ){
+
+    const total =
+      Math.max(
+        1,
+        Math.ceil(
+          Number(
+            minutos
+          )
+        )
+      );
+
+    if(
+      total <= 60
+    ){
+
+      return total +
+        (
+          total === 1
+            ? " minuto"
+            : " minutos"
+        );
+    }
+
+    const horas =
+      Math.floor(
+        total / 60
+      );
+
+    const minutosResto =
+      total % 60;
+
+    let texto =
+      horas +
+      (
+        horas === 1
+          ? " hora"
+          : " horas"
+      );
+
+    if(
+      minutosResto > 0
+    ){
+
+      texto +=
+        " y " +
+        minutosResto +
+        (
+          minutosResto === 1
+            ? " minuto"
+            : " minutos"
+        );
+    }
+
+    return texto;
+  }
+
+
+  async function abrirWhatsApp(){
+
+    if(
+      abriendoWhatsApp
+    ){
+      return;
+    }
+
+    if(
+      !linkCliente ||
+      !trackingCode
+    ){
+
+      mostrarError(
+        "No está disponible el link del seguimiento."
+      );
+
+      return;
+    }
+
+    abriendoWhatsApp = true;
+    btnWhatsapp.disabled = true;
+    btnWhatsapp.textContent =
+      "ABRIENDO WHATSAPP BUSINESS...";
+
+    const liberarWhatsapp =
+      function(){
+        abriendoWhatsApp = false;
+        btnWhatsapp.disabled = false;
+        btnWhatsapp.textContent =
+          "💬 COMPARTIR POR WHATSAPP";
+      };
+
+    ocultarError();
+
+    /*
+      ETA DEL MOMENTO DE COMPARTIR
+
+      Se conserva la consulta de Supabase antes de construir el mensaje,
+      pero el primer toque queda bloqueado y muestra respuesta inmediata.
+    */
+    try{
+
+      const s =
+        await obtenerEstadoServidor();
+
+      if(
+        seguimientoFinalizado
+      ){
+        liberarWhatsapp();
+        return;
+      }
+
+      if(
+        !s ||
+        !servidorConfirmaActivo(
+          s
+        ) ||
+        !s.client_arrival
+      ){
+
+        mostrarError(
+          "No se pudo obtener la ETA actual para compartir."
+        );
+
+        liberarWhatsapp();
+        return;
+      }
+
+      llegadaClienteMs =
+        new Date(
+          s.client_arrival
+        )
+        .getTime();
+
+      if(
+        !Number.isFinite(
+          llegadaClienteMs
+        )
+      ){
+
+        mostrarError(
+          "No se pudo obtener la ETA actual para compartir."
+        );
+
+        liberarWhatsapp();
+        return;
+      }
+
+      guardarServidorEnLocal(
+        s
+      );
+
+    }catch(e){
+
+      mostrarError(
+        "No se pudo actualizar la ETA para compartir por WhatsApp. Reintentá con conexión."
+      );
+
+      liberarWhatsapp();
+      return;
+    }
+
+
+    const minutosEta =
+      (
+        llegadaClienteMs -
+        Date.now()
+      ) / 60000;
+
+
+    const etaTexto =
+      formatearEtaWhatsApp(
+        minutosEta
+      );
+
+
+    let mensaje =
+
+      "\uD83D\uDC4B Hola." +
+
+      "\n\n" +
+
+      "*Ya vamos en camino a tu domicilio.*" +
+
+      "\n\n" +
+
+      "\uD83D\uDD50 Estimamos llegar en *" +
+      etaTexto +
+      "*." +
+
+      "\n\n" +
+
+      "\uD83D\uDCCD *Seguí nuestra llegada en tiempo real:*" +
+
+      "\n" +
+
+      linkCliente;
+
+
+    if(
+      informacionAdicional.trim() !==
+        ""
+    ){
+
+      mensaje +=
+
+        "\n\n" +
+
+        "\u2139\uFE0F Información adicional:" +
+
+        "\n" +
+
+        informacionAdicional.trim();
+    }
+
+
+    mensaje +=
+
+      "\n\n" +
+
+      "_Mensaje automático desde nuestra camioneta en camino. No requiere respuesta._";
+
+
+    const texto =
+      encodeURIComponent(
+        mensaje
+      );
+
+
+    /*
+      WHATSAPP BUSINESS ESTRICTO
+
+      - Sólo se intenta abrir el paquete com.whatsapp.w4b.
+      - No se usa el selector nativo.
+      - No se usa wa.me.
+      - No existe fallback al WhatsApp personal.
+    */
+    const ua =
+      navigator.userAgent ||
+      navigator.vendor ||
+      window.opera;
+
+    if(
+      !/android/i.test(
+        ua
+      )
+    ){
+
+      window.alert(
+        "WhatsApp Business no está disponible en este dispositivo."
+      );
+
+      liberarWhatsapp();
+      return;
+    }
+
+    let businessAbierto =
+      false;
+
+    let controlFinalizado =
+      false;
+
+    const confirmarSalidaABusiness =
+      function(){
+
+        if(
+          document.visibilityState ===
+            "hidden"
+        ){
+
+          businessAbierto =
+            true;
+
+          controlFinalizado =
+            true;
+
+          document.removeEventListener(
+            "visibilitychange",
+            confirmarSalidaABusiness
+          );
+        }
+      };
+
+    document.addEventListener(
+      "visibilitychange",
+      confirmarSalidaABusiness
+    );
+
+    window.location.href =
+
+      "intent://send" +
+
+      "?text=" +
+      texto +
+
+      "#Intent;" +
+
+      "scheme=whatsapp;" +
+
+      "package=com.whatsapp.w4b;" +
+
+      "end";
+
+    setTimeout(
+      function(){
+
+        if(
+          !controlFinalizado
+        ){
+          document.removeEventListener(
+            "visibilitychange",
+            confirmarSalidaABusiness
+          );
+
+          if(
+            !businessAbierto &&
+            document.visibilityState ===
+              "visible"
+          ){
+
+            window.alert(
+              "La aplicación WhatsApp Business no está instalada."
+            );
+          }
+        }
+
+        /*
+          Se libera siempre: si Business abrió, puede quedar habilitado
+          nuevamente al regresar; si no abrió, permite reintentar.
+        */
+        liberarWhatsapp();
+
+      },
+      1800
+    );
+  }
+
+
+  async function enviarPosicion(
+    posicion,
+    intento
+  ){
+
+    /*
+      En Android nativo esta función NO escribe posiciones.
+      TrackingService es la única fuente de verdad.
+    */
+    if(
+      usaGpsNativo
+    ){
+      return;
+    }
+
+    if(
+      !posicion ||
+      seguimientoFinalizado
+    ){
+
+      return;
+    }
+
+    intento =
+      intento ||
+      0;
+
+    if(
+      enviando &&
+      intento ===
+        0
+    ){
+
+      return;
+    }
+
+    enviando =
+      true;
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "push_tracking_position",
+          {
+
+            p_code:
+              trackingCode,
+
+            p_lat:
+              posicion.coords.latitude,
+
+            p_lon:
+              posicion.coords.longitude,
+
+            p_accuracy:
+              posicion.coords.accuracy
+
+          }
+        );
+
+      if(
+        error ||
+        data !==
+          true
+      ){
+
+        const s =
+          await obtenerEstadoServidor();
+
+        if(
+          servidorConfirmaFinalizado(
+            s
+          )
+        ){
+
+          mostrarFinalizado(
+            s.client_name ||
+            nombreCliente
+          );
+
+          return;
+        }
+
+        throw new Error(
+          "Seguimiento no disponible."
+        );
+      }
+
+      envios++;
+
+      enviando =
+        false;
+
+      ocultarError();
+
+    }catch(error){
+
+      enviando =
+        false;
+
+      if(
+        seguimientoFinalizado
+      ){
+
+        return;
+      }
+
+      if(
+        intento <
+        3
+      ){
+
+        const tiempos =
+          [
+            2000,
+            4000,
+            8000
+          ];
+
+        mostrarError(
+          "Conexión interrumpida. Reintentando..."
+        );
+
+        setTimeout(
+
+          function(){
+
+            enviarPosicion(
+              ultimaPosicion,
+              intento + 1
+            );
+          },
+
+          tiempos[
+            intento
+          ]
+        );
+
+      }else{
+
+        mostrarError(
+          "Sin conexión. El seguimiento sigue activo y el panel permanece disponible."
+        );
+      }
+    }
+  }
+
+  function iniciarHeartbeat(){
+
+    /*
+      En APK no existe heartbeat GPS JavaScript.
+      Evita reenvíos de ultimaPosicion al despertar el WebView.
+    */
+    if(
+      usaGpsNativo
+    ){
+      return;
+    }
+
+    if(
+      heartbeatId !==
+      null
+    ){
+
+      return;
+    }
+
+    heartbeatId =
+      setInterval(
+
+        function(){
+
+          if(
+            seguimientoFinalizado ||
+            !ultimaPosicion
+          ){
+
+            return;
+          }
+
+          const ahora =
+            Date.now();
+
+          if(
+            ahora -
+            ultimoEnvio >=
+            10000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+            enviarPosicion(
+              ultimaPosicion,
+              0
+            );
+          }
+        },
+
+        2000
+      );
+  }
+
+  function iniciarGPS(){
+
+    /*
+      Dentro de la APK, el GPS ya está iniciado por
+      iniciarNativoConServidor() -> PiocaNative.startTracking().
+
+      No abrimos navigator.geolocation porque generaría
+      un segundo emisor independiente.
+    */
+    if(
+      usaGpsNativo
+    ){
+
+      if(
+        watchId !== null
+      ){
+        try{
+          navigator.geolocation.clearWatch(
+            watchId
+          );
+        }catch(e){}
+
+        watchId =
+          null;
+      }
+
+      ultimaPosicion =
+        null;
+
+      estado.textContent =
+        "🟢 GPS NATIVO ACTIVO";
+
+      estado.style.background =
+        "#dff5e1";
+
+      btnReactivar.style.display =
+        "none";
+
+      return;
+    }
+
+    if(
+      seguimientoFinalizado ||
+      watchId !==
+        null
+    ){
+
+      return;
+    }
+
+    if(
+      !navigator.geolocation
+    ){
+
+      estado.textContent =
+        "GPS no disponible";
+
+      estado.style.background =
+        "#ffe0e0";
+
+      btnReactivar.style.display =
+        "block";
+
+      return;
+    }
+
+    estado.textContent =
+      "Obteniendo ubicación...";
+
+    estado.style.background =
+      "#fff3cd";
+
+    btnReactivar.style.display =
+      "none";
+
+    watchId =
+      navigator.geolocation
+      .watchPosition(
+
+        function(
+          posicion
+        ){
+
+          ultimaPosicion =
+            posicion;
+
+          lat.textContent =
+            posicion.coords.latitude
+            .toFixed(
+              6
+            );
+
+          lon.textContent =
+            posicion.coords.longitude
+            .toFixed(
+              6
+            );
+
+          acc.textContent =
+
+            Math.round(
+              posicion.coords.accuracy
+            ) +
+
+            " metros";
+
+          hora.textContent =
+            new Date()
+            .toLocaleTimeString(
+              "es-AR"
+            );
+
+          estado.textContent =
+            "🟢 GPS ACTIVO";
+
+          estado.style.background =
+            "#dff5e1";
+
+          const ahora =
+            Date.now();
+
+          if(
+            envios ===
+              0 ||
+            ahora -
+            ultimoEnvio >=
+              5000
+          ){
+
+            ultimoEnvio =
+              ahora;
+
+            enviarPosicion(
+              posicion,
+              0
+            );
+          }
+        },
+
+        function(){
+
+          if(
+            watchId !==
+            null
+          ){
+
+            try{
+
+              navigator.geolocation
+              .clearWatch(
+                watchId
+              );
+
+            }catch(e){}
+
+            watchId =
+              null;
+          }
+
+          estado.textContent =
+            "GPS interrumpido";
+
+          estado.style.background =
+            "#ffe0e0";
+
+          btnReactivar.style.display =
+            "block";
+
+          /*
+            Si falla el GPS,
+            el panel NO desaparece.
+          */
+          setTimeout(
+
+            function(){
+
+              if(
+                !seguimientoFinalizado
+              ){
+
+                iniciarGPS();
+              }
+            },
+
+            3000
+          );
+        },
+
+        {
+          enableHighAccuracy:true,
+          maximumAge:1000,
+          timeout:10000
+        }
+      );
+
+    iniciarHeartbeat();
+  }
+
+  async function finalizarSeguimiento(){
+
+    if(
+      seguimientoFinalizado ||
+      !trackingCode
+    ){
+
+      return;
+    }
+
+    const confirmar =
+      window.confirm(
+
+        "¿Querés finalizar este seguimiento?\n\nEl cliente dejará de ver la ubicación inmediatamente."
+
+      );
+
+    if(
+      !confirmar
+    ){
+
+      return;
+    }
+
+    /*
+      Desde este instante ninguna sincronización iniciada antes del cierre
+      puede volver a escribir el estado anterior.
+    */
+    revisionEstado++;
+    revisionMensajes++;
+
+    btnFinalizar.disabled =
+      true;
+
+    btnFinalizar.textContent =
+      "FINALIZANDO...";
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "finish_tracking",
+          {
+            p_code:
+              trackingCode
+          }
+        );
+
+      if(
+        error
+      ){
+
+        throw error;
+      }
+
+      const r =
+
+        Array.isArray(
+          data
+        ) &&
+        data.length
+
+          ? data[0]
+          : null;
+
+      if(
+        !r ||
+        r.success !==
+          true
+      ){
+
+        const s =
+          await obtenerEstadoServidor();
+
+        if(
+          servidorConfirmaFinalizado(
+            s
+          )
+        ){
+
+          mostrarFinalizado(
+            s.client_name ||
+            nombreCliente
+          );
+
+          return;
+        }
+
+        throw new Error(
+          "No confirmado."
+        );
+      }
+
+      mostrarFinalizado(
+        r.client_name ||
+        nombreCliente
+      );
+
+    }catch(error){
+
+      btnFinalizar.disabled =
+        false;
+
+      btnFinalizar.textContent =
+        "⛔ FINALIZAR SEGUIMIENTO";
+
+      mostrarError(
+        "No se pudo confirmar el cierre con el servidor. El seguimiento NO se considera detenido."
+      );
+    }
+  }
+
+    // B18: medicion de toques sin alterar el seguimiento.
+  btnVerSeguimiento.addEventListener('pointerdown',function(){
+    try { if(window.__piocaDiagMetric) window.__piocaDiagMetric('ui.preview_pointerdown',0,0); } catch(_){}
+  },{passive:true});
+  btnVerSeguimiento.addEventListener('click',function(){
+    try { if(window.__piocaDiagMetric) window.__piocaDiagMetric('ui.preview_click',0,0); } catch(_){}
+    abrirSeguimientoPreview();
+  });
+
+  btnWhatsapp.addEventListener(
+    "click",
+    abrirWhatsApp
+  );
+
+  btnAbrirMensajes.addEventListener(
+    "click",
+    function(){
+
+      mensajeClienteBox.classList.toggle(
+        "visible"
+      );
+
+      if(
+        mensajeClienteBox.classList.contains(
+          "visible"
+        )
+      ){
+        consultarMensajeCliente();
+      }
+    }
+  );
+
+  btnMensajeLeido.addEventListener(
+    "click",
+    marcarMensajeClienteLeido
+  );
+
+  /*
+    Un gesto del técnico ayuda a habilitar audio en navegadores/WebView
+    que bloquean sonido hasta la primera interacción.
+  */
+  document.addEventListener(
+    "click",
+    function(){
+      audioMensajesDesbloqueado = true;
+    },
+    {once:true}
+  );
+
+  btnFinalizar.addEventListener(
+    "click",
+    finalizarSeguimiento
+  );
+
+  btnReactivar.addEventListener(
+    "click",
+    async function(){
+
+      if(
+        reactivandoGps ||
+        seguimientoFinalizado
+      ){
+        return;
+      }
+
+      reactivandoGps = true;
+      btnReactivar.disabled = true;
+
+      try{
+
+        if(
+          usaGpsNativo
+        ){
+
+          const s =
+            await obtenerEstadoServidor();
+
+          if(
+            !s ||
+            !servidorConfirmaActivo(s)
+          ){
+            mostrarError(
+              "No se pudo confirmar un seguimiento activo para reactivar el GPS."
+            );
+            return;
+          }
+
+          const iniciado =
+            await iniciarNativoConServidor(
+              s
+            );
+
+          if(!iniciado){
+            mostrarError(
+              "No se pudo reactivar el GPS nativo. Reintentá con conexión."
+            );
+            return;
+          }
+
+          estado.textContent =
+            "🟢 GPS NATIVO ACTIVO";
+
+          estado.style.background =
+            "#dff5e1";
+
+          btnReactivar.style.display =
+            "none";
+
+          ocultarError();
+          return;
+        }
+
+        iniciarGPS();
+
+      }catch(e){
+        mostrarError(
+          "No se pudo reactivar el GPS. Reintentá con conexión."
+        );
+
+      }finally{
+        reactivandoGps = false;
+        btnReactivar.disabled = false;
+      }
+    }
+  );
+
+
+  btnRestar5.addEventListener(
+    "click",
+    function(){
+
+      if(
+        deltaRestarSelector() !== 0
+      ){
+        moverHoraCliente(-1);
+      }
+    }
+  );
+
+  btnSumar5.addEventListener(
+    "click",
+    function(){
+      moverHoraCliente(1);
+    }
+  );
+
+  btnVolver.addEventListener(
+    "click",
+    function(){
+
+      window.location.replace(
+        "admin-b18-diag.html"
+      );
+    }
+  );
+
+  /*
+    V9 - REANUDACIÓN INMEDIATA DEL PANEL
+    Android/WebView puede suspender timers con la pantalla bloqueada.
+    Al volver visible, reactivamos el tablero sin esperar 3 segundos.
+  */
+  document.addEventListener(
+    "visibilitychange",
+    function(){
+
+      if(
+        document.visibilityState ===
+          "hidden"
+      ){
+        return;
+      }
+
+      if(
+        document.visibilityState ===
+          "visible"
+      ){
+        reactivarPanelAhora();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pageshow",
+    function(){
+      let retornoPreview = null;
+      try{
+        const texto = sessionStorage.getItem("pioca_preview_retorno_panel");
+        if(texto){
+          sessionStorage.removeItem("pioca_preview_retorno_panel");
+          retornoPreview = JSON.parse(texto);
+        }
+      }catch(e){}
+
+      if(
+        retornoPreview &&
+        retornoPreview.codigo &&
+        Number.isFinite(Number(retornoPreview.fecha)) &&
+        Date.now() - Number(retornoPreview.fecha) < 86400000
+      ){
+        // Regreso por el historial del WebView: reconstruir panel limpio.
+        window.location.replace(
+          "index.html?tracking=" +
+          encodeURIComponent(String(retornoPreview.codigo))
+        );
+        return;
+      }
+
+      reactivarPanelAhora();
+    }
+  );
+
+
+  const acceso =
+    await validarAcceso();
+
+  if(
+    acceso
+  ){
+
+    iniciarGPS();
+
+    panelInicializado = true;
+    actualizarBotonesHora();
+
+    // El tablero ya esta activo, no esperando mensajes ni visualizacion.
+    void Promise.allSettled([
+      consultarVistaCliente(),
+      consultarMensajeCliente()
+    ]);
+
+    /*
+      El reloj del tablero se actualiza localmente.
+      No genera tráfico adicional: sólo recalcula
+      los minutos restantes contra la ETA ya recibida.
+    */
+    setInterval(
+      function(){
+        if(
+          !seguimientoFinalizado &&
+          document.visibilityState ===
+            "visible"
+        ){
+          pintarHoraCliente();
+          pintarEstadoTransmision();
+        }
+      },
+      1000
+    );
+
+    // B17: el seguimiento GPS nativo sigue cuando esta pantalla está oculta.
+    // No consumir 4G en lecturas del panel invisible; al volver se sincroniza.
+    syncId = setInterval(function(){
+      if(document.visibilityState === "visible") sincronizarServidor();
+    }, 3000);
+  }
+
+})();
+</script>
+
+<script>
+  window.addEventListener('load',function(){
+    try { if(window.__piocaDiagMetric) window.__piocaDiagMetric('build.b18_diag',1,0); } catch(_){}
+  },{once:true});
+  </script>
+  </body>
+</html>
