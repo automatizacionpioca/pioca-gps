@@ -12,6 +12,8 @@
   <title>piOca Seguimiento</title>
 
   
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://apxrmkdegjnblkbyjsbp.supabase.co" crossorigin>
   <style>
     :root{
       --azul:#1769aa;
@@ -3811,11 +3813,11 @@
       1000
     );
 
-    syncId =
-      setInterval(
-        sincronizarServidor,
-        3000
-      );
+    // B17: el seguimiento GPS nativo sigue cuando esta pantalla está oculta.
+    // No consumir 4G en lecturas del panel invisible; al volver se sincroniza.
+    syncId = setInterval(function(){
+      if(document.visibilityState === "visible") sincronizarServidor();
+    }, 3000);
   }
 
 })();

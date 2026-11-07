@@ -12,6 +12,8 @@
   <title>piOca Panel de Seguimiento</title>
 
   
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://apxrmkdegjnblkbyjsbp.supabase.co" crossorigin>
   <style>
     :root{
       --azul:#1769aa;
@@ -2132,23 +2134,10 @@
     ultimaRecuperacionForeground =
       ahora;
 
-    const {
-      data:
-      sessionData
-    } =
-      await supabaseClient.auth.getSession();
-
-    if(
-      !sessionData ||
-      !sessionData.session
-    ){
-      return;
-    }
-
-    recuperacionEnCurso =
-      true;
-
+    recuperacionEnCurso = true;
     try{
+      const {data:sessionData} = await supabaseClient.auth.getSession();
+      if(!sessionData || !sessionData.session) return;
 
       const {data,error} =
         await consultarSeguimientoActivoConRecuperacion();
