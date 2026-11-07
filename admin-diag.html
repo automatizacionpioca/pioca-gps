@@ -1,0 +1,2742 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>piOca Panel de Seguimiento</title>
+
+  
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://apxrmkdegjnblkbyjsbp.supabase.co" crossorigin>
+  <style>
+    :root{
+      --azul:#1769aa;
+      --azul2:#0d56a3;
+      --azulOscuro:#17314b;
+      --verde:#249447;
+      --verdeOscuro:#19783a;
+      --rojo:#dc2f2f;
+      --rojoOscuro:#b91f25;
+      --grisFondo:#f3f6f9;
+      --grisBorde:#dfe6ed;
+      --grisTexto:#5d6874;
+      --sombra:0 8px 28px rgba(25,47,70,.08);
+    }
+
+    *{
+      box-sizing:border-box;
+    }
+
+    html,body{
+      margin:0;
+      min-height:100%;
+      font-family:Arial,sans-serif;
+      color:#1f2f40;
+      background:var(--grisFondo);
+    }
+
+    body{
+      padding:14px;
+    }
+
+    body.modoLogin{
+      min-height:100dvh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    body.modoLogin .panel{
+      margin:auto;
+    }
+
+    .panel{
+      width:100%;
+      max-width:620px;
+      margin:0 auto;
+      background:#fff;
+      border:1px solid var(--grisBorde);
+      border-radius:22px;
+      box-shadow:var(--sombra);
+      overflow:hidden;
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+    }
+
+    body.piocaListo .panel{
+      opacity:1;
+      visibility:visible;
+      pointer-events:auto;
+    }
+
+    .panel::before{
+      content:"";
+      display:block;
+      height:8px;
+      background:linear-gradient(90deg,var(--azul2),#247fd2);
+    }
+
+    .cabeceraSuperior{
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:18px;
+      padding:20px 22px 16px;
+    }
+
+    .logoPanel{
+      width:112px;
+      height:112px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex:0 0 auto;
+    }
+
+    .logoPanel img{
+      width:108px;
+      max-width:100%;
+      height:auto;
+      display:block;
+    }
+
+    .cabeceraTexto{
+      min-width:0;
+    }
+
+    .tituloPrincipal{
+      margin:0 0 4px;
+      font-size:25px;
+      line-height:1.08;
+      font-weight:800;
+      color:#172b40;
+    }
+
+    .subtituloPrincipal{
+      margin:0;
+      font-size:14px;
+      color:#687482;
+    }
+
+    #systemTestBox{
+      grid-column:1 / -1;
+      margin:0;
+      min-height:42px;
+      padding:8px 11px;
+      border-radius:12px;
+      border:1px solid #d9e2ea;
+      background:#f8fafc;
+      color:#56616d;
+      cursor:default;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      overflow:hidden;
+      white-space:nowrap;
+    }
+
+    #systemTestBox::before{
+      content:"✓";
+      display:inline-flex;
+      width:24px;
+      height:24px;
+      border-radius:50%;
+      align-items:center;
+      justify-content:center;
+      background:#e8eef4;
+      color:#617180;
+      font-weight:800;
+      font-size:13px;
+      flex:0 0 24px;
+    }
+
+    #systemTestBox.testOk{
+      background:#edf8f0;
+      border-color:#c8e5cf;
+      color:#236138;
+    }
+
+    #systemTestBox.testOk::before{
+      background:#2da54f;
+      color:#fff;
+    }
+
+    #systemTestBox.testError{
+      background:#fff2f2;
+      border-color:#efc5c5;
+      color:#9b2228;
+      cursor:pointer;
+    }
+
+    #systemTestBox.testError::before{
+      content:"!";
+      background:#d93b3b;
+      color:#fff;
+    }
+
+    #systemTestBox.testRunning{
+      background:#fff8e8;
+      border-color:#eedb9f;
+      color:#735d1c;
+    }
+
+    #systemTestBox.testRunning::before{
+      content:"…";
+      background:#e6b733;
+      color:#fff;
+    }
+
+    #systemTestTitulo{
+      font-weight:800;
+      font-size:10.5px;
+      flex:0 0 auto;
+      margin:0;
+    }
+
+    #systemTestEstado{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      font-size:10px;
+      line-height:1;
+      margin:0;
+    }
+
+    #systemTestDetalle{
+      display:none;
+      position:absolute;
+      left:22px;
+      right:22px;
+      margin-top:58px;
+      padding:10px 12px;
+      border:1px solid #d7e0e8;
+      border-radius:10px;
+      background:#fff;
+      box-shadow:0 6px 16px rgba(25,47,70,.10);
+      font-size:11px;
+      line-height:1.45;
+      text-align:left;
+      white-space:pre-line;
+      z-index:10;
+    }
+
+    #loginBox,
+    #panelAdmin{
+      padding:0 22px 22px;
+    }
+
+    #loginBox{
+      display:block;
+    }
+
+    .seccionCard{
+      border:1px solid var(--grisBorde);
+      border-radius:18px;
+      padding:18px;
+      background:#fff;
+      box-shadow:0 4px 16px rgba(25,47,70,.04);
+    }
+
+    .seccionTitulo{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 3px;
+      color:var(--azul2);
+      font-size:18px;
+      font-weight:800;
+      letter-spacing:.1px;
+    }
+
+    .seccionTituloIcono{
+      width:38px;
+      height:38px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg,#1769aa,#2c83d0);
+      color:#fff;
+      font-size:24px;
+      flex:0 0 38px;
+    }
+
+    .seccionBajada{
+      margin:0 0 16px 48px;
+      color:#66717c;
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    label{
+      display:block;
+      font-size:13px;
+      font-weight:800;
+      margin-top:14px;
+      margin-bottom:6px;
+      color:#253648;
+    }
+
+    .campoConIcono{
+      position:relative;
+    }
+
+    .campoConIcono::before{
+      position:absolute;
+      left:13px;
+      top:50%;
+      transform:translateY(-50%);
+      z-index:1;
+      font-size:18px;
+      color:var(--azul);
+      pointer-events:none;
+    }
+
+    input,
+    select,
+    textarea{
+      width:100%;
+      padding:13px 14px;
+      font-size:16px;
+      border:1px solid #cfd8e1;
+      border-radius:12px;
+      background:#fff;
+      color:#24384c;
+      font-family:Arial,sans-serif;
+      outline:none;
+      transition:border-color .18s ease, box-shadow .18s ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus{
+      border-color:#7eb1dd;
+      box-shadow:0 0 0 3px rgba(23,105,170,.10);
+    }
+
+    textarea{
+      min-height:92px;
+      resize:vertical;
+    }
+
+    button{
+      width:100%;
+      padding:15px;
+      border:0;
+      border-radius:12px;
+      font-size:15px;
+      font-weight:800;
+      cursor:pointer;
+      margin-top:12px;
+      transition:transform .12s ease, filter .12s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    button:active{
+      transform:scale(.985);
+    }
+
+    button:disabled{
+      opacity:.55;
+      cursor:default;
+    }
+
+    .btnAzul{
+      background:linear-gradient(135deg,var(--azul2),#2380cf);
+      color:#fff;
+      box-shadow:0 6px 16px rgba(23,105,170,.18);
+    }
+
+    .btnVerde{
+      background:linear-gradient(135deg,var(--verdeOscuro),#2aa44d);
+      color:#fff;
+      box-shadow:0 6px 16px rgba(32,146,68,.18);
+    }
+
+    .btnOscuro{
+      background:linear-gradient(135deg,#263746,#182631);
+      color:#fff;
+    }
+
+    .estado{
+      display:none;
+      padding:11px 12px;
+      border-radius:11px;
+      margin-top:12px;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .ok{
+      background:#eaf7ed;
+      border:1px solid #b8dfc0;
+      color:#266739;
+    }
+
+    .error{
+      background:#fff0f0;
+      border:1px solid #edbcbc;
+      color:#92252b;
+    }
+
+    .info{
+      background:#eef5fb;
+      border:1px solid #c6d9e9;
+      color:#31566f;
+    }
+
+    #panelAdmin{
+      display:none;
+    }
+
+    #verificandoBox{
+      display:none;
+      text-align:center;
+      padding:14px 12px;
+      background:#edf5fb;
+      border:1px solid #d1e0ec;
+      border-radius:12px;
+      color:#31536a;
+      font-size:13px;
+      line-height:1.45;
+      margin-bottom:14px;
+    }
+
+    #formNuevo{
+      border:1px solid var(--grisBorde);
+      border-radius:18px;
+      padding:18px;
+      background:#fff;
+      box-shadow:0 4px 16px rgba(25,47,70,.04);
+    }
+
+    #formNuevo::before{
+      content:"+  NUEVO SEGUIMIENTO";
+      display:block;
+      font-size:18px;
+      font-weight:800;
+      color:var(--azul2);
+      margin-bottom:4px;
+    }
+
+    .legacyManualField{
+      display:none !important;
+    }
+
+    .mensajeAdicionalCabecera{
+      display:flex;
+      align-items:flex-start;
+      gap:11px;
+      margin:4px 0 13px;
+    }
+
+    .mensajeAdicionalIcono{
+      flex:0 0 auto;
+      width:38px;
+      height:38px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:11px;
+      background:#eaf2fb;
+      color:var(--azul2);
+      font-size:20px;
+    }
+
+    .mensajeAdicionalTitulo{
+      margin:0;
+      color:#24384c;
+      font-size:15px;
+      line-height:1.2;
+      font-weight:800;
+    }
+
+    .mensajeAdicionalBadge{
+      display:inline-block;
+      margin-left:5px;
+      padding:2px 6px;
+      border-radius:999px;
+      background:#edf2f7;
+      color:#6a7682;
+      font-size:9px;
+      font-weight:800;
+      letter-spacing:.35px;
+      vertical-align:2px;
+    }
+
+    .mensajeAdicionalTexto{
+      margin:4px 0 0;
+      color:#687687;
+      font-size:11.5px;
+      line-height:1.4;
+    }
+
+    #additionalInfo{
+      min-height:175px;
+      resize:vertical;
+      padding:15px 14px;
+      font-size:14px;
+      line-height:1.45;
+      border-radius:14px;
+      background:#fbfcfe;
+    }
+
+    .ayudaMensaje{
+      margin-top:8px;
+      padding:9px 11px;
+      border-radius:10px;
+      background:#f7f9fb;
+      color:#6d7884;
+      font-size:11px;
+      line-height:1.4;
+    }
+
+    .inicioMapsInfo{
+      display:none;
+      margin:14px 0 0;
+      padding:16px;
+      border:1px solid #c9dceb;
+      border-radius:16px;
+      background:linear-gradient(180deg,#f5f9fd,#eef6fb);
+      color:#31566f;
+      box-shadow:0 4px 14px rgba(31,80,120,.05);
+      gap:12px;
+      align-items:stretch;
+    }
+
+    .inicioMapsCabecera{
+      display:flex;
+      align-items:stretch;
+      flex:0 0 40%;
+      min-width:0;
+      margin:0;
+      overflow:hidden;
+      border-radius:12px;
+      background:#fff;
+      border:1px solid #dbe8f1;
+    }
+
+    .inicioMapsImagen{
+      width:100%;
+      height:100%;
+      min-height:100%;
+      display:block;
+      object-fit:cover;
+      object-position:center;
+    }
+
+    .inicioMapsPasos{
+      display:grid;
+      gap:8px;
+    }
+
+    .inicioMapsPaso{
+      display:grid;
+      grid-template-columns:26px minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      padding:9px 10px;
+      border:1px solid #dbe8f1;
+      border-radius:11px;
+      background:rgba(255,255,255,.72);
+      color:#3e5f76;
+      font-size:11.5px;
+      line-height:1.35;
+    }
+
+    .inicioMapsPasoNumero{
+      width:26px;
+      height:26px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:#1f6fb2;
+      color:#fff;
+      font-size:11px;
+      font-weight:900;
+    }
+
+    #btnCrear{
+      display:none !important;
+    }
+
+    #accionesSeguimiento{
+      display:none;
+      gap:10px;
+      margin-top:16px;
+    }
+
+    #accionesSeguimiento button{
+      flex:1;
+      width:auto;
+      min-height:78px;
+      margin-top:0;
+      padding:12px 8px;
+      border-radius:14px;
+      font-size:14px;
+      line-height:1.15;
+    }
+
+    #btnCrear{
+      background:linear-gradient(135deg,var(--verdeOscuro),#2ca14f);
+      color:#fff;
+    }
+
+    #btnEmergencia{
+      background:linear-gradient(135deg,var(--rojoOscuro),#e33b3b);
+      color:#fff;
+      border:0;
+      padding:12px 8px;
+      font-size:14px;
+      margin-top:0;
+    }
+
+    #emergenciaAyuda{
+      position:relative;
+      margin-top:12px;
+      padding:10px 12px 10px 40px;
+      border:1px solid #d8e5f0;
+      border-radius:12px;
+      background:#f2f7fc;
+      color:#42627b;
+      font-size:11px;
+      line-height:1.35;
+      text-align:left;
+    }
+
+    #emergenciaAyuda::before{
+      content:"i";
+      position:absolute;
+      left:12px;
+      top:50%;
+      transform:translateY(-50%);
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--azul);
+      color:#fff;
+      font-weight:800;
+      font-size:12px;
+    }
+
+    #btnLogout{
+      margin-top:16px;
+      min-height:54px;
+      border-radius:14px;
+      letter-spacing:.2px;
+    }
+
+    .privacidadPie{
+      margin:12px 0 0;
+      text-align:center;
+      font-size:10.5px;
+      color:#7a848e;
+    }
+
+    /* LOGIN */
+    #loginBox::before{
+      content:"ACCESO AL PANEL";
+      display:block;
+      text-align:center;
+      font-size:18px;
+      font-weight:800;
+      color:#1f3650;
+      margin-bottom:3px;
+    }
+
+    #loginBox::after{
+      content:"Ingresá para administrar tus seguimientos.";
+      display:block;
+      text-align:center;
+      font-size:12px;
+      color:#737d86;
+      margin-top:-160px;
+      margin-bottom:150px;
+      pointer-events:none;
+      visibility:hidden;
+      height:0;
+    }
+
+    #btnLogin{
+      min-height:52px;
+      margin-top:16px;
+    }
+
+    /* SPLASH */
+    #splashPioca{
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#f3f6f9;
+      opacity:1;
+      visibility:visible;
+      transition:opacity .25s ease, visibility .25s ease;
+      will-change:opacity,visibility;
+    }
+
+    #splashPioca.splashOculto{
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+    }
+
+    .splashContenido{
+      width:100%;
+      padding:24px;
+      text-align:center;
+    }
+
+    #splashLogo{
+      width:78vw;
+      max-width:390px;
+      height:auto;
+      display:block;
+      margin:0 auto 18px;
+    }
+
+    #splashTexto{
+      font-size:15px;
+      font-weight:800;
+      color:#596673;
+    }
+
+    @media(max-width:460px){
+      body{
+        padding:8px;
+      }
+
+      body.modoLogin{
+        min-height:100dvh;
+      }
+
+      .panel{
+        border-radius:17px;
+      }
+
+      .cabeceraSuperior{
+        gap:12px;
+        padding:16px 14px 12px;
+      }
+
+      .logoPanel{
+        width:84px;
+        height:84px;
+      }
+
+      .logoPanel img{
+        width:82px;
+      }
+
+      .tituloPrincipal{
+        font-size:19px;
+      }
+
+      .subtituloPrincipal{
+        font-size:12px;
+      }
+
+      #loginBox,
+      #panelAdmin{
+        padding:0 14px 16px;
+      }
+
+      #systemTestBox{
+        min-height:38px;
+        padding:7px 9px;
+        gap:6px;
+      }
+
+      #systemTestBox::before{
+        width:22px;
+        height:22px;
+        flex-basis:22px;
+        font-size:12px;
+      }
+
+      #systemTestTitulo{
+        font-size:9.6px;
+      }
+
+      #systemTestEstado{
+        font-size:9.2px;
+      }
+
+      #formNuevo{
+        padding:15px;
+      }
+
+      .inicioMapsInfo{
+        padding:10px;
+        gap:8px;
+      }
+
+      .inicioMapsCabecera{
+        flex-basis:39%;
+        border-radius:10px;
+      }
+
+      .inicioMapsPaso{
+        grid-template-columns:24px minmax(0,1fr);
+        gap:7px;
+        padding:8px;
+        font-size:10.5px;
+      }
+
+      .inicioMapsPasoNumero{
+        width:24px;
+        height:24px;
+        font-size:10px;
+      }
+
+      #accionesSeguimiento{
+        gap:8px;
+      }
+
+      #accionesSeguimiento button,
+      #btnEmergencia{
+        min-height:74px;
+        font-size:12.5px;
+      }
+    }
+  </style>
+
+<script>
+/* piOca B17-DIAG | perfilador web, solo cuando existe el puente nativo.
+   No recoge coordenadas, URLs completas, nombres, tokens ni textos. */
+(function(){
+  'use strict';
+  if (!window.PiocaDiag || typeof window.PiocaDiag.metric !== 'function') return;
+  const values = new Map();
+  function metric(name, ms, fail){
+    try {
+      name = String(name).slice(0,64).replace(/[^a-z0-9._-]/gi,'_');
+      ms = Number(ms);
+      if(!Number.isFinite(ms) || ms < 0 || ms > 120000 || !name) return;
+      let v=values.get(name);
+      if(!v){v={n:0,sum:0,min:ms,max:0,fail:0};values.set(name,v);}
+      v.n++;v.sum+=ms;v.min=Math.min(v.min,ms);v.max=Math.max(v.max,ms);
+      if(fail)v.fail++;
+    } catch(_){}
+  }
+  window.__piocaDiagMetric=metric;
+  function flush(){
+    if(!values.size)return;
+    const snapshot=Array.from(values.entries());values.clear();
+    for(const [k,v] of snapshot){
+      try{window.PiocaDiag.aggregate(k,v.n,v.sum,v.min,v.max,v.fail);}catch(_){}
+    }
+  }
+  setInterval(flush,30000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush();});
+  window.addEventListener('pagehide',flush);
+
+  const started=performance.now();
+  window.addEventListener('load',()=>metric('web.window_load',performance.now()-started,0),{once:true});
+  try{
+    if ('PerformanceObserver' in window){
+      new PerformanceObserver(list=>{
+        for(const e of list.getEntries())metric('web.long_task',e.duration,0);
+      }).observe({entryTypes:['longtask']});
+    }
+  }catch(_){}
+  let lastRaf=0;
+  function frame(t){
+    if(document.visibilityState==='visible' && lastRaf){
+      const d=t-lastRaf;
+      if(d>45 && d<120000)metric('web.frame_over_45ms',d,0);
+    }
+    lastRaf=t;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  let expected=performance.now()+1000;
+  setInterval(()=>{
+    const now=performance.now(), lag=Math.max(0,now-expected);
+    if(lag>50&&lag<120000)metric('web.event_loop_lag',lag,0);
+    expected=now+1000;
+  },1000);
+
+  // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
+  if(typeof window.fetch==='function'){
+    const originalFetch=window.fetch;
+    window.fetch=function(){
+      const t=performance.now();
+      let cat='web.fetch.other';
+      try{
+        const arg=arguments[0];const url=typeof arg==='string'?arg:(arg&&arg.url)||'';
+        if(/supabase\.co/i.test(url))cat='web.fetch.supabase';
+        else if(/__r67\/sector/i.test(url))cat='web.fetch.r67_sector';
+        else if(/googleapis|gstatic/i.test(url))cat='web.fetch.google';
+      }catch(_){}
+      let p;
+      try{p=originalFetch.apply(this,arguments);}catch(e){metric(cat,performance.now()-t,1);throw e;}
+      if(p&&typeof p.then==='function')p.then(
+        r=>metric(cat,performance.now()-t,(!r||!r.ok)?1:0),
+        ()=>metric(cat,performance.now()-t,1));
+      return p;
+    };
+  }
+  function updateAuth(){
+    try{
+      const raw=localStorage.getItem('sb-apxrmkdegjnblkbyjsbp-auth-token');
+      if(!raw)return;
+      const obj=JSON.parse(raw);
+      if(obj&&typeof obj.access_token==='string'&&obj.access_token.length>32){
+        window.PiocaDiag.setAuth(obj.access_token);
+      }
+    }catch(_){}
+  }
+  setTimeout(updateAuth,3000);setInterval(updateAuth,60000);
+  window.addEventListener('online',()=>metric('web.online_event',0,0));
+  window.addEventListener('offline',()=>metric('web.offline_event',0,1));
+  window.addEventListener('error',()=>metric('web.script_error',0,1));
+  window.addEventListener('unhandledrejection',()=>metric('web.promise_rejection',0,1));
+})();
+
+</script>
+</head>
+
+<body class="modoLogin">
+
+
+<div id="splashPioca">
+
+  <div class="splashContenido">
+
+    <img
+      id="splashLogo"
+      src="logo-pioca.png"
+      alt="piOca"
+    >
+
+    <div id="splashTexto">
+      Cargando…
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="panel">
+
+  <div class="cabeceraSuperior">
+
+    <div class="logoPanel">
+
+      <img
+        src="logo-pioca.png"
+        alt="piOca"
+      >
+
+    </div>
+
+    <div class="cabeceraTexto">
+      <h1 class="tituloPrincipal">Sistema de tracking</h1>
+      <p class="subtituloPrincipal">GPS en tiempo real de la camioneta de servicio</p>
+    </div>
+
+    <div id="systemTestBox">
+
+      <div id="systemTestTitulo">
+        Último test automático
+      </div>
+
+      <div id="systemTestEstado">
+        Verificando...
+      </div>
+
+      <div id="systemTestDetalle"></div>
+
+    </div>
+
+  </div>
+
+  <div id="loginBox">
+
+    <label>Email</label>
+
+    <input
+      id="email"
+      type="email"
+      autocomplete="username"
+    >
+
+    <label>Contraseña</label>
+
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+    >
+
+    <button
+      id="btnLogin"
+      class="btnAzul"
+      type="button">
+      INGRESAR
+    </button>
+
+    <div
+      id="loginEstado"
+      class="estado">
+    </div>
+
+  </div>
+
+  <div id="panelAdmin">
+
+    <div id="verificandoBox">
+      Verificando si existe un seguimiento activo...
+    </div>
+
+    <div id="formNuevo" style="display:none;">
+
+      <div class="mensajeAdicionalCabecera">
+        <div class="mensajeAdicionalIcono">💬</div>
+        <div>
+          <div class="mensajeAdicionalTitulo">
+            Mensaje adicional
+            <span class="mensajeAdicionalBadge">OPCIONAL</span>
+          </div>
+          <div class="mensajeAdicionalTexto">
+            Este texto se incorpora al mensaje de WhatsApp que se comparte con el cliente.
+          </div>
+        </div>
+      </div>
+
+      <textarea
+        id="additionalInfo"
+        placeholder="Ej.: Por favor dejar libre el acceso al portón."
+        maxlength="500"></textarea>
+
+      <div class="ayudaMensaje">
+        Si lo dejás vacío, el mensaje se comparte sin información adicional.
+      </div>
+
+      <div class="legacyManualField" aria-hidden="true">
+        <input
+          id="clientName"
+          type="text"
+          autocomplete="name"
+          placeholder="Nombre del cliente"
+        >
+
+        <button
+          id="btnContacto"
+          class="btnAzul"
+          type="button">
+          CONTACTO
+        </button>
+
+        <div
+          id="contactoEstado"
+          class="estado">
+        </div>
+
+        <input
+          id="clientPhone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          placeholder="Ej: 1155555555"
+        >
+
+        <select id="estimatedArrival"></select>
+      </div>
+
+    </div>
+
+    <div id="inicioMapsInfo" class="inicioMapsInfo">
+      <div class="inicioMapsCabecera">
+        <img
+          class="inicioMapsImagen"
+          src="panel-iniciar-tracking.png"
+          alt="Inicio de tracking desde Google Maps"
+        >
+      </div>
+
+      <div class="inicioMapsPasos">
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">1</div>
+          <div>Abrí Google Maps y seleccioná el domicilio del cliente.</div>
+        </div>
+
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">2</div>
+          <div>Tocá Compartir y elegí <b>piOca Seguimiento</b>.</div>
+        </div>
+
+        <div class="inicioMapsPaso">
+          <div class="inicioMapsPasoNumero">3</div>
+          <div>La app calcula la llegada, crea el tracking e inicia la transmisión GPS nativa.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="accionesSeguimiento">
+
+      <button
+        id="btnCrear"
+        class="btnVerde"
+        type="button">
+        🚐 INICIAR<br>SEGUIMIENTO
+      </button>
+
+      <button
+        id="btnEmergencia"
+        type="button">
+        ⛔ DETENER<br>SEGUIMIENTO
+      </button>
+
+    </div>
+
+    <div
+      id="adminEstado"
+      class="estado">
+    </div>
+
+    <div
+      id="emergenciaEstado"
+      class="estado">
+    </div>
+
+    <button
+      id="btnLogout"
+      class="btnOscuro"
+      type="button">
+      CERRAR SESIÓN
+    </button>
+
+    <div class="privacidadPie">
+      🔒 Tus datos están protegidos. Sólo vos tenés acceso a esta información.
+    </div>
+
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+(function(){
+
+  const splashPioca =
+    document.getElementById(
+      "splashPioca"
+    );
+
+  const splashInicio =
+    Date.now();
+
+  const SPLASH_MINIMO_MS =
+    1000;
+
+  let splashCerrando =
+    false;
+
+  function ocultarSplash(){
+
+    if(
+      splashCerrando ||
+      !splashPioca
+    ){
+      return;
+    }
+
+    splashCerrando =
+      true;
+
+    const transcurrido =
+      Date.now() -
+      splashInicio;
+
+    const espera =
+      Math.max(
+        0,
+        SPLASH_MINIMO_MS -
+        transcurrido
+      );
+
+    setTimeout(
+      function(){
+
+        /*
+          Primero habilitamos el panel ya resuelto y
+          recién después retiramos el splash.
+          Así nunca queda visible un estado intermedio.
+        */
+        document.body.classList.add(
+          "piocaListo"
+        );
+
+        requestAnimationFrame(
+          function(){
+
+            splashPioca.classList.add(
+              "splashOculto"
+            );
+
+          }
+        );
+
+      },
+      espera
+    );
+  }
+
+  const SUPABASE_URL =
+    "https://apxrmkdegjnblkbyjsbp.supabase.co";
+
+  const SUPABASE_KEY =
+    "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
+
+  const supabaseClient =
+    supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+  const loginBox =
+    document.getElementById("loginBox");
+
+  const panelAdmin =
+    document.getElementById("panelAdmin");
+
+  const verificandoBox =
+    document.getElementById("verificandoBox");
+
+  const formNuevo =
+    document.getElementById("formNuevo");
+
+  const inicioMapsInfo =
+    document.getElementById("inicioMapsInfo");
+
+  const email =
+    document.getElementById("email");
+
+  const password =
+    document.getElementById("password");
+
+  const btnLogin =
+    document.getElementById("btnLogin");
+
+  const btnLogout =
+    document.getElementById("btnLogout");
+
+  const btnContacto =
+    document.getElementById("btnContacto");
+
+  const contactoEstado =
+    document.getElementById("contactoEstado");
+
+  const clientName =
+    document.getElementById("clientName");
+
+  const clientPhone =
+    document.getElementById("clientPhone");
+
+  const estimatedArrival =
+    document.getElementById("estimatedArrival");
+
+  const additionalInfo =
+    document.getElementById("additionalInfo");
+
+  const DRAFT_KEY =
+    "pioca_tracking_draft_v1";
+
+  function guardarBorradorNuevo(){
+    try{
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          clientName:clientName ? clientName.value : "",
+          clientPhone:clientPhone ? clientPhone.value : "",
+          additionalInfo:additionalInfo ? additionalInfo.value : ""
+        })
+      );
+    }catch(e){}
+  }
+
+  function cargarBorradorNuevo(){
+    try{
+      const draft =
+        JSON.parse(
+          localStorage.getItem(DRAFT_KEY) || "{}"
+        );
+
+      if(clientName && typeof draft.clientName === "string"){
+        clientName.value = draft.clientName;
+      }
+
+      if(clientPhone && typeof draft.clientPhone === "string"){
+        clientPhone.value = draft.clientPhone;
+      }
+
+      if(additionalInfo && typeof draft.additionalInfo === "string"){
+        additionalInfo.value = draft.additionalInfo;
+      }
+    }catch(e){}
+  }
+
+  const btnCrear =
+    document.getElementById("btnCrear");
+
+  const btnEmergencia =
+    document.getElementById("btnEmergencia");
+
+  const accionesSeguimiento =
+    document.getElementById("accionesSeguimiento");
+
+  const loginEstado =
+    document.getElementById("loginEstado");
+
+  const adminEstado =
+    document.getElementById("adminEstado");
+
+  const emergenciaEstado =
+    document.getElementById("emergenciaEstado");
+
+  const systemTestBox =
+    document.getElementById("systemTestBox");
+
+  const systemTestEstado =
+    document.getElementById("systemTestEstado");
+
+  const systemTestDetalle =
+    document.getElementById("systemTestDetalle");
+
+  let ultimoTestTieneProblema =
+    false;
+
+  let recuperacionEnCurso =
+    false;
+
+  let compartidoEnProceso =
+    false;
+
+  let ultimaRecuperacionForeground =
+    0;
+
+  const MIN_INTERVALO_RECUPERACION_MS =
+    2500;
+
+  function mostrarEstado(el,texto,tipo){
+    el.textContent = texto;
+    el.className = "estado " + tipo;
+    el.style.display = "block";
+  }
+
+  function ocultarEstado(el){
+    el.style.display = "none";
+    el.textContent = "";
+  }
+
+  function mostrarEstadoTemporal(
+    el,
+    texto,
+    tipo,
+    duracionMs
+  ){
+    mostrarEstado(
+      el,
+      texto,
+      tipo
+    );
+
+    setTimeout(
+      function(){
+        if(
+          el.textContent === texto
+        ){
+          ocultarEstado(el);
+        }
+      },
+      duracionMs || 4500
+    );
+  }
+
+  function formatearFechaTest(valor){
+
+    if(!valor){
+      return "-";
+    }
+
+    const d =
+      new Date(valor);
+
+    if(
+      !Number.isFinite(
+        d.getTime()
+      )
+    ){
+      return "-";
+    }
+
+    return d.toLocaleString(
+      "es-AR",
+      {
+        timeZone:
+          "America/Argentina/Buenos_Aires",
+
+        day:"2-digit",
+        month:"2-digit",
+        year:"numeric",
+
+        hour:"2-digit",
+        minute:"2-digit",
+
+        hour12:false
+      }
+    );
+  }
+
+  async function cargarUltimoTest(){
+
+    systemTestBox.className =
+      "";
+
+    systemTestEstado.textContent =
+      "Verificando...";
+
+    systemTestDetalle.style.display =
+      "none";
+
+    systemTestDetalle.textContent =
+      "";
+
+    ultimoTestTieneProblema =
+      false;
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "get_latest_system_test_summary"
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+
+        systemTestEstado.textContent =
+          "Todavía no hay tests registrados.";
+
+        return;
+      }
+
+      const t =
+        data[0];
+
+      const fecha =
+        formatearFechaTest(
+          t.started_at
+        );
+
+      if(
+        t.status ===
+        "ok" &&
+        Number(t.positions_written) ===
+        Number(t.positions_expected)
+      ){
+
+        systemTestBox.className =
+          "testOk";
+
+        systemTestEstado.textContent =
+          fecha +
+          " · ✅ TODO OK · " +
+          t.positions_written +
+          "/" +
+          t.positions_expected +
+          " posiciones";
+
+        return;
+      }
+
+      if(
+        t.status ===
+        "running"
+      ){
+
+        systemTestBox.className =
+          "testRunning";
+
+        systemTestEstado.textContent =
+          fecha +
+          " · TEST EN CURSO · " +
+          t.positions_written +
+          "/" +
+          t.positions_expected +
+          " posiciones";
+
+        return;
+      }
+
+      ultimoTestTieneProblema =
+        true;
+
+      systemTestBox.className =
+        "testError";
+
+      systemTestEstado.textContent =
+        fecha +
+        " · ⚠️ PROBLEMA · " +
+        t.positions_written +
+        "/" +
+        t.positions_expected +
+        " posiciones · Tocá para ver detalle";
+
+    }catch(error){
+
+      systemTestBox.className =
+        "testError";
+
+      systemTestEstado.textContent =
+        "⚠️ No se pudo consultar el último test.";
+
+      ultimoTestTieneProblema =
+        false;
+    }
+  }
+
+  async function mostrarDetalleUltimoTest(){
+
+    if(
+      !ultimoTestTieneProblema
+    ){
+      return;
+    }
+
+    const {
+      data:
+      sessionData
+    } =
+      await supabaseClient.auth
+      .getSession();
+
+    if(
+      !sessionData ||
+      !sessionData.session
+    ){
+
+      systemTestDetalle.textContent =
+        "Ingresá con usuario y contraseña para ver el detalle técnico.";
+
+      systemTestDetalle.style.display =
+        "block";
+
+      return;
+    }
+
+    systemTestDetalle.textContent =
+      "Consultando detalle...";
+
+    systemTestDetalle.style.display =
+      "block";
+
+    try{
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.rpc(
+          "get_latest_system_test_detail"
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+
+        systemTestDetalle.textContent =
+          "No hay detalle disponible.";
+
+        return;
+      }
+
+      const t =
+        data[0];
+
+      systemTestDetalle.textContent =
+
+        "Resultado: " +
+        t.positions_written +
+        " de " +
+        t.positions_expected +
+        " posiciones." +
+
+        (
+          t.detail
+            ? "\n\nDetalle: " +
+              t.detail
+            : ""
+        );
+
+      systemTestDetalle.style.whiteSpace =
+        "pre-line";
+
+    }catch(error){
+
+      systemTestDetalle.textContent =
+        "No se pudo recuperar el detalle técnico.";
+    }
+  }
+
+  systemTestBox.addEventListener(
+    "click",
+    mostrarDetalleUltimoTest
+  );
+
+  function redondearProximo5(fecha){
+    const d = new Date(fecha);
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+
+    const minutos = d.getMinutes();
+    const resto = minutos % 5;
+
+    if(resto === 0){
+      d.setMinutes(minutos + 5);
+    }else{
+      d.setMinutes(minutos + (5 - resto));
+    }
+
+    return d;
+  }
+
+  function cargarHorarios(){
+    estimatedArrival.innerHTML = "";
+
+    /*
+      La hora de llegada debe ser elegida manualmente.
+      No dejamos ninguna hora real seleccionada por defecto.
+    */
+    const opcionInicial =
+      document.createElement("option");
+
+    opcionInicial.value = "";
+    opcionInicial.textContent =
+      "Seleccionar hora de llegada";
+
+    opcionInicial.selected = true;
+    opcionInicial.disabled = true;
+
+    estimatedArrival.appendChild(
+      opcionInicial
+    );
+
+    const inicio =
+      redondearProximo5(new Date());
+
+    /*
+      Horarios iniciales cada 5 minutos.
+      Conservamos aproximadamente la misma ventana futura
+      que antes: 20 opciones = 100 minutos.
+    */
+    for(let i = 0; i < 20; i++){
+      const h = new Date(
+        inicio.getTime() +
+        i * 5 * 60 * 1000
+      );
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        h.toISOString();
+
+      option.textContent =
+        h.toLocaleTimeString(
+          "es-AR",
+          {
+            hour:"2-digit",
+            minute:"2-digit",
+            hour12:false
+          }
+        );
+
+      estimatedArrival.appendChild(option);
+    }
+  }
+
+  function limpiarTelefono(numero){
+    return String(numero || "")
+      .replace(/\D/g,"");
+  }
+
+  function limpiarEstadoLocal(){
+    localStorage.removeItem("pioca_tracking_code");
+    localStorage.removeItem("pioca_tracking_active");
+    localStorage.removeItem("pioca_tracking_expires_at");
+    localStorage.removeItem("pioca_client_name");
+    localStorage.removeItem("pioca_client_phone");
+    localStorage.removeItem("pioca_client_link");
+    localStorage.removeItem("pioca_additional_info");
+  }
+
+  function guardarSeguimientoLocal(s){
+    const codigo = String(s.tracking_code || "")
+      .trim()
+      .toUpperCase();
+
+    localStorage.setItem(
+      "pioca_tracking_code",
+      codigo
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_active",
+      "1"
+    );
+
+    localStorage.setItem(
+      "pioca_tracking_expires_at",
+      s.expires_at || ""
+    );
+
+    localStorage.setItem(
+      "pioca_client_name",
+      s.client_name || ""
+    );
+
+    localStorage.setItem(
+      "pioca_client_phone",
+      s.client_phone || ""
+    );
+
+    localStorage.setItem(
+      "pioca_additional_info",
+      s.additional_info || ""
+    );
+
+    localStorage.setItem(
+      "pioca_client_link",
+      "https://automatizacionpioca.github.io/pioca-gps/cliente.html?id=" +
+      encodeURIComponent(codigo)
+    );
+  }
+
+  function abrirPanelActivo(s){
+    guardarSeguimientoLocal(s);
+
+    try{
+      localStorage.removeItem(DRAFT_KEY);
+    }catch(e){}
+
+    window.location.replace(
+      "index-diag.html?tracking=" +
+      encodeURIComponent(
+        String(s.tracking_code || "")
+          .trim()
+          .toUpperCase()
+      )
+    );
+  }
+
+  function obtenerTextoCompartidoNativo(){
+
+    if(
+      !window.PiocaNative ||
+      typeof window.PiocaNative.consumeSharedDestination !== "function"
+    ){
+      return "";
+    }
+
+    try{
+      return String(
+        window.PiocaNative.consumeSharedDestination() || ""
+      ).trim();
+    }catch(e){
+      return "";
+    }
+  }
+
+
+  function obtenerPosicionActual(){
+
+    return new Promise(
+      function(resolve,reject){
+
+        if(!navigator.geolocation){
+          reject(
+            new Error("GPS_NO_DISPONIBLE")
+          );
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          function(posicion){
+            resolve({
+              lat:Number(posicion.coords.latitude),
+              lng:Number(posicion.coords.longitude),
+              accuracy:Number(posicion.coords.accuracy || 0)
+            });
+          },
+          function(){
+            reject(
+              new Error("GPS_NO_DISPONIBLE")
+            );
+          },
+          {
+            enableHighAccuracy:true,
+            maximumAge:5000,
+            timeout:15000
+          }
+        );
+      }
+    );
+  }
+
+
+  async function invocarTrackingRouter(body){
+
+    const {data,error} =
+      await supabaseClient.functions.invoke(
+        "tracking-router",
+        {
+          body:body
+        }
+      );
+
+    if(error){
+      throw error;
+    }
+
+    if(!data || data.ok !== true){
+      throw new Error(
+        data && data.error
+          ? String(data.error)
+          : "TRACKING_ROUTER_ERROR"
+      );
+    }
+
+    return data;
+  }
+
+
+  async function procesarCompartidoPendiente(){
+
+    if(compartidoEnProceso){
+      return;
+    }
+
+    const textoCompartido =
+      obtenerTextoCompartidoNativo();
+
+    if(!textoCompartido){
+      return;
+    }
+
+    compartidoEnProceso = true;
+
+    ocultarEstado(adminEstado);
+    ocultarEstado(emergenciaEstado);
+
+    btnCrear.disabled = true;
+
+    mostrarEstado(
+      adminEstado,
+      "Procesando el destino compartido desde Google Maps...",
+      "info"
+    );
+
+    try{
+
+      const resuelto =
+        await invocarTrackingRouter({
+          action:"resolve_shared_destination",
+          shared_text:textoCompartido
+        });
+
+      const destino =
+        resuelto.destination || null;
+
+      if(
+        !destino ||
+        !Number.isFinite(Number(destino.lat)) ||
+        !Number.isFinite(Number(destino.lng))
+      ){
+        throw new Error("DESTINO_INVALIDO");
+      }
+
+      const direccion =
+        String(destino.address || "Destino compartido").trim();
+
+      const confirmar =
+        window.confirm(
+          "¿Usar esta dirección para crear un seguimiento?\n\n" +
+          direccion
+        );
+
+      if(!confirmar){
+        ocultarEstado(adminEstado);
+        return;
+      }
+
+      mostrarEstado(
+        adminEstado,
+        "Obteniendo tu posición y calculando la llegada...",
+        "info"
+      );
+
+      const origen =
+        await obtenerPosicionActual();
+
+      const ruta =
+        await invocarTrackingRouter({
+          action:"route",
+          origin:{
+            lat:origen.lat,
+            lng:origen.lng
+          },
+          destination:{
+            lat:Number(destino.lat),
+            lng:Number(destino.lng)
+          }
+        });
+
+      if(
+        !ruta.route ||
+        !ruta.route.arrival_at
+      ){
+        throw new Error("RUTA_INVALIDA");
+      }
+
+      mostrarEstado(
+        adminEstado,
+        "Creando seguimiento...",
+        "info"
+      );
+
+      const {data,error} =
+        await supabaseClient.rpc(
+          "create_tracking_service_eta",
+          {
+            p_destination_address:direccion,
+            p_destination_lat:Number(destino.lat),
+            p_destination_lon:Number(destino.lng),
+            p_destination_place_id:
+              destino.placeId || null,
+            p_client_arrival:
+              ruta.route.arrival_at,
+            p_route_polyline:
+              ruta.route.encoded_polyline || null,
+            p_route_distance_meters:
+              Math.max(
+                0,
+                Math.round(
+                  Number(ruta.route.distance_meters || 0)
+                )
+              ),
+            p_route_duration_seconds:
+              Math.max(
+                0,
+                Math.round(
+                  Number(ruta.route.duration_seconds || 0)
+                )
+              ),
+            p_additional_info:additionalInfo.value.trim() || null
+          }
+        );
+
+      if(error){
+        throw error;
+      }
+
+      if(
+        !Array.isArray(data) ||
+        data.length === 0
+      ){
+        throw new Error(
+          "Respuesta vacía del servidor."
+        );
+      }
+
+      const s = data[0];
+
+      if(
+        s.success === false &&
+        s.message === "ACTIVE_EXISTS"
+      ){
+        abrirPanelActivo(s);
+        return;
+      }
+
+      if(s.success !== true){
+        throw new Error(
+          "No se pudo crear el seguimiento."
+        );
+      }
+
+      abrirPanelActivo(s);
+
+    }catch(error){
+
+      mostrarEstado(
+        adminEstado,
+        "No se pudo crear el seguimiento desde Google Maps. Podés volver a compartir el destino o usar la creación manual.",
+        "error"
+      );
+
+    }finally{
+
+      btnCrear.disabled = false;
+      compartidoEnProceso = false;
+    }
+  }
+
+
+  async function seleccionarContacto(){
+    ocultarEstado(contactoEstado);
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.pickContact === "function"
+    ){
+      window.PiocaNative.pickContact();
+      return;
+    }
+
+    const soportado =
+      ("contacts" in navigator) &&
+      navigator.contacts &&
+      typeof navigator.contacts.select === "function";
+
+    if(!soportado){
+      mostrarEstado(
+        contactoEstado,
+        "No se pudo abrir la agenda. Cargá los datos manualmente.",
+        "error"
+      );
+      return;
+    }
+
+    try{
+      const contactos =
+        await navigator.contacts.select(
+          ["name","tel"],
+          {multiple:false}
+        );
+
+      if(!contactos || contactos.length === 0){
+        return;
+      }
+
+      const contacto = contactos[0];
+
+      if(contacto.name && contacto.name.length){
+        clientName.value = contacto.name[0];
+      }
+
+      if(contacto.tel && contacto.tel.length){
+        clientPhone.value = contacto.tel[0];
+      }
+
+      mostrarEstado(
+        contactoEstado,
+        "✅ Contacto cargado.",
+        "ok"
+      );
+
+    }catch(e){
+      mostrarEstado(
+        contactoEstado,
+        "No se seleccionó ningún contacto.",
+        "error"
+      );
+    }
+  }
+
+  function esErrorJwtFuture(error){
+
+    const partes = [
+      error && error.message,
+      error && error.details,
+      error && error.hint,
+      error && error.code
+    ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+    return (
+      partes.includes("jwt issued at future") ||
+      partes.includes("issued at future")
+    );
+  }
+
+  function esperar(ms){
+    return new Promise(
+      function(resolve){
+        setTimeout(resolve,ms);
+      }
+    );
+  }
+
+  async function consultarSeguimientoActivoConRecuperacion(){
+
+    let intento = 0;
+    let ultimoError = null;
+
+    while(intento < 2){
+
+      const {data,error} =
+        await supabaseClient.rpc(
+          "get_my_active_tracking"
+        );
+
+      if(!error){
+        return {
+          data:data,
+          error:null
+        };
+      }
+
+      ultimoError = error;
+
+      /*
+        Después de un bloqueo largo Android/WebView puede
+        despertar con una sesión vieja aunque el GPS nativo
+        haya seguido funcionando. Ante el primer fallo RPC,
+        refrescamos la sesión y reintentamos una sola vez.
+      */
+      if(intento === 0){
+
+        try{
+          await supabaseClient.auth.refreshSession();
+        }catch(e){}
+
+        await esperar(
+          esErrorJwtFuture(error)
+            ? 1200
+            : 450
+        );
+
+        intento++;
+        continue;
+      }
+
+      return {
+        data:null,
+        error:ultimoError
+      };
+    }
+
+    return {
+      data:null,
+      error:ultimoError ||
+        new Error(
+          "No se pudo recuperar la sesión."
+        )
+    };
+  }
+
+
+  function detenerGpsNativoResidual(){
+
+    if(
+      window.PiocaNative &&
+      typeof window.PiocaNative.stopTracking === "function"
+    ){
+      try{
+        window.PiocaNative.stopTracking();
+      }catch(e){}
+    }
+  }
+
+  function mostrarFormularioSinSeguimiento(){
+
+    limpiarEstadoLocal();
+    detenerGpsNativoResidual();
+
+    ocultarEstado(adminEstado);
+
+    verificandoBox.style.display =
+      "none";
+
+    formNuevo.style.display =
+      "block";
+
+    inicioMapsInfo.style.display =
+      "flex";
+
+    accionesSeguimiento.style.display =
+      "none";
+
+    btnCrear.style.display =
+      "none";
+
+    btnEmergencia.style.display =
+      "none";
+
+    cargarHorarios();
+
+    setTimeout(
+      procesarCompartidoPendiente,
+      250
+    );
+  }
+
+  async function recuperarEstadoAlVolver(){
+
+    if(
+      recuperacionEnCurso ||
+      document.hidden
+    ){
+      return;
+    }
+
+    const ahora =
+      Date.now();
+
+    if(
+      ahora -
+      ultimaRecuperacionForeground <
+      MIN_INTERVALO_RECUPERACION_MS
+    ){
+      return;
+    }
+
+    ultimaRecuperacionForeground =
+      ahora;
+
+    recuperacionEnCurso = true;
+    try{
+      const {data:sessionData} = await supabaseClient.auth.getSession();
+      if(!sessionData || !sessionData.session) return;
+
+      const {data,error} =
+        await consultarSeguimientoActivoConRecuperacion();
+
+      if(error){
+        return;
+      }
+
+      if(
+        Array.isArray(data) &&
+        data.length > 0
+      ){
+
+        /*
+          Si existe realmente un seguimiento activo,
+          sincronizamos el estado local. Si estamos en
+          admin.html, volvemos al panel activo correcto.
+        */
+        guardarSeguimientoLocal(
+          data[0]
+        );
+
+        abrirPanelActivo(
+          data[0]
+        );
+
+        return;
+      }
+
+      /*
+        El servidor confirma que ya no existe seguimiento.
+        Esto cubre el caso de expiración mientras el teléfono
+        estuvo bloqueado: limpiamos el panel viejo sin logout.
+      */
+      mostrarFormularioSinSeguimiento();
+
+      ocultarEstado(
+        adminEstado
+      );
+
+      mostrarEstadoTemporal(
+        emergenciaEstado,
+        "El seguimiento anterior ya había finalizado. El panel fue actualizado automáticamente.",
+        "info",
+        4500
+      );
+
+    }finally{
+
+      recuperacionEnCurso =
+        false;
+    }
+  }
+
+
+  async function verificarSeguimientoActivo(){
+    formNuevo.style.display = "none";
+    inicioMapsInfo.style.display = "none";
+
+    accionesSeguimiento.style.display = "flex";
+    btnCrear.style.display = "none";
+    btnEmergencia.style.display = "block";
+
+    verificandoBox.style.display = "block";
+    verificandoBox.textContent =
+      "Verificando si existe un seguimiento activo...";
+
+    try{
+      const {data,error} =
+        await consultarSeguimientoActivoConRecuperacion();
+
+      if(error){
+        throw error;
+      }
+
+      if(Array.isArray(data) && data.length > 0){
+        abrirPanelActivo(data[0]);
+        return;
+      }
+
+      mostrarFormularioSinSeguimiento();
+
+      ocultarSplash();
+
+    }catch(error){
+
+      verificandoBox.style.display =
+        "block";
+
+      verificandoBox.textContent =
+        "No se pudo verificar el estado del seguimiento.";
+
+      const detalle =
+        error &&
+        (
+          error.message ||
+          error.details ||
+          error.hint ||
+          error.code
+        )
+          ? (
+              " Error del servidor: " +
+              String(
+                error.message ||
+                error.details ||
+                error.hint ||
+                error.code
+              )
+            )
+          : "";
+
+      accionesSeguimiento.style.display = "flex";
+      btnCrear.style.display = "none";
+      btnEmergencia.style.display = "block";
+
+      mostrarEstado(
+        emergenciaEstado,
+        "No se habilita un seguimiento nuevo hasta recuperar conexión con el servidor." +
+        detalle,
+        "error"
+      );
+
+      ocultarSplash();
+    }
+  }
+
+  async function mostrarPanelAutenticado(){
+    document.body.classList.remove(
+      "modoLogin"
+    );
+
+    loginBox.style.display = "none";
+    panelAdmin.style.display = "block";
+    await verificarSeguimientoActivo();
+  }
+
+  async function comprobarSesion(){
+    const {data} =
+      await supabaseClient.auth.getSession();
+
+    if(
+      data &&
+      data.session
+    ){
+
+      await mostrarPanelAutenticado();
+
+      return;
+    }
+
+    document.body.classList.add(
+      "modoLogin"
+    );
+
+    ocultarSplash();
+  }
+
+  btnContacto.addEventListener(
+    "click",
+    seleccionarContacto
+  );
+
+  additionalInfo.addEventListener(
+    "input",
+    guardarBorradorNuevo
+  );
+
+  clientName.addEventListener(
+    "input",
+    guardarBorradorNuevo
+  );
+
+  clientPhone.addEventListener(
+    "input",
+    guardarBorradorNuevo
+  );
+
+  btnLogin.addEventListener(
+    "click",
+    async function(){
+      ocultarEstado(loginEstado);
+
+      const {data,error} =
+        await supabaseClient.auth.signInWithPassword({
+          email:email.value.trim(),
+          password:password.value
+        });
+
+      if(error){
+        mostrarEstado(
+          loginEstado,
+          "Usuario o contraseña incorrectos.",
+          "error"
+        );
+        return;
+      }
+
+      if(data.session){
+        password.value = "";
+        await mostrarPanelAutenticado();
+      }
+    }
+  );
+
+  btnLogout.addEventListener(
+    "click",
+    async function(){
+      await supabaseClient.auth.signOut();
+      panelAdmin.style.display = "none";
+      formNuevo.style.display = "none";
+      inicioMapsInfo.style.display = "none";
+      accionesSeguimiento.style.display = "none";
+      verificandoBox.style.display = "none";
+      loginBox.style.display = "block";
+
+      document.body.classList.add(
+        "modoLogin"
+      );
+    }
+  );
+
+  btnCrear.addEventListener(
+    "click",
+    async function(){
+      ocultarEstado(adminEstado);
+      ocultarEstado(emergenciaEstado);
+
+      const nombre = clientName.value.trim();
+      const telefono = limpiarTelefono(clientPhone.value);
+      const informacion = additionalInfo.value.trim();
+
+      if(!telefono){
+        mostrarEstado(
+          adminEstado,
+          "Completá el teléfono.",
+          "error"
+        );
+        return;
+      }
+
+      if(
+        !estimatedArrival.value
+      ){
+        mostrarEstado(
+          adminEstado,
+          "Seleccioná la hora estimada de llegada.",
+          "error"
+        );
+
+        estimatedArrival.focus();
+
+        return;
+      }
+
+      btnCrear.disabled = true;
+      btnCrear.textContent = "CREANDO SEGUIMIENTO...";
+
+      try{
+        /*
+          Doble proteccion:
+          antes de crear, el servidor vuelve a verificar
+          que no exista otro seguimiento activo.
+        */
+        const {data,error} =
+          await supabaseClient.rpc(
+            "create_tracking_service",
+            {
+              p_client_name:nombre,
+              p_client_phone:telefono,
+              p_estimated_arrival:new Date(
+                estimatedArrival.value
+              ).toISOString(),
+              p_additional_info:informacion || null
+            }
+          );
+
+        if(error){
+          throw error;
+        }
+
+        if(!Array.isArray(data) || data.length === 0){
+          throw new Error("Respuesta vacía del servidor.");
+        }
+
+        const s = data[0];
+
+        if(
+          s.success === false &&
+          s.message === "ACTIVE_EXISTS"
+        ){
+          abrirPanelActivo(s);
+          return;
+        }
+
+        if(s.success !== true){
+          throw new Error("No se pudo crear el seguimiento.");
+        }
+
+        abrirPanelActivo(s);
+
+      }catch(error){
+        btnCrear.disabled = false;
+        btnCrear.innerHTML = "🚐 INICIAR<br>SEGUIMIENTO";
+
+        mostrarEstado(
+          adminEstado,
+          "No se pudo crear el seguimiento. Volvé a intentar cuando haya conexión con el servidor.",
+          "error"
+        );
+      }
+    }
+  );
+
+  btnEmergencia.addEventListener(
+    "click",
+    async function(){
+      ocultarEstado(emergenciaEstado);
+
+      const confirmar = window.confirm(
+        "¿Querés detener el seguimiento activo?\n\nEsto invalidará el link del cliente y detendrá la transmisión GPS asociada."
+      );
+
+      if(!confirmar){
+        return;
+      }
+
+      btnEmergencia.disabled = true;
+      btnEmergencia.textContent = "DETENIENDO...";
+
+      try{
+
+        /*
+          Primero preguntamos al servidor si todavía existe
+          un seguimiento activo. Si ya venció mientras el
+          teléfono estuvo bloqueado, eso es cierre confirmado,
+          no un error.
+        */
+        const consulta =
+          await consultarSeguimientoActivoConRecuperacion();
+
+        if(consulta.error){
+          throw consulta.error;
+        }
+
+        if(
+          !Array.isArray(
+            consulta.data
+          ) ||
+          consulta.data.length === 0
+        ){
+
+          mostrarFormularioSinSeguimiento();
+
+          mostrarEstado(
+            emergenciaEstado,
+            "El seguimiento ya estaba finalizado en el servidor. El panel quedó actualizado.",
+            "ok"
+          );
+
+          return;
+        }
+
+        /*
+          Hay uno activo de verdad. Intentamos finalizarlo.
+          Si la primera llamada falla, refrescamos sesión y
+          hacemos un único reintento.
+        */
+        let cierre =
+          await supabaseClient.rpc(
+            "finish_latest_active_tracking"
+          );
+
+        if(cierre.error){
+
+          try{
+            await supabaseClient.auth.refreshSession();
+          }catch(e){}
+
+          await esperar(450);
+
+          cierre =
+            await supabaseClient.rpc(
+              "finish_latest_active_tracking"
+            );
+        }
+
+        if(cierre.error){
+          throw cierre.error;
+        }
+
+        const r =
+          Array.isArray(cierre.data) &&
+          cierre.data.length
+            ? cierre.data[0]
+            : null;
+
+        if(
+          r &&
+          r.success === true
+        ){
+
+          mostrarFormularioSinSeguimiento();
+
+          mostrarEstado(
+            emergenciaEstado,
+            "Seguimiento detenido. El cliente ya no puede ver la ubicación de la camioneta.",
+            "ok"
+          );
+
+          return;
+        }
+
+        /*
+          Respuesta sin cierre: verificamos una vez más.
+          Si ya no existe activo, lo consideramos finalizado.
+        */
+        const confirmacion =
+          await consultarSeguimientoActivoConRecuperacion();
+
+        if(
+          !confirmacion.error &&
+          (
+            !Array.isArray(
+              confirmacion.data
+            ) ||
+            confirmacion.data.length === 0
+          )
+        ){
+
+          mostrarFormularioSinSeguimiento();
+
+          mostrarEstado(
+            emergenciaEstado,
+            "El seguimiento ya no está activo en el servidor. El panel quedó actualizado.",
+            "ok"
+          );
+
+          return;
+        }
+
+        throw new Error(
+          "No se pudo confirmar el cierre."
+        );
+
+      }catch(error){
+
+        mostrarEstado(
+          emergenciaEstado,
+          "Conexión interrumpida. No se modificó el estado local porque todavía no pudimos confirmar el servidor. Reintentá cuando vuelva la conexión.",
+          "error"
+        );
+
+      }finally{
+        btnEmergencia.disabled = false;
+        btnEmergencia.innerHTML = "⛔ DETENER<br>SEGUIMIENTO";
+      }
+    }
+  );
+
+
+  /*
+    Recuperación automática al volver de pantalla bloqueada
+    o cuando Android/WebView recupera el foco.
+  */
+  document.addEventListener(
+    "visibilitychange",
+    function(){
+      if(
+        document.visibilityState ===
+        "visible"
+      ){
+        setTimeout(
+          guardarBorradorNuevo,
+          250
+        );
+        recuperarEstadoAlVolver();
+      }else{
+        guardarBorradorNuevo();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pageshow",
+    recuperarEstadoAlVolver
+  );
+
+  window.addEventListener(
+    "focus",
+    recuperarEstadoAlVolver
+  );
+
+  window.addEventListener(
+    "online",
+    recuperarEstadoAlVolver
+  );
+
+  cargarBorradorNuevo();
+
+  cargarUltimoTest();
+
+  comprobarSesion();
+
+})();
+</script>
+
+</body>
+</html>
