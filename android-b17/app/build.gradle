@@ -1,0 +1,23 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+
+    namespace "ar.com.pioca.seguimiento"
+
+    compileSdk 35
+
+    defaultConfig {
+
+        applicationId "ar.com.pioca.seguimiento"
+
+        minSdk 26
+
+        targetSdk 35
+
+        versionCode 17
+
+        versionName "0.17-integral"
+    }
+}
