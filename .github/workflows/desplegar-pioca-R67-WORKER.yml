@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP='piOca-R67-WORKER-REAL-PARA-WRANGLER.zip'
+          ZIP='pioca-R67-worker-real-para-wrangler.zip'
           test -s "$ZIP" || { echo 'FALTA el ZIP R67 en la raiz del repositorio'; exit 1; }
           mkdir -p cloudflare-r67
           unzip -q "$ZIP" -d cloudflare-r67
