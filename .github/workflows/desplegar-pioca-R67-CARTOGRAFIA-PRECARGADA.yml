@@ -1,0 +1,273 @@
+name: piOca R67 - PUBLICAR CARTOGRAFIA PRECARGADA AMBA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pioca-r67-cloudflare-publicacion
+  cancel-in-progress: false
+
+jobs:
+  publicar-cartografia-r67:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Obtener codigo sin modificar B19
+        uses: actions/checkout@v4
+
+      - name: Preparar Node 22 y Python 3.12
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Preparar el Worker R67 existente
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s pioca-R67-worker-real-para-wrangler.zip
+          mkdir -p cloudflare-r67
+          unzip -q pioca-R67-worker-real-para-wrangler.zip -d cloudflare-r67
+          test -s cloudflare-r67/src/index.js
+          test -s cloudflare-r67/wrangler.toml
+          test -s cloudflare-r67/public/index.html
+
+      - name: Instalar lector de OpenStreetMap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'osmium>=4.0,<6'
+
+      - name: Descargar extractos CABA y provincia de Buenos Aires
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p osm-extractos
+          base=https://download.openstreetmap.fr/extracts/south-america/argentina
+          curl -fL --retry 5 --retry-delay 8 --retry-all-errors --connect-timeout 25 --max-time 900 \
+            "$base/buenos_aires_city-latest.osm.pbf" -o osm-extractos/caba.osm.pbf
+          curl -fL --retry 5 --retry-delay 8 --retry-all-errors --connect-timeout 25 --max-time 900 \
+            "$base/buenos_aires-latest.osm.pbf" -o osm-extractos/buenos_aires.osm.pbf
+          test $(stat -c%s osm-extractos/caba.osm.pbf) -gt 1000000
+          test $(stat -c%s osm-extractos/buenos_aires.osm.pbf) -gt 10000000
+
+      - name: Construir geometria real R67 por sectores en Cloudflare
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/pioca_r67_preload_generator.py <<'PYGEN'
+          #!/usr/bin/env python3
+          """Genera sectores R67 estaticos desde extractos OSM PBF CABA y Buenos Aires.
+          Requiere: pip install osmium. El GPS / ETA no se modifican.
+          """
+          import datetime
+          import json
+          import math
+          import sys
+          from collections import defaultdict
+          from pathlib import Path
+
+          TIPOS = [
+              'motorway', 'motorway_link', 'trunk', 'trunk_link',
+              'primary', 'primary_link', 'secondary', 'secondary_link',
+              'tertiary', 'tertiary_link', 'unclassified', 'residential',
+              'living_street', 'road',
+          ]
+          TIPO_INDICE = {v:i for i,v in enumerate(TIPOS)}
+          VERSION = 'r67-v1-20261007'
+          STEP_LAT = 0.025
+          STEP_LON = 0.030
+          CENTRO_LAT = -34.6037
+          CENTRO_LON = -58.3816
+          RADIO_KM = 65  # CABA, Norte, Oeste y Sur; pequeño margen en la periferia
+
+
+          def metros(lat1,lon1,lat2,lon2):
+              r=math.pi/180
+              p1,p2=lat1*r,lat2*r
+              dp=(lat2-lat1)*r
+              dl=(lon2-lon1)*r
+              a=math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
+              return 12742000*math.atan2(math.sqrt(a),math.sqrt(max(0,1-a)))
+
+
+          def rumbo(lat1,lon1,lat2,lon2):
+              r=math.pi/180
+              p1,p2=lat1*r,lat2*r
+              dl=(lon2-lon1)*r
+              y=math.sin(dl)*math.cos(p2)
+              x=math.cos(p1)*math.sin(p2)-math.sin(p1)*math.cos(p2)*math.cos(dl)
+              return round((math.degrees(math.atan2(y,x))+360)%360,1)
+
+
+          def sector_indices(lat,lon):
+              return (math.floor((lon+180)/STEP_LON),math.floor((lat+90)/STEP_LAT))
+
+
+          class SectorCollection:
+              def __init__(self):
+                  self.sectores = defaultdict(dict)
+                  self.total_segmentos = 0
+                  self.vias = 0
+
+              def add(self,way_id,seg_i,node_a,node_b,lat1,lon1,lat2,lon2,tipo):
+                  # Solo radio definido, mas margen para que no falten esquinas.
+                  if metros((lat1+lat2)/2,(lon1+lon2)/2,CENTRO_LAT,CENTRO_LON) > (RADIO_KM+3)*1000:
+                      return
+                  if metros(lat1,lon1,lat2,lon2) < 1.5:
+                      return
+                  x0,y0=sector_indices(min(lat1,lat2),min(lon1,lon2))
+                  x1,y1=sector_indices(max(lat1,lat2),max(lon1,lon2))
+                  if x1-x0>5 or y1-y0>5:
+                      return  # segmentacion OSM anomala: evitar miles de duplicados
+                  seg=[int(way_id),int(seg_i),int(node_a),int(node_b),
+                       round(lat1,6),round(lon1,6),round(lat2,6),round(lon2,6),
+                       rumbo(lat1,lon1,lat2,lon2),TIPO_INDICE[tipo]]
+                  for x in range(x0,x1+1):
+                      for y in range(y0,y1+1):
+                          self.sectores[f'{y}_{x}'][(way_id,seg_i)]=seg
+                  self.total_segmentos+=1
+
+              def write(self, public):
+                  out=Path(public)/'roads'/'s'
+                  out.mkdir(parents=True,exist_ok=True)
+                  for old in out.glob('*.json'):
+                      old.unlink()
+                  fecha=datetime.datetime.now(datetime.timezone.utc).isoformat()
+                  bytes_total=0
+                  archivos=0
+                  for sector_id, segments_by_way in self.sectores.items():
+                      y,x=(int(v) for v in sector_id.split('_'))
+                      south=y*STEP_LAT-90
+                      west=x*STEP_LON-180
+                      s=list(segments_by_way.values())
+                      payload={
+                          'v':1,'cv':VERSION,'id':sector_id,
+                          'b':[round(south,6),round(west,6),round(south+STEP_LAT,6),round(west+STEP_LON,6)],
+                          't':TIPOS,'s':s,
+                          'meta':{'ways':len(set(e[0] for e in s)),'segments':len(s),
+                                  'generated_at':fecha,'source':'OpenStreetMap'}
+                      }
+                      data=json.dumps(payload,separators=(',',':'),ensure_ascii=False).encode('utf-8')
+                      if len(data)>=24*1024*1024:
+                          raise RuntimeError(f'Sector {sector_id} demasiado grande: {len(data)} bytes')
+                      (out/(sector_id+'.json')).write_bytes(data)
+                      bytes_total+=len(data)
+                      archivos+=1
+                  if archivos<100 or self.total_segmentos<10000:
+                      raise RuntimeError('Geometria insuficiente para AMBA. No publicar: '+str((archivos,self.total_segmentos)))
+                  stats={'version':VERSION,'source':'OpenStreetMap','radius_km':RADIO_KM,
+                         'center':[CENTRO_LAT,CENTRO_LON],'sector_count':archivos,
+                         'segments':self.total_segmentos,'bytes':bytes_total,
+                         'generated_at':fecha}
+                  (Path(public)/'roads'/'preloaded-status.json').write_text(json.dumps(stats,indent=2)+'\n',encoding='utf-8')
+                  print('R67 PRECARGA:',json.dumps(stats,ensure_ascii=False))
+                  print('EJEMPLO DE SECTORES:',list(self.sectores)[:8])
+                  return stats
+
+
+          def main(files, public):
+              import osmium
+              col=SectorCollection()
+              class Ways(osmium.SimpleHandler):
+                  def way(self, way):
+                      tipo=way.tags.get('highway')
+                      if tipo not in TIPO_INDICE:
+                          return
+                      col.vias+=1
+                      ns=way.nodes
+                      for i in range(len(ns)-1):
+                          a,b=ns[i],ns[i+1]
+                          if not a.location.valid() or not b.location.valid():
+                              continue
+                          try:
+                              col.add(way.id,i,a.ref,b.ref,a.location.lat,a.location.lon,
+                                      b.location.lat,b.location.lon,tipo)
+                          except (ValueError,OverflowError):
+                              continue
+              for filename in files:
+                  print('Leyendo datos OSM:',filename,flush=True)
+                  # locations=True resuelve nodos de los ways, preserva identidad de los cruces.
+                  Ways().apply_file(filename,locations=True)
+              col.write(public)
+
+          if __name__=='__main__':
+              if len(sys.argv)<4:
+                  raise SystemExit('Uso: generator.py PUBLIC_DIR ciudad.osm.pbf provincia.osm.pbf')
+              main(sys.argv[2:],sys.argv[1])
+          PYGEN
+          python /tmp/pioca_r67_preload_generator.py cloudflare-r67/public \
+            osm-extractos/caba.osm.pbf osm-extractos/buenos_aires.osm.pbf
+
+      - name: Asegurar que R67 use exclusivamente precarga (sin Overpass)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PYCONF'
+          from pathlib import Path
+          import json,tomllib
+          cfg=Path('cloudflare-r67/wrangler.toml')
+          raw=cfg.read_text('utf-8')
+          conf=tomllib.loads(raw)
+          assert conf.get('name')=='misty-river-903b','Worker incorrecto'
+          assert conf.get('main')=='./src/index.js'
+          assert conf.get('assets',{}).get('directory')=='./public'
+          assert '/__r67/*' in conf.get('assets',{}).get('run_worker_first',[])
+          if 'keep_vars' not in raw:
+              raw=raw.replace('[assets]','keep_vars = true\n\n[assets]',1)
+          if '[[routes]]' not in raw:
+              raw+='\n[[routes]]\npattern = "trackingpioca.com"\ncustom_domain = true\n'
+          tomllib.loads(raw)
+          cfg.write_text(raw,encoding='utf-8')
+
+          worker_path=Path('cloudflare-r67/src/index.js')
+          source=worker_path.read_text('utf-8')
+          assert source.count('const canonical=new URL(request.url);')==1,'Falta ancla fallback'
+          assert source.count('const WORKER_BUILD = ')==1,'Version del Worker inesperada'
+          # SIN descargas Overpass cuando faltan sectores: fallback inmediato R65.
+          codigo="""  // piOca R67 PRELOAD: no pedir calles a Overpass durante el seguimiento.
+            // Si no existe un archivo estatico local, fallback R65 sin espera.
+            return json({ok:false,error:'sector_no_precargado',id},503,{
+              'retry-after':'60', 'x-r67-cache':'STATIC_MISS'
+            });
+
+            """
+          source=source.replace('const canonical=new URL(request.url);',
+                                codigo+'const canonical=new URL(request.url);',1)
+          import re
+          source=re.sub(r"const WORKER_BUILD = '[^']+';",
+                        "const WORKER_BUILD = 'r67-cf-precargada-amba-20261107';",source,count=1)
+          assert "sector_no_precargado" in source
+          worker_path.write_text(source,encoding='utf-8')
+
+          # No continuar si el sector de prueba original no esta precargado.
+          sample=Path('cloudflare-r67/public/roads/s/2218_4047.json')
+          assert sample.exists(), 'Falta sector de prueba 2218_4047'
+          payload=json.loads(sample.read_text(encoding='utf-8'))
+          assert payload['id']=='2218_4047' and len(payload['s'])>20
+          assert payload['cv']=='r67-v1-20261007'
+          assert all(len(s)==10 for s in payload['s'][:100])
+          stats=json.loads(Path('cloudflare-r67/public/roads/preloaded-status.json').read_text())
+          assert stats['sector_count']<19000, 'Demasiados archivos estaticos'
+          print('MUESTRA:',sample,'segmentos:',len(payload['s']))
+          print('COBERTURA R67:',stats)
+          PYCONF
+          node --check cloudflare-r67/src/index.js
+
+      - name: Publicar Worker R67 y sectores en Cloudflare
+        working-directory: cloudflare-r67
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          npx --yes wrangler@4 deploy --config wrangler.toml
