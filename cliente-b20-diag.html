@@ -5114,6 +5114,151 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     DISTANCIA_REARME_MARGEN_M:500
   });
 
+  /* ==========================================================
+     B20 CARTOGRAFIA TOTAL + CAMARA SALIDA / 2026-11-09
+     La salida visual es INDEPENDIENTE de T0, 50/300 m, expiración y ETA.
+     Sólo nuevas posiciones GPS físicas confirmadas votan una salida.
+     ========================================================== */
+  const CAMARA_SALIDA_B20 = Object.freeze({
+    DISTANCIA_ACTIVACION_M:65,
+    AVANCE_MINIMO_LECTURA_M:4,
+    LECTURAS_ACTIVACION:2,
+    DISTANCIA_REGRESO_M:50,
+    LECTURAS_REGRESO:2,
+    ZOOM_MAXIMO_SALIDA:17,
+    TRANSICION_MS:1350
+  });
+  let modoCamaraSalidaB20=false;
+  let votosSalidaCamaraB20=0;
+  let votosRegresoCamaraB20=0;
+  let distanciaAnteriorCamaraB20=null;
+  let camaraSalidaRafB20=null;
+
+  function cancelarTransicionCamaraSalidaB20(){
+    if(camaraSalidaRafB20!==null){
+      cancelAnimationFrame(camaraSalidaRafB20);
+      camaraSalidaRafB20=null;
+    }
+    try{
+      if(mapa && mapa._map){
+        mapa._map.setOptions({isFractionalZoomEnabled:false});
+      }
+    }catch(_){}
+  }
+
+  /* Una sola animación de cámara, recalculada alrededor del pin REAL visible.
+     El nivel de zoom no interviene en el map matching R67: sólo escala el mapa. */
+  function iniciarTransicionCamaraSalidaB20(){
+    cancelarTransicionCamaraSalidaB20();
+    if(!mapa || !marcador || !mapa._map){return;}
+    const gm=mapa._map;
+    const inicioZoom=Number(gm.getZoom());
+    if(!Number.isFinite(inicioZoom)){return;}
+    const finalZoom=Math.min(inicioZoom,CAMARA_SALIDA_B20.ZOOM_MAXIMO_SALIDA);
+    const inicioMs=performance.now();
+    let ultimoZoomOrdenado=inicioZoom;
+    let ultimoPintadoMs=0;
+    try{gm.setOptions({isFractionalZoomEnabled:true});}catch(_){}
+    function fotograma(t){
+      if(!modoCamaraSalidaB20 || !mapa || !marcador){
+        cancelarTransicionCamaraSalidaB20();
+        return;
+      }
+      if(t-ultimoPintadoMs<28){
+        camaraSalidaRafB20=requestAnimationFrame(fotograma);
+        return;
+      }
+      ultimoPintadoMs=t;
+      try{
+        const zoomLeido=Number(gm.getZoom());
+        /* Si el cliente modificó el zoom, su gesto tiene prioridad. */
+        if(Number.isFinite(zoomLeido) &&
+           Math.abs(zoomLeido-ultimoZoomOrdenado)>0.65){
+          cancelarTransicionCamaraSalidaB20();
+          return;
+        }
+        const tNormal=Math.max(0,Math.min(1,(t-inicioMs)/CAMARA_SALIDA_B20.TRANSICION_MS));
+        const ease=tNormal*tNormal*(3-2*tNormal);
+        const z=inicioZoom+(finalZoom-inicioZoom)*ease;
+        const pin=marcador.getLatLng();
+        const altoMapa=Number(mapa.getSize().y)||0;
+        const anchoMapa=Number(mapa.getSize().x)||0;
+        const altoPanel=piocaTrayectoPanel
+          ? piocaTrayectoPanel.getBoundingClientRect().height : 0;
+        const offsetY=Math.max(0,Math.min(altoPanel*0.50,altoMapa*0.32));
+        const rumbo=Number(typeof gm.getHeading==='function'?gm.getHeading():0)||0;
+        const centro=calcularCentroPuntoEnPantallaConRumbo(
+          Number(pin.lat),Number(pin.lng),z,anchoMapa*0.5,
+          altoMapa*0.5-offsetY,rumbo
+        );
+        if(centro){
+          if(typeof gm.moveCamera==='function'){
+            gm.moveCamera({center:{lat:Number(centro.lat),lng:Number(centro.lng)},zoom:z});
+          }else{
+            mapa.setView([Number(centro.lat),Number(centro.lng)],z);
+          }
+        }
+        ultimoZoomOrdenado=z;
+        if(tNormal<1){
+          camaraSalidaRafB20=requestAnimationFrame(fotograma);
+        }else{
+          camaraSalidaRafB20=null;
+          try{gm.setOptions({isFractionalZoomEnabled:false});}catch(_){}
+        }
+      }catch(_){cancelarTransicionCamaraSalidaB20();}
+    }
+    camaraSalidaRafB20=requestAnimationFrame(fotograma);
+  }
+
+  function actualizarModoCamaraSalidaB20(distancia, llegoAntes, llegoAhora){
+    if(!Number.isFinite(distancia)){return;}
+    if(modoCamaraSalidaB20){
+      if(distancia<=CAMARA_SALIDA_B20.DISTANCIA_REGRESO_M){
+        votosRegresoCamaraB20++;
+        if(votosRegresoCamaraB20>=CAMARA_SALIDA_B20.LECTURAS_REGRESO){
+          modoCamaraSalidaB20=false;
+          votosRegresoCamaraB20=0;
+          votosSalidaCamaraB20=0;
+          cancelarTransicionCamaraSalidaB20();
+          tramoZoomEtaActual=null;
+          encuadreProximidadEnclavado=true;
+          lecturasSalidaEncuadreProximidad=0;
+          ultimaLecturaSalidaEncuadreEvaluada=null;
+        }
+      }else{
+        votosRegresoCamaraB20=0;
+      }
+    }else if(llegoAntes || llegoAhora){
+      if(distancia>=CAMARA_SALIDA_B20.DISTANCIA_ACTIVACION_M &&
+         Number.isFinite(distanciaAnteriorCamaraB20) &&
+         distancia-distanciaAnteriorCamaraB20>=CAMARA_SALIDA_B20.AVANCE_MINIMO_LECTURA_M){
+        votosSalidaCamaraB20++;
+      }else{
+        votosSalidaCamaraB20=0;
+      }
+      if(votosSalidaCamaraB20>=CAMARA_SALIDA_B20.LECTURAS_ACTIVACION){
+        modoCamaraSalidaB20=true;
+        votosSalidaCamaraB20=0;
+        /* Desarmar inmediatamente el encuadre dual anterior. */
+        encuadreProximidadEnclavado=false;
+        lecturasSalidaEncuadreProximidad=0;
+        ultimaLecturaSalidaEncuadreEvaluada=null;
+        desactivarEncuadreProximidad();
+        tramoZoomEtaActual='salida-b20';
+        iniciarTransicionCamaraSalidaB20();
+      }
+    }
+    distanciaAnteriorCamaraB20=distancia;
+  }
+
+  function reiniciarCamaraSalidaB20(){
+    modoCamaraSalidaB20=false;
+    votosSalidaCamaraB20=0;
+    votosRegresoCamaraB20=0;
+    distanciaAnteriorCamaraB20=null;
+    cancelarTransicionCamaraSalidaB20();
+  }
+
   /*
     R44/R68 - ENCUADRE INICIAL CAMIONETA + DESTINO
     Se ejecuta una sola vez cuando ambos pines ya existen.
@@ -7861,6 +8006,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 
   function reiniciarEnclavamientoEncuadreProximidad(){
+    reiniciarCamaraSalidaB20();
     encuadreProximidadEnclavado = false;
     lecturasSalidaEncuadreProximidad = 0;
     ultimaLecturaSalidaEncuadreEvaluada = null;
@@ -7872,6 +8018,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   function debeMantenerEncuadreProximidad(
     faltanMin
   ){
+
+    if(modoCamaraSalidaB20){return false;}
 
     const c =
       ALGORITMO_ENCUADRE_PROXIMIDAD;
@@ -8015,6 +8163,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     forzar,
     sinAnimacionReanudacion
   ){
+
+    if(modoCamaraSalidaB20){return false;}
 
     if(
       encuadreInicialMapaActivo ||
@@ -8361,6 +8511,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     faltanMin
   ){
 
+    /* La ETA vencida no recupera el zoom del domicilio durante una salida. */
+    if(modoCamaraSalidaB20){return;}
+
     /*
       Mientras se muestra el encuadre inicial camioneta + destino,
       ninguna otra cámara interviene.
@@ -8643,6 +8796,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     ultimaDistanciaProximidad =
       distanciaAlDomicilio;
+    const llegadaAntesParaCamaraB20=llegadaFisicaConfirmada;
 
     /*
       Para el cierre local usamos la antigüedad REAL del paquete GPS cuando
@@ -8686,6 +8840,12 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     zonaCercaConfirmada =
       siguiente.zonaCerca;
+
+    actualizarModoCamaraSalidaB20(
+      distanciaAlDomicilio,
+      llegadaAntesParaCamaraB20,
+      llegadaFisicaConfirmada
+    );
 
     /*
       Persistimos TODA lectura física aceptada. Así una salida >300 m que
@@ -12400,7 +12560,7 @@ ocultarHoraLlegada();
 
      PRINCIPIO:
      - R65 permanece como autoridad física completa.
-     - R67 sólo corrige la POSICIÓN VISUAL del pin por debajo de 40 km/h.
+     - R67 corrige la POSICIÓN VISUAL a CUALQUIER velocidad si hay vía confiable.
      - La geometría llega desde /__r67/sector en pequeños sectores.
      - Cloudflare cachea cada sector; el navegador también puede reutilizarlo.
      - Si un sector no está disponible, fallback inmediato a R65.
@@ -12417,7 +12577,7 @@ ocultarHoraLlegada();
     PASO_LAT_GRADOS:0.025,
     PASO_LON_GRADOS:0.030,
 
-    VELOCIDAD_MAX_KMH:39.9,
+    /* Sin límite por velocidad: prevalece la geometría vial confiable. */
     VELOCIDAD_MIN_CAMBIO_SEGMENTO_KMH:2.5,
     DISTANCIA_MAX_BASE_M:22,
     DISTANCIA_MAX_CONTINUIDAD_M:30,
@@ -12884,12 +13044,27 @@ ocultarHoraLlegada();
     const candidatosLocales = r67CandidatosIndice(lat,lon);
 
     for(const seg of candidatosLocales){
-      if(Math.abs(lat-seg.latMid) > 0.00042){ continue; }
-      if(Math.abs(lon-seg.lonMid) > 0.00055){ continue; }
+      /* B20 CARTOGRAFIA TOTAL: no eliminar una vía larga por su punto medio.
+         El índice espacial ya seleccionó candidatos; se verifica el tramo completo. */
+      const margenLat=0.00030, margenLon=0.00035;
+      if(lat < Math.min(seg.lat1,seg.lat2)-margenLat ||
+         lat > Math.max(seg.lat1,seg.lat2)+margenLat ||
+         lon < Math.min(seg.lon1,seg.lon2)-margenLon ||
+         lon > Math.max(seg.lon1,seg.lon2)+margenLon){ continue; }
 
       const proy = r67ProyectarSobreSegmento(lat,lon,seg);
       if(!proy || !Number.isFinite(proy.distancia) || proy.distancia > distanciaMax){
         continue;
+      }
+
+      /* A velocidad alta, una calle paralela/desconectada no puede
+         desplazar el pin si contradice fuertemente el rumbo confirmado. */
+      if(Number.isFinite(rumboMov) && Number.isFinite(velocidadKmh) &&
+         velocidadKmh >= 40){
+        const difAlta=r67DiferenciaRumboEje(rumboMov,seg.rumbo);
+        const conectada=r67SegmentoActual &&
+          r67SegmentosConectados(seg,r67SegmentoActual);
+        if(difAlta > (conectada ? 72 : 48)){ continue; }
       }
 
       let score = proy.distancia;
@@ -13012,8 +13187,6 @@ ocultarHoraLlegada();
       R67_MAP_MATCH.ACTIVO !== true ||
       !Number.isFinite(latGps) ||
       !Number.isFinite(lonGps) ||
-      !Number.isFinite(velocidadKmh) ||
-      velocidadKmh >= R67_MAP_MATCH.VELOCIDAD_MAX_KMH ||
       r67SegmentosViales.length === 0
     ){
       return {
@@ -13038,7 +13211,11 @@ ocultarHoraLlegada();
       velocidadKmh
     );
 
-    if(!confirmado){
+    if(!confirmado ||
+       /* La cartografía tiene prioridad, pero jamás un salto lateral
+          excesivo hacia una vía paralela o una rampa errónea. */
+       (Number.isFinite(latBase) && Number.isFinite(lonBase) &&
+        distanciaMetros(latBase,lonBase,confirmado.lat,confirmado.lon) > 30)){
       return {
         lat:latBase,
         lon:lonBase,
@@ -13050,7 +13227,7 @@ ocultarHoraLlegada();
     return {
       lat:confirmado.lat,
       lon:confirmado.lon,
-      filtrado:filtradoBase === true,
+      filtrado:false,
       ajustadoR67:true,
       distanciaAjusteM:confirmado.distancia,
       wayId:confirmado.segmento && confirmado.segmento.wayId
@@ -18265,6 +18442,8 @@ ocultarHoraLlegada();
     zoomDestino
   ){
 
+    if(modoCamaraSalidaB20){cancelarTransicionCamaraSalidaB20();}
+
     if(
       !mapa ||
       !marcador ||
@@ -18437,6 +18616,9 @@ ocultarHoraLlegada();
     opciones =
       opciones ||
       {};
+
+    /* Una transición rAF gobierna sola la cámara durante el alejamiento. */
+    if(modoCamaraSalidaB20 && camaraSalidaRafB20!==null){return;}
 
     /*
       R53:
@@ -19048,7 +19230,7 @@ if(
       El punto bruto sigue alimentando velocidad y memoria real.
       Sólo el destino VISUAL puede ser estabilizado a alta velocidad.
 
-      R67 añade después un map matching VISUAL (<40 km/h) contra una
+      R67 añade después un map matching VISUAL a todo régimen contra una
       geometría vial independiente. La física R65 continúa usando lat/lon.
     */
     r67AsegurarGeometriaCerca(lat,lon);
