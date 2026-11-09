@@ -1904,16 +1904,10 @@
       const direccion =
         String(destino.address || "Destino compartido").trim();
 
-      const confirmar =
-        window.confirm(
-          "¿Usar esta dirección para crear un seguimiento?\n\n" +
-          direccion
-        );
-
-      if(!confirmar){
-        ocultarEstado(adminEstado);
-        return;
-      }
+      // B20: compartir una ubicación desde Google Maps ya expresa la
+      // decisión de iniciar el seguimiento. Sin confirmación bloqueante.
+      // Las validaciones del destino, ruta y servidor se mantienen intactas.
+      b20Medir('b20.share_auto_confirm',1,false);
 
       mostrarEstado(
         adminEstado,
