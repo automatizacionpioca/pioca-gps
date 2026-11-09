@@ -927,9 +927,9 @@
     <div class="b20CrearEyebrow">piOca® · GEOSEGUIMIENTO</div>
     <div class="b20CrearTitulo">CREANDO SEGUIMIENTO</div>
     <div id="b20CrearFase" class="b20CrearFase">Preparando destino...</div>
-    <div class="b20CrearMeta"><span>Progreso de preparación</span><strong id="b20CrearPorcentaje">0%</strong></div>
-    <div id="b20CrearPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de creación">
-      <div id="b20CrearRelleno" class="b20CrearRelleno" style="width:0%"></div>
+    <div class="b20CrearMeta"><span>Progreso de preparación</span><strong id="b20CrearPorcentaje">4%</strong></div>
+    <div id="b20CrearPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4" aria-label="Progreso de creación">
+      <div id="b20CrearRelleno" class="b20CrearRelleno" style="width:4%"></div>
     </div>
     <div class="b20CrearNota">Preparando ID, ETA y acceso para compartir por WhatsApp</div>
   </div>
@@ -1242,11 +1242,71 @@
   const SUPABASE_KEY =
     "sb_publishable_htgEX8HiRGAjpCVhPw1gfg_tOPxkJoI";
 
+  // B20: keep the existing SDK session API; coordinate rotation in Android.
+  const b20AuthBridge=window.PiocaNative;
+  const b20CoordinatedAuth=!!(b20AuthBridge &&
+    typeof b20AuthBridge.b20SeedAuthSession==='function' &&
+    typeof b20AuthBridge.b20RefreshAuthSession==='function');
+  const b20AuthPending=new Map();
+  let b20AuthRequest=0;
+  if(b20CoordinatedAuth){
+    try{
+      const raw=localStorage.getItem('sb-apxrmkdegjnblkbyjsbp-auth-token');
+      if(raw){
+        const latest=b20AuthBridge.b20SeedAuthSession(raw);
+        if(latest)localStorage.setItem('sb-apxrmkdegjnblkbyjsbp-auth-token',latest);
+      }
+    }catch(_){}
+    window.__piocaB20AuthResult=function(id,status,body){
+      const pending=b20AuthPending.get(String(id));
+      if(!pending)return;
+      b20AuthPending.delete(String(id));clearTimeout(pending.timer);
+      pending.resolve(new Response(String(body),{status:Number(status),headers:{'Content-Type':'application/json'}}));
+    };
+  }
+  async function b20AuthFetch(input,init){
+    let url;
+    try{url=new URL(typeof input==='string'?input:input.url,window.location.href);}catch(_){}
+    if(b20CoordinatedAuth && url && url.origin===SUPABASE_URL &&
+      url.pathname==='/auth/v1/token' && url.searchParams.get('grant_type')==='refresh_token'){
+      const raw=init&&init.body!==undefined?init.body:await input.clone().text();
+      const data=JSON.parse(raw);
+      return new Promise(function(resolve){
+        const id=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+String(++b20AuthRequest);
+        const timer=setTimeout(function(){
+          b20AuthPending.delete(id);
+          resolve(new Response('{"msg":"Session renewal temporarily unavailable"}',{status:503,headers:{'Content-Type':'application/json'}}));
+        },25000);
+        b20AuthPending.set(id,{resolve:resolve,timer:timer});
+        try{b20AuthBridge.b20RefreshAuthSession(id,String(data.refresh_token||''));}
+        catch(_){window.__piocaB20AuthResult(id,503,'{"msg":"Session renewal temporarily unavailable"}');}
+      });
+    }
+    const response=await window.fetch(input,init);
+    // Only a successful password exchange may replace an equal-age session.
+    if(b20CoordinatedAuth && response.ok && url && url.origin===SUPABASE_URL &&
+      url.pathname==='/auth/v1/token' && url.searchParams.get('grant_type')==='password' &&
+      typeof b20AuthBridge.b20AcceptAuthSession==='function'){
+      try{b20AuthBridge.b20AcceptAuthSession(await response.clone().text());}catch(_){}
+    }
+    return response;
+  }
+
   const supabaseClient =
     supabase.createClient(
       SUPABASE_URL,
-      SUPABASE_KEY
+      SUPABASE_KEY,
+      {global:{fetch:b20AuthFetch}}
     );
+
+  supabaseClient.auth.onAuthStateChange(function(event,session){
+    if(!b20CoordinatedAuth)return;
+    try{
+      if(event==='SIGNED_OUT' && typeof b20AuthBridge.b20ClearAuthSession==='function')b20AuthBridge.b20ClearAuthSession();
+      else if(session)b20AuthBridge.b20SeedAuthSession(JSON.stringify(session));
+    }catch(_){}
+  });
+
 
   const loginBox =
     document.getElementById("loginBox");
@@ -1906,7 +1966,7 @@
   let b20BarraTimer=null;
   let b20BarraUltimoT=0;
   function b20BarraPintar(){
-    const valor=Math.max(0,Math.min(100,Math.floor(b20BarraValor)));
+    const valor=Math.max(0,Math.min(99,Math.floor(b20BarraValor)));
     const txt=document.getElementById('b20CrearPorcentaje');
     const fill=document.getElementById('b20CrearRelleno');
     const barra=document.getElementById('b20CrearPista');
@@ -1926,7 +1986,7 @@
     b20BarraCerrar();
     b20BarraActiva=true;
     b20BarraNavegando=false;
-    b20BarraValor=0;
+    b20BarraValor=4;
     b20BarraMeta=17;
     b20BarraTecho=31;
     b20BarraUltimoT=performance.now();
@@ -1950,18 +2010,6 @@
       }
       b20BarraPintar();
     },100);
-  }
-  async function b20BarraCompletar(texto){
-    if(!b20BarraActiva)return;
-    const fase=document.getElementById('b20CrearFase');
-    if(fase)fase.textContent=texto;
-    b20BarraMeta=100;
-    b20BarraTecho=100;
-    b20BarraValor=100;
-    b20BarraPintar();
-    // Una sola barra: mostrar su 100% en ADMIN, luego abrir INDEX sin otra barra.
-    // Pausa breve para permitir que WebView dibuje el último fotograma.
-    await new Promise(function(resolve){setTimeout(resolve,120);});
   }
   function b20BarraCerrar(){
     b20BarraActiva=false;
@@ -2139,7 +2187,6 @@
         s.success === false &&
         s.message === "ACTIVE_EXISTS"
       ){
-        await b20BarraCompletar('Seguimiento activo · abriendo panel...');
         abrirPanelActivo(s);
         return;
       }
@@ -2150,7 +2197,6 @@
         );
       }
 
-      await b20BarraCompletar('Seguimiento creado · abriendo panel...');
       abrirPanelActivo(s);
 
     }catch(error){
@@ -2295,7 +2341,7 @@
       if(intento === 0){
 
         try{
-          await supabaseClient.auth.refreshSession();
+          if(Number(error.status)===401 || ['PGRST301','PGRST303'].includes(error.code))await supabaseClient.auth.refreshSession();
         }catch(e){}
 
         await esperar(
@@ -2775,7 +2821,7 @@
         if(cierre.error){
 
           try{
-            await supabaseClient.auth.refreshSession();
+            if(Number(cierre.error.status)===401 || ['PGRST301','PGRST303'].includes(cierre.error.code))await supabaseClient.auth.refreshSession();
           }catch(e){}
 
           await esperar(450);
@@ -2902,10 +2948,27 @@
   cargarUltimoTest();
 
   comprobarSesion().catch(function(){
-    document.body.classList.add('modoLogin');
-    loginBox.style.display='block';
-    panelAdmin.style.display='none';
-    ocultarSplash('No se pudo recuperar la sesión · revisá la conexión');
+    // La carga puede fallar DESPUÉS de recuperar la sesión, al consultar
+    // el seguimiento o abrir el panel. Ese error no significa logout.
+    // Se conserva getSession y el acceso anterior, sin tocar credenciales.
+    const aviso=document.createElement('div');
+    aviso.id='b20ErrorCargaPanel';
+    aviso.style.cssText='padding:24px 8px;text-align:center;line-height:1.5';
+    const texto=document.createElement('p');
+    texto.textContent='No se pudo completar la carga del panel. Revisá la conexión y reintentá.';
+    const reintentar=document.createElement('button');
+    reintentar.type='button';
+    reintentar.className='btnAzul';
+    reintentar.textContent='REINTENTAR CARGA';
+    reintentar.addEventListener('click',function(){window.location.reload();});
+    aviso.append(texto,reintentar);
+    document.querySelector('.panel').appendChild(aviso);
+    // Un cierre iniciado para navegar puede haber ocultado el contenido.
+    // Retirar sólo el splash, sin cambiar la vista de autenticación.
+    ocultarSplash('Carga pendiente · reintentá con conexión');
+    document.body.classList.add('piocaListo');
+    if(splashPioca)splashPioca.classList.add('splashOculto');
+    try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.panel_load_error',1,1)}catch(_){}
   });
 
 })();
