@@ -694,24 +694,17 @@
       pointer-events:none;
     }
 
-    .splashContenido{
-      width:100%;
-      padding:24px;
-      text-align:center;
+    /* B20: única carga WEB 0-100%, mismo diseño del creador, sin logo gráfico. */
+    #splashPioca{
+      z-index:2147483001;
+      padding:16px;
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
     }
-
-    #splashLogo{
-      width:78vw;
-      max-width:390px;
-      height:auto;
-      display:block;
-      margin:0 auto 18px;
-    }
-
-    #splashTexto{
-      font-size:15px;
-      font-weight:800;
-      color:#596673;
+    #splashPioca .b20CrearTarjeta{width:min(100%,420px)}
+    #b20PanelCargaPorcentaje{font-variant-numeric:tabular-nums}
+    @media(prefers-reduced-motion:reduce){
+      #splashPioca{transition:none}
+      #splashPioca .b20CrearRelleno{transition:none}
     }
 
     @media(max-width:460px){
@@ -944,22 +937,20 @@
 
 
 
-<div id="splashPioca">
-
-  <div class="splashContenido">
-
-    <img
-      id="splashLogo"
-      src="logo-pioca.png"
-      alt="piOca"
-    >
-
-    <div id="splashTexto">
-      Cargando…
+<div id="splashPioca" role="status" aria-live="polite" aria-label="Cargando panel">
+  <div class="b20CrearTarjeta">
+    <div class="b20CrearEyebrow">piOca® · GEOSEGUIMIENTO</div>
+    <div class="b20CrearTitulo">CARGANDO PANEL</div>
+    <div id="b20PanelCargaFase" class="b20CrearFase">Iniciando aplicación...</div>
+    <div class="b20CrearMeta">
+      <span>Progreso de carga</span>
+      <strong id="b20PanelCargaPorcentaje">0%</strong>
     </div>
-
+    <div id="b20PanelCargaPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de carga del panel">
+      <div id="b20PanelCargaRelleno" class="b20CrearRelleno" style="width:0%"></div>
+    </div>
+    <div class="b20CrearNota">Recuperando sesión y verificando seguimientos</div>
   </div>
-
 </div>
 
 
@@ -1166,68 +1157,83 @@
 <script>
 (function(){
 
-  const splashPioca =
-    document.getElementById(
-      "splashPioca"
-    );
+  /*
+    B20 · CARGA WEB UNIFICADA
+    Una sola barra del 0 al 100. El panel no aparece hasta estar resuelto.
+    La pantalla de carga Android nativa sigue siendo independiente (requiere APK).
+  */
+  const splashPioca = document.getElementById("splashPioca");
+  const splashFaseB20 = document.getElementById("b20PanelCargaFase");
+  const splashNumeroB20 = document.getElementById("b20PanelCargaPorcentaje");
+  const splashPistaB20 = document.getElementById("b20PanelCargaPista");
+  const splashRellenoB20 = document.getElementById("b20PanelCargaRelleno");
+  let splashValorB20 = 0;
+  let splashMetaB20 = 18;
+  let splashUltimoMsB20 = performance.now();
+  let splashCerrando = false;
+  let splashCerradoB20 = false;
+  let splashCompletarPromesaB20 = null;
+  let splashResolverB20 = null;
+  let splashMostrarPanelB20 = true;
+  let splashFinEnMsB20 = 0;
 
-  const splashInicio =
-    Date.now();
-
-  const SPLASH_MINIMO_MS =
-    1000;
-
-  let splashCerrando =
-    false;
-
-  function ocultarSplash(){
-
-    if(
-      splashCerrando ||
-      !splashPioca
-    ){
-      return;
+  function splashPintarB20(){
+    const valor = Math.max(0,Math.min(100,Math.floor(splashValorB20)));
+    if(splashNumeroB20) splashNumeroB20.textContent = String(valor)+'%';
+    if(splashPistaB20) splashPistaB20.setAttribute('aria-valuenow',String(valor));
+    if(splashRellenoB20) splashRellenoB20.style.width = String(valor)+'%';
+  }
+  function splashFaseCargaB20(texto, meta){
+    if(splashCerrando || splashCerradoB20)return;
+    if(splashFaseB20)splashFaseB20.textContent=texto;
+    if(Number.isFinite(meta))splashMetaB20=Math.max(splashMetaB20,Math.min(93,meta));
+  }
+  // Un solo contador y una sola barra; sin reset de porcentaje ni splash extra.
+  const splashIntervaloB20 = setInterval(function(){
+    if(splashCerradoB20){clearInterval(splashIntervaloB20);return;}
+    const ahora=performance.now();
+    const delta=Math.min(250,Math.max(0,ahora-splashUltimoMsB20));
+    splashUltimoMsB20=ahora;
+    const restante=Math.max(0,splashMetaB20-splashValorB20);
+    const paso=splashCerrando
+      ? Math.min(restante,Math.max(1.7,restante*0.23)*(delta/65))
+      : Math.min(restante,Math.max(0.14,restante*0.085)*(delta/65));
+    splashValorB20=Math.min(splashMetaB20,splashValorB20+paso);
+    if(splashCerrando && splashMetaB20===100 && splashValorB20>=99.4){
+      splashValorB20=100;
     }
+    splashPintarB20();
+    if(splashCerrando && splashValorB20===100 && !splashFinEnMsB20){
+      splashFinEnMsB20=ahora;
+    }
+    if(splashFinEnMsB20 && ahora-splashFinEnMsB20>=180){
+      splashCerradoB20=true;
+      clearInterval(splashIntervaloB20);
+      if(splashMostrarPanelB20){
+        // Sólo mostramos el formulario o el login ya listos, nunca un logo aislado.
+        document.body.classList.add('piocaListo');
+        requestAnimationFrame(function(){
+          if(splashPioca)splashPioca.classList.add('splashOculto');
+        });
+      }
+      if(splashResolverB20)splashResolverB20();
+    }
+  },65);
+  splashPintarB20();
 
-    splashCerrando =
-      true;
-
-    const transcurrido =
-      Date.now() -
-      splashInicio;
-
-    const espera =
-      Math.max(
-        0,
-        SPLASH_MINIMO_MS -
-        transcurrido
-      );
-
-    setTimeout(
-      function(){
-
-        /*
-          Primero habilitamos el panel ya resuelto y
-          recién después retiramos el splash.
-          Así nunca queda visible un estado intermedio.
-        */
-        document.body.classList.add(
-          "piocaListo"
-        );
-
-        requestAnimationFrame(
-          function(){
-
-            splashPioca.classList.add(
-              "splashOculto"
-            );
-
-          }
-        );
-
-      },
-      espera
-    );
+  function completarSplashB20(texto,mostrarPanel){
+    if(splashCompletarPromesaB20)return splashCompletarPromesaB20;
+    splashMostrarPanelB20=(mostrarPanel!==false);
+    splashCerrando=true;
+    splashMetaB20=100;
+    if(splashFaseB20)splashFaseB20.textContent=texto||'Panel preparado';
+    splashCompletarPromesaB20=new Promise(function(resolve){
+      splashResolverB20=resolve;
+    });
+    return splashCompletarPromesaB20;
+  }
+  function ocultarSplash(texto){
+    return completarSplashB20(texto||'Panel listo',true);
   }
 
   const SUPABASE_URL =
@@ -2457,10 +2463,8 @@
     verificandoBox.textContent =
       "Verificando si existe un seguimiento activo...";
 
-    // B20: no bloquear el acceso visual a la verificación mientras responde Supabase.
-    ocultarSplash();
-    try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.admin_early_display',1,0)}catch(_){}
-
+    // Mantener la ÚNICA barra a la vista hasta conocer el resultado del servidor.
+    splashFaseCargaB20('Verificando seguimiento activo...',82);
     try{
       const {data,error} =
         await consultarSeguimientoActivoConRecuperacion();
@@ -2470,13 +2474,14 @@
       }
 
       if(Array.isArray(data) && data.length > 0){
+        // 100% visible antes del cambio a controlador, sin mostrar formulario intermedio.
+        await completarSplashB20('Seguimiento activo · abriendo panel...',false);
         abrirPanelActivo(data[0]);
         return;
       }
 
       mostrarFormularioSinSeguimiento();
-
-      ocultarSplash();
+      ocultarSplash('Panel listo · sin seguimiento activo');
 
     }catch(error){
 
@@ -2516,7 +2521,7 @@
         "error"
       );
 
-      ocultarSplash();
+      ocultarSplash('Verificación incompleta · revisá la conexión');
     }
   }
 
@@ -2531,6 +2536,7 @@
   }
 
   async function comprobarSesion(){
+    splashFaseCargaB20('Recuperando sesión segura...',45);
     const {data} =
       await supabaseClient.auth.getSession();
 
@@ -2548,7 +2554,7 @@
       "modoLogin"
     );
 
-    ocultarSplash();
+    ocultarSplash('Acceso preparado · ingresá para continuar');
   }
 
   btnContacto.addEventListener(
@@ -2895,7 +2901,12 @@
 
   cargarUltimoTest();
 
-  comprobarSesion();
+  comprobarSesion().catch(function(){
+    document.body.classList.add('modoLogin');
+    loginBox.style.display='block';
+    panelAdmin.style.display='none';
+    ocultarSplash('No se pudo recuperar la sesión · revisá la conexión');
+  });
 
 })();
 </script>
