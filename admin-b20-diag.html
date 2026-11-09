@@ -908,9 +908,40 @@
 })();
 
 </script>
+
+<style id="b20-premium-crear">
+.b20CrearOverlay{position:fixed;z-index:2147483000;inset:0;background:rgba(12,32,60,.54);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.b20CrearTarjeta{width:min(100%,420px);border:1px solid rgba(221,234,247,.92);border-radius:25px;background:linear-gradient(165deg,#fff 40%,#eff6fd);padding:27px 23px 24px;box-shadow:0 22px 65px rgba(4,25,59,.28);text-align:center}
+.b20CrearCamioneta{display:block;width:96px;height:88px;object-fit:contain;margin:0 auto 5px}
+.b20CrearEyebrow{color:#6c8197;font-size:10px;font-weight:800;letter-spacing:1.55px;margin-bottom:6px}
+.b20CrearTitulo{color:#103865;font-size:19px;letter-spacing:.35px;font-weight:850}
+.b20CrearFase{margin-top:10px;min-height:20px;color:#506984;font-size:13px;font-weight:650}
+.b20CrearMeta{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:24px;color:#60758d;font-size:11px;font-weight:650}
+.b20CrearMeta strong{color:#1764b0;font-size:19px;font-variant-numeric:tabular-nums}
+.b20CrearPista{height:11px;border-radius:999px;background:#dce8f4;overflow:hidden;margin-top:8px;box-shadow:inset 0 1px 3px rgba(6,42,82,.1)}
+.b20CrearRelleno{height:100%;border-radius:999px;background:linear-gradient(90deg,#17449e,#258ddd 80%,#55c1eb);box-shadow:0 2px 9px rgba(34,122,211,.28);transition:width .11s linear}
+.b20CrearNota{margin-top:16px;font-size:11px;line-height:1.45;color:#7b8ea0}
+@media(max-width:420px){.b20CrearTarjeta{padding:25px 19px}.b20CrearTitulo{font-size:17px}}
+</style>
+
 </head>
 
 <body class="modoLogin">
+
+<div id="b20CrearOverlay" class="b20CrearOverlay" role="status" aria-live="polite" aria-label="Creando seguimiento" style="display:none">
+  <div class="b20CrearTarjeta">
+    <img src="icono-pioca.png" alt="Camioneta piOca" class="b20CrearCamioneta">
+    <div class="b20CrearEyebrow">piOca® · GEOSEGUIMIENTO</div>
+    <div class="b20CrearTitulo">CREANDO SEGUIMIENTO</div>
+    <div id="b20CrearFase" class="b20CrearFase">Preparando destino...</div>
+    <div class="b20CrearMeta"><span>Progreso de preparación</span><strong id="b20CrearPorcentaje">4%</strong></div>
+    <div id="b20CrearPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4" aria-label="Progreso de creación">
+      <div id="b20CrearRelleno" class="b20CrearRelleno" style="width:4%"></div>
+    </div>
+    <div class="b20CrearNota">Preparando ID, ETA y acceso para compartir por WhatsApp</div>
+  </div>
+</div>
+
 
 
 <div id="splashPioca">
@@ -1711,6 +1742,10 @@
       "pioca_tracking_code",
       codigo
     );
+    try{
+      const domicilio=String(s.destination_address||'').trim();
+      localStorage.setItem('pioca_b20_destino',JSON.stringify({codigo:codigo,direccion:domicilio}));
+    }catch(_){}
 
     localStorage.setItem(
       "pioca_tracking_active",
@@ -1746,6 +1781,16 @@
 
   function abrirPanelActivo(s){
     guardarSeguimientoLocal(s);
+    if(b20BarraActiva){
+      b20BarraNavegando=true;
+      try{
+        sessionStorage.setItem('pioca_b20_creacion_handoff',JSON.stringify({
+          codigo:String(s.tracking_code||'').trim().toUpperCase(),
+          t0:Date.now()-Math.max(0,Math.floor(performance.now()-b20InicioCompartidoGlobal)),
+          creado:Date.now()
+        }));
+      }catch(_){}
+    }
 
     try{
       localStorage.removeItem(DRAFT_KEY);
@@ -1842,6 +1887,72 @@
   }
 
 
+
+  /* B20 PREMIUM - avance por HITOS reales de la operación, interpolado.
+     Los porcentajes intermedios son estimados (el servidor no informa %).
+     El 100% sólo se registra en el panel con ID, ETA y WhatsApp listos. */
+  let b20InicioCompartidoGlobal=0;
+  let b20BarraActiva=false;
+  let b20BarraNavegando=false;
+  let b20BarraValor=0;
+  let b20BarraMeta=0;
+  let b20BarraTecho=0;
+  let b20BarraTimer=null;
+  let b20BarraUltimoT=0;
+  function b20BarraPintar(){
+    const valor=Math.max(0,Math.min(99,Math.floor(b20BarraValor)));
+    const txt=document.getElementById('b20CrearPorcentaje');
+    const fill=document.getElementById('b20CrearRelleno');
+    const barra=document.getElementById('b20CrearPista');
+    if(txt)txt.textContent=valor+'%';
+    if(fill)fill.style.width=valor+'%';
+    if(barra)barra.setAttribute('aria-valuenow',String(valor));
+  }
+  function b20BarraFase(texto,meta,techo){
+    if(!b20BarraActiva)return;
+    const fase=document.getElementById('b20CrearFase');
+    if(fase)fase.textContent=texto;
+    b20BarraMeta=Math.max(b20BarraMeta,Math.min(98,meta));
+    b20BarraTecho=Math.max(b20BarraTecho,Math.min(98,techo));
+    b20BarraPintar();
+  }
+  function b20BarraIniciar(){
+    b20BarraCerrar();
+    b20BarraActiva=true;
+    b20BarraNavegando=false;
+    b20BarraValor=4;
+    b20BarraMeta=17;
+    b20BarraTecho=31;
+    b20BarraUltimoT=performance.now();
+    const overlay=document.getElementById('b20CrearOverlay');
+    if(overlay)overlay.style.display='flex';
+    const fase=document.getElementById('b20CrearFase');
+    if(fase)fase.textContent='Resolviendo ubicación de Google Maps...';
+    b20BarraPintar();
+    b20BarraTimer=setInterval(function(){
+      if(!b20BarraActiva)return;
+      const ahora=performance.now();
+      const delta=Math.max(0,Math.min(1000,ahora-b20BarraUltimoT));
+      b20BarraUltimoT=ahora;
+      // Acelera ante la llegada de cada fase; en demoras avanza suavemente.
+      if(b20BarraMeta<b20BarraTecho){
+        b20BarraMeta=Math.min(b20BarraTecho,b20BarraMeta+delta*.0028);
+      }
+      const faltante=b20BarraMeta-b20BarraValor;
+      if(faltante>.05){
+        b20BarraValor=Math.min(b20BarraMeta,b20BarraValor+Math.max(.7,faltante*.28));
+      }
+      b20BarraPintar();
+    },100);
+  }
+  function b20BarraCerrar(){
+    b20BarraActiva=false;
+    b20BarraNavegando=false;
+    if(b20BarraTimer!==null){clearInterval(b20BarraTimer);b20BarraTimer=null;}
+    const overlay=document.getElementById('b20CrearOverlay');
+    if(overlay)overlay.style.display='none';
+  }
+
   function b20Medir(nombre,valor,fallo){
     try{if(window.__piocaDiagMetric)window.__piocaDiagMetric(nombre,valor,fallo?1:0)}catch(_){}
   }
@@ -1861,7 +1972,9 @@
 
     compartidoEnProceso = true;
     const b20InicioCompartido=performance.now();
+    b20InicioCompartidoGlobal=b20InicioCompartido;
     b20Medir('b20.share_begin',1,false);
+    b20BarraIniciar();
 
     ocultarEstado(adminEstado);
     ocultarEstado(emergenciaEstado);
@@ -1889,6 +2002,7 @@
           shared_text:textoCompartido
         });
       b20Medir('b20.share_resolve_ms',performance.now()-b20InicioResolve,false);
+      b20BarraFase('Destino identificado · calculando ETA...',53,67);
 
       const destino =
         resuelto.destination || null;
@@ -1938,6 +2052,7 @@
         });
 
       b20Medir('b20.share_route_ms',performance.now()-b20InicioRuta,false);
+      b20BarraFase('Ruta lista · activando geoseguimiento...',78,88);
       if(
         !ruta.route ||
         !ruta.route.arrival_at
@@ -1951,6 +2066,7 @@
         "info"
       );
 
+      b20BarraFase('Generando ID y enlace de seguimiento...',87,94);
       const b20InicioCrear=performance.now();
       const {data,error} =
         await supabaseClient.rpc(
@@ -1999,6 +2115,7 @@
       const s = data[0];
       b20Medir('b20.share_create_ms',performance.now()-b20InicioCrear,false);
       b20Medir('b20.share_total_ms',performance.now()-b20InicioCompartido,false);
+      b20BarraFase('Abriendo panel, ETA y WhatsApp...',94,97);
 
       if(
         s.success === false &&
@@ -2017,6 +2134,7 @@
       abrirPanelActivo(s);
 
     }catch(error){
+      b20BarraCerrar();
 
       mostrarEstado(
         adminEstado,
@@ -2025,6 +2143,7 @@
       );
 
     }finally{
+      if(!b20BarraNavegando)b20BarraCerrar();
 
       btnCrear.disabled = false;
       compartidoEnProceso = false;

@@ -626,9 +626,118 @@
 })();
 
 </script>
+
+<style id="b20-premium-panel">
+:root{--p20-azul:#153f88;--p20-acento:#2273c0;--p20-tinta:#172f4b;--p20-muted:#697c91;--p20-borde:#dfe8f1}
+body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:12px 9px 24px}
+.panel{position:relative;max-width:620px;padding:0 18px 22px;border:1px solid #dce5ef;border-radius:23px;box-shadow:0 13px 35px rgba(20,49,84,.09);overflow:hidden;background:#fff}
+.panel::before{height:5px;margin:0 -18px 15px;background:linear-gradient(90deg,#123988,#1d79b8,#2da4d1)}
+.logoSeguimiento{min-height:98px;margin:0 0 6px;align-items:flex-start;padding-top:7px}
+.logoSeguimiento img{width:98px;max-width:29vw;height:auto}
+.subtitulo{position:absolute;top:24px;right:17px;min-width:0;max-width:55%;margin:0;padding:10px 13px;border-radius:999px;border:1px solid #c4e4d4;background:#eef9f1;color:#18653c;font-size:12px;font-weight:800;box-shadow:none;line-height:1.2}
+.subtitulo::before{content:"";width:9px;height:9px;margin:0 8px 1px 0;background:#21b96b;border:2px solid #fff;box-shadow:0 0 0 2px #bee9d0;vertical-align:middle}
+#bloqueGPS{padding-top:0}
+#piocaDestinoCard{margin:0 0 12px;padding:17px 17px 16px;background:linear-gradient(145deg,#f5f9ff,#ecf4fc);border:1px solid #cbdceb;border-radius:17px;box-shadow:0 4px 13px rgba(18,65,105,.04)}
+.piocaDestinoTop{display:flex;align-items:center;gap:9px;color:#50739b;font-size:10px;font-weight:850;letter-spacing:1.15px}
+.piocaDestinoIcon{display:inline-flex;align-items:center;justify-content:center;background:#e0ecfc;color:#135fae;border-radius:50%;width:26px;height:26px;font-size:19px;line-height:1}
+#piocaDestinoDireccion{margin:9px 0 6px;font-size:19px;line-height:1.32;font-weight:850;color:#183859;overflow-wrap:anywhere;white-space:normal}
+.piocaDestinoHint{font-size:11px;color:#6b839a}
+#trackingBox{margin:0 0 12px;padding:11px 14px;background:#f7f9fc;border:1px solid #e0e8f1;border-radius:13px;text-align:left;color:#526982;font-size:11.5px;letter-spacing:.15px;font-weight:750;overflow-wrap:anywhere}
+#gpsEstado{position:relative;min-height:63px;padding:18px 91px 18px 37px;margin-bottom:12px;border:1px solid #d8e4ef;border-radius:16px;background:#f2f6fc;color:#435973;text-align:left;font-size:12.5px;font-weight:850;letter-spacing:.05px}
+#gpsEstado::before{content:"";left:15px;top:50%;width:10px;height:10px;border-radius:50%;transform:translateY(-50%);background:#a1afbe;box-shadow:0 0 0 4px rgba(141,161,180,.13)}
+#gpsEstado::after{content:"";position:absolute;display:block;right:13px;top:7px;width:67px;height:47px;background:url("icono-pioca.png") no-repeat center / contain;filter:drop-shadow(0 2px 3px rgba(25,52,73,.1));pointer-events:none}
+#gpsEstado.b20GpsOn{background:linear-gradient(100deg,#edf9f1,#e2f6e9);border-color:#b9dfca;color:#155a35}
+#gpsEstado.b20GpsOn::before{background:#1fb968;box-shadow:0 0 0 4px rgba(28,171,99,.15),0 0 8px rgba(28,171,99,.3)}
+.datos{background:#f8fafc;border:1px solid #e4ebf1;border-radius:15px;padding:3px 13px;margin-bottom:15px}
+.datos > div{grid-template-columns:1fr auto;gap:14px;padding:11px 2px;font-size:12.5px;min-height:42px;border-bottom:1px solid #e4eaf1}
+.datos > div:nth-child(-n+3){display:none}
+.datos strong{font-weight:680;color:#61758a}
+.datos span{color:#193c5c;font-weight:800;font-variant-numeric:tabular-nums;max-width:65%;overflow-wrap:anywhere;text-align:right}
+#horaClienteBox{margin:0 0 13px;padding:20px 17px 18px;border:1px solid #cbdced;border-radius:19px;background:linear-gradient(160deg,#f8fbff,#ecf5ff);box-shadow:0 7px 22px rgba(31,81,130,.055)}
+.horaClienteTitulo{font-size:11px;letter-spacing:1.15px;color:#5b7da1}
+#horaCliente{font-size:46px;line-height:1.1;margin:9px 0 8px;letter-spacing:-1px;color:#155ba4;font-weight:850;font-variant-numeric:tabular-nums}
+.horaClienteTexto{color:#58728a;font-size:12px;font-weight:650}
+#btnVerSeguimiento{padding:10px 15px;margin-top:15px;min-height:39px;background:#fff;border:1px solid #bdd2e5;color:#154f8c;box-shadow:0 3px 9px rgba(33,77,120,.045);font-size:11px}
+#clienteVistaBox{margin-top:0;margin-bottom:12px;padding:12px;border-radius:13px;font-size:11px;letter-spacing:.2px}
+#clienteVistaBox.never{border-color:#eee0b7;background:#fffbec;color:#907223}
+#btnAbrirMensajes{margin-top:0;min-height:51px;border-radius:14px;border-color:#d6e2ef;background:#f6f9fd;color:#20558e;font-size:12px}
+#btnWhatsapp{margin-top:14px;min-height:59px;border-radius:14px;background:linear-gradient(125deg,#137b42,#20a85d);box-shadow:0 7px 20px rgba(27,139,79,.16);font-size:13px;letter-spacing:.1px}
+#btnFinalizar{margin-top:13px;min-height:55px;border-radius:14px;background:linear-gradient(120deg,#c92c34,#e33d45);box-shadow:0 6px 16px rgba(200,45,54,.11);font-size:12px;letter-spacing:.15px}
+#mensajeClienteBox{border-radius:15px}
+@media(max-width:460px){body{padding:8px 8px 22px}.panel{padding:0 13px 19px;border-radius:19px}.panel::before{margin:0 -13px 12px}.logoSeguimiento{min-height:91px}.logoSeguimiento img{width:84px}.subtitulo{top:24px;right:11px;max-width:57%;padding:9px 11px;font-size:11px}#piocaDestinoCard{padding:15px 14px}#piocaDestinoDireccion{font-size:17px}#gpsEstado{padding-right:75px;font-size:12px}#gpsEstado::after{right:10px;width:61px}#horaCliente{font-size:40px}.datos > div{font-size:12px}}
+/* Continuidad visual de la barra durante la navegación hacia index. */
+#b20PanelCreacion{position:fixed;inset:0;z-index:2147483000;background:rgba(12,32,60,.58);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);display:none;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+#b20PanelCreacion .b20PCaja{background:linear-gradient(150deg,#fff,#eff6ff);border:1px solid #d8e5f3;border-radius:24px;padding:27px 23px 23px;width:min(100%,420px);text-align:center;box-shadow:0 25px 60px rgba(3,23,55,.3)}
+#b20PanelCreacion img{width:93px;height:88px;object-fit:contain;display:block;margin:0 auto 9px}
+#b20PanelCreacion .b20PEtiqueta{color:#6483a1;font-size:10px;font-weight:850;letter-spacing:1.3px}
+#b20PanelCreacion .b20PTitulo{color:#153d83;font-size:18px;font-weight:850;margin:6px 0 12px}
+#b20PanelCreacion .b20PSubtitulo{color:#576e86;font-size:12px;margin-bottom:22px}
+#b20PanelCreacion .b20PFila{display:flex;justify-content:space-between;font-size:11px;color:#6d8298;align-items:center;margin-bottom:7px}
+#b20PanelCreacion .b20PFila strong{color:#1567b4;font-size:20px;font-variant-numeric:tabular-nums}
+#b20PanelCreacion .b20PPista{width:100%;height:11px;border-radius:99px;background:#dfebf6;overflow:hidden}
+#b20PanelCreacion .b20PRelleno{background:linear-gradient(90deg,#15459b,#1980d2,#52b6e4);height:100%;width:94%;border-radius:99px;transition:width .16s}
+</style>
+
 </head>
 
 <body>
+
+<div id="b20PanelCreacion" role="status" aria-live="polite" aria-label="Preparando seguimiento">
+  <div class="b20PCaja">
+    <img src="icono-pioca.png" alt="Camioneta piOca">
+    <div class="b20PEtiqueta">piOca® · GEOSEGUIMIENTO</div>
+    <div class="b20PTitulo">CREANDO SEGUIMIENTO</div>
+    <div class="b20PSubtitulo">Preparando ID, ETA y WhatsApp...</div>
+    <div class="b20PFila"><span>Activando panel operativo</span><strong id="b20PanelPct">94%</strong></div>
+    <div id="b20PanelPista" class="b20PPista" role="progressbar" aria-valuenow="94" aria-valuemin="0" aria-valuemax="100" aria-label="Progreso de creación">
+      <div id="b20PanelRelleno" class="b20PRelleno"></div>
+    </div>
+  </div>
+</div>
+<script>
+/* Traspaso visual: no declarar el 100% hasta que el panel sea operativo. */
+(function(){
+  let d=null;
+  let timer=null;
+  let pct=94;
+  const box=document.getElementById('b20PanelCreacion');
+  try{
+    const raw=sessionStorage.getItem('pioca_b20_creacion_handoff');
+    if(raw)d=JSON.parse(raw);
+    const codigo=new URLSearchParams(location.search).get('tracking')||localStorage.getItem('pioca_tracking_code');
+    if(d && String(d.codigo||'').toUpperCase()===String(codigo||'').toUpperCase() &&
+      Date.now()-Number(d.creado||0)<120000){
+      box.style.display='flex';
+      const txt=document.getElementById('b20PanelPct');
+      const fill=document.getElementById('b20PanelRelleno');
+      const progress=document.getElementById('b20PanelPista');
+      timer=setInterval(function(){
+        pct=Math.min(98,pct+.5);
+        const n=Math.floor(pct);
+        txt.textContent=n+'%';fill.style.width=n+'%';
+        progress.setAttribute('aria-valuenow',String(n));
+      },300);
+    }else{d=null;sessionStorage.removeItem('pioca_b20_creacion_handoff');}
+  }catch(_){d=null;}
+  window.piocaB20PanelListo=function(operativo){
+    if(!d)return;
+    if(timer!==null){clearInterval(timer);timer=null;}
+    if(operativo){
+      const n=Date.now()-Number(d.t0||Date.now());
+      try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.panel_full_ready_ms',Math.max(0,n),false)}catch(_){}
+      document.getElementById('b20PanelPct').textContent='100%';
+      document.getElementById('b20PanelRelleno').style.width='100%';
+      document.getElementById('b20PanelPista').setAttribute('aria-valuenow','100');
+    }else{
+      try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.panel_full_ready_failed',1,true)}catch(_){}
+    }
+    try{sessionStorage.removeItem('pioca_b20_creacion_handoff')}catch(_){}
+    d=null;
+    setTimeout(function(){box.style.display='none';},operativo?220:0);
+  };
+})();
+</script>
+
 
 <div class="panel">
 
@@ -668,6 +777,13 @@
   </div>
 
   <div id="bloqueGPS">
+
+
+    <section id="piocaDestinoCard" aria-label="Destino del geoseguimiento">
+      <div class="piocaDestinoTop"><span class="piocaDestinoIcon" aria-hidden="true">⌖</span><span>DOMICILIO DEL SEGUIMIENTO</span></div>
+      <div id="piocaDestinoDireccion">Consultando domicilio...</div>
+      <div class="piocaDestinoHint">Destino confirmado al iniciar el seguimiento</div>
+    </section>
 
     <div id="trackingBox">
       Seguimiento: -
@@ -783,7 +899,7 @@
     <button
       id="btnFinalizar"
       type="button">
-      ⛔ FINALIZAR SEGUIMIENTO
+      ■ FINALIZAR GEOSEGUIMIENTO
     </button>
 
     <div id="gpsError"></div>
@@ -1658,6 +1774,7 @@
     localStorage.removeItem(
       "pioca_tracking_code"
     );
+    localStorage.removeItem('pioca_b20_destino');
 
     localStorage.removeItem(
       "pioca_tracking_active"
@@ -1930,6 +2047,53 @@
     actualizarBotonesHora();
   }
 
+
+  const b20DestinoTexto=document.getElementById('piocaDestinoDireccion');
+  let b20DestinoEnConsulta=false;
+  let b20DestinoConsultadoCodigo='';
+  function b20AsignarDomicilio(codigo,direccion){
+    if(!b20DestinoTexto || !codigo)return;
+    const valido=String(direccion||'').trim();
+    if(!valido)return;
+    b20DestinoTexto.textContent=valido;
+    try{localStorage.setItem('pioca_b20_destino',JSON.stringify({codigo:codigo,direccion:valido}))}catch(_){}
+  }
+  function b20ActualizarDomicilio(s){
+    if(!trackingCode || !b20DestinoTexto)return;
+    const codigo=String(trackingCode).toUpperCase();
+    if(s && typeof s.destination_address==='string' && s.destination_address.trim()){
+      b20AsignarDomicilio(codigo,s.destination_address);return;
+    }
+    try{
+      const raw=JSON.parse(localStorage.getItem('pioca_b20_destino')||'null');
+      if(raw && raw.codigo===codigo && raw.direccion){
+        b20DestinoTexto.textContent=String(raw.direccion);return;
+      }
+    }catch(_){}
+    if(b20DestinoEnConsulta || b20DestinoConsultadoCodigo===codigo)return;
+    b20DestinoEnConsulta=true;
+    b20DestinoConsultadoCodigo=codigo;
+    b20DestinoTexto.textContent='Consultando domicilio...';
+    void (async function(){
+      try{
+        const {data,error}=await supabaseClient.from('services')
+          .select('destination_address').eq('tracking_code',codigo).limit(1).maybeSingle();
+        if(codigo!==String(trackingCode||'').toUpperCase())return;
+        if(!error && data && data.destination_address){
+          b20AsignarDomicilio(codigo,data.destination_address);
+        }else if(!error){
+          b20DestinoTexto.textContent='Sin domicilio asociado a este seguimiento';
+        }else{
+          b20DestinoTexto.textContent='No se pudo consultar el domicilio';
+          b20DestinoConsultadoCodigo='';
+        }
+      }catch(_){
+        b20DestinoTexto.textContent='No se pudo consultar el domicilio';
+        b20DestinoConsultadoCodigo='';
+      }finally{b20DestinoEnConsulta=false;}
+    })();
+  }
+
   function guardarServidorEnLocal(
     s
   ){
@@ -1956,6 +2120,7 @@
     serviceId =
       s.id ||
       serviceId;
+    b20ActualizarDomicilio(s);
 
     nombreCliente =
       s.client_name ||
@@ -2043,7 +2208,7 @@
       "-";
 
     trackingBox.textContent =
-      "Seguimiento: " +
+      "ID de seguimiento: " +
       trackingCode;
 
     if(
@@ -3730,7 +3895,7 @@
         false;
 
       btnFinalizar.textContent =
-        "⛔ FINALIZAR SEGUIMIENTO";
+        "■ FINALIZAR GEOSEGUIMIENTO";
 
       mostrarError(
         "No se pudo confirmar el cierre con el servidor. El seguimiento NO se considera detenido."
@@ -3952,6 +4117,7 @@
 
   const acceso =
     await validarAcceso();
+  if(!acceso && window.piocaB20PanelListo)window.piocaB20PanelListo(false);
 
   if(
     acceso
@@ -3961,6 +4127,13 @@
 
     panelInicializado = true;
     actualizarBotonesHora();
+    if(window.piocaB20PanelListo){
+      const operativo=!!(trackingCode && Number.isFinite(llegadaClienteMs) &&
+        btnWhatsapp.style.display==='block' &&
+        bloqueGPS.style.display==='block' &&
+        usaGpsNativo);
+      window.piocaB20PanelListo(operativo);
+    }
 
     // El tablero ya esta activo, no esperando mensajes ni visualizacion.
     void Promise.allSettled([
@@ -4003,5 +4176,23 @@
     try { if(window.__piocaDiagMetric) window.__piocaDiagMetric('build.b20_diag',1,0); } catch(_){}
   },{once:true});
   </script>
-  </body>
+  
+<script id="b20PremiumGpsSemaforo">
+(function(){
+  function iniciar(){
+    const gps=document.getElementById('gpsEstado');
+    if(!gps)return;
+    function aplicar(){
+      const ok=/\bGPS\s+(?:NATIVO\s+)?ACTIVO\b/i.test(gps.textContent||'');
+      gps.classList.toggle('b20GpsOn',ok);
+    }
+    new MutationObserver(aplicar).observe(gps,{subtree:true,childList:true,characterData:true});
+    aplicar();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});
+  else iniciar();
+})();
+</script>
+
+</body>
 </html>
