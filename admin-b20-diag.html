@@ -934,9 +934,9 @@
     <div class="b20CrearEyebrow">piOca® · GEOSEGUIMIENTO</div>
     <div class="b20CrearTitulo">CREANDO SEGUIMIENTO</div>
     <div id="b20CrearFase" class="b20CrearFase">Preparando destino...</div>
-    <div class="b20CrearMeta"><span>Progreso de preparación</span><strong id="b20CrearPorcentaje">4%</strong></div>
-    <div id="b20CrearPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4" aria-label="Progreso de creación">
-      <div id="b20CrearRelleno" class="b20CrearRelleno" style="width:4%"></div>
+    <div class="b20CrearMeta"><span>Progreso de preparación</span><strong id="b20CrearPorcentaje">0%</strong></div>
+    <div id="b20CrearPista" class="b20CrearPista" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de creación">
+      <div id="b20CrearRelleno" class="b20CrearRelleno" style="width:0%"></div>
     </div>
     <div class="b20CrearNota">Preparando ID, ETA y acceso para compartir por WhatsApp</div>
   </div>
@@ -1900,7 +1900,7 @@
   let b20BarraTimer=null;
   let b20BarraUltimoT=0;
   function b20BarraPintar(){
-    const valor=Math.max(0,Math.min(99,Math.floor(b20BarraValor)));
+    const valor=Math.max(0,Math.min(100,Math.floor(b20BarraValor)));
     const txt=document.getElementById('b20CrearPorcentaje');
     const fill=document.getElementById('b20CrearRelleno');
     const barra=document.getElementById('b20CrearPista');
@@ -1920,7 +1920,7 @@
     b20BarraCerrar();
     b20BarraActiva=true;
     b20BarraNavegando=false;
-    b20BarraValor=4;
+    b20BarraValor=0;
     b20BarraMeta=17;
     b20BarraTecho=31;
     b20BarraUltimoT=performance.now();
@@ -1944,6 +1944,18 @@
       }
       b20BarraPintar();
     },100);
+  }
+  async function b20BarraCompletar(texto){
+    if(!b20BarraActiva)return;
+    const fase=document.getElementById('b20CrearFase');
+    if(fase)fase.textContent=texto;
+    b20BarraMeta=100;
+    b20BarraTecho=100;
+    b20BarraValor=100;
+    b20BarraPintar();
+    // Una sola barra: mostrar su 100% en ADMIN, luego abrir INDEX sin otra barra.
+    // Pausa breve para permitir que WebView dibuje el último fotograma.
+    await new Promise(function(resolve){setTimeout(resolve,120);});
   }
   function b20BarraCerrar(){
     b20BarraActiva=false;
@@ -2121,6 +2133,7 @@
         s.success === false &&
         s.message === "ACTIVE_EXISTS"
       ){
+        await b20BarraCompletar('Seguimiento activo · abriendo panel...');
         abrirPanelActivo(s);
         return;
       }
@@ -2131,6 +2144,7 @@
         );
       }
 
+      await b20BarraCompletar('Seguimiento creado · abriendo panel...');
       abrirPanelActivo(s);
 
     }catch(error){
