@@ -735,79 +735,50 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
 }
 @media(prefers-reduced-motion:reduce){#gpsEstado.b20GpsOn::after{animation:none}}
 
-/* Continuidad visual de la barra durante la navegación hacia index. */
-#b20PanelCreacion{position:fixed;inset:0;z-index:2147483000;background:rgba(12,32,60,.58);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);display:none;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-#b20PanelCreacion .b20PCaja{background:linear-gradient(150deg,#fff,#eff6ff);border:1px solid #d8e5f3;border-radius:24px;padding:27px 23px 23px;width:min(100%,420px);text-align:center;box-shadow:0 25px 60px rgba(3,23,55,.3)}
-#b20PanelCreacion img{width:93px;height:88px;object-fit:contain;display:block;margin:0 auto 9px}
-#b20PanelCreacion .b20PEtiqueta{color:#6483a1;font-size:10px;font-weight:850;letter-spacing:1.3px}
-#b20PanelCreacion .b20PTitulo{color:#153d83;font-size:18px;font-weight:850;margin:6px 0 12px}
-#b20PanelCreacion .b20PSubtitulo{color:#576e86;font-size:12px;margin-bottom:22px}
-#b20PanelCreacion .b20PFila{display:flex;justify-content:space-between;font-size:11px;color:#6d8298;align-items:center;margin-bottom:7px}
-#b20PanelCreacion .b20PFila strong{color:#1567b4;font-size:20px;font-variant-numeric:tabular-nums}
-#b20PanelCreacion .b20PPista{width:100%;height:11px;border-radius:99px;background:#dfebf6;overflow:hidden}
-#b20PanelCreacion .b20PRelleno{background:linear-gradient(90deg,#15459b,#1980d2,#52b6e4);height:100%;width:94%;border-radius:99px;transition:width .16s}
+/* B20: única barra de creación en admin; sin barra duplicada en index. */
 </style>
 
 </head>
 
 <body>
 
-<div id="b20PanelCreacion" role="status" aria-live="polite" aria-label="Preparando seguimiento">
-  <div class="b20PCaja">
-    <img src="icono-pioca.png" alt="Camioneta piOca">
-    <div class="b20PEtiqueta">piOca® · GEOSEGUIMIENTO</div>
-    <div class="b20PTitulo">CREANDO SEGUIMIENTO</div>
-    <div class="b20PSubtitulo">Preparando ID, ETA y WhatsApp...</div>
-    <div class="b20PFila"><span>Activando panel operativo</span><strong id="b20PanelPct">94%</strong></div>
-    <div id="b20PanelPista" class="b20PPista" role="progressbar" aria-valuenow="94" aria-valuemin="0" aria-valuemax="100" aria-label="Progreso de creación">
-      <div id="b20PanelRelleno" class="b20PRelleno"></div>
-    </div>
-  </div>
-</div>
 <script>
-/* Traspaso visual: no declarar el 100% hasta que el panel sea operativo. */
+/* B20: el progreso se muestra una sola vez, en admin.
+   Se conserva la caja negra de tiempo total hasta panel operativo. */
 (function(){
-  let d=null;
-  let timer=null;
-  let pct=94;
-  const box=document.getElementById('b20PanelCreacion');
+  let handoff=null;
   try{
     const raw=sessionStorage.getItem('pioca_b20_creacion_handoff');
-    if(raw)d=JSON.parse(raw);
-    const codigo=new URLSearchParams(location.search).get('tracking')||localStorage.getItem('pioca_tracking_code');
-    if(d && String(d.codigo||'').toUpperCase()===String(codigo||'').toUpperCase() &&
-      Date.now()-Number(d.creado||0)<120000){
-      box.style.display='flex';
-      const txt=document.getElementById('b20PanelPct');
-      const fill=document.getElementById('b20PanelRelleno');
-      const progress=document.getElementById('b20PanelPista');
-      timer=setInterval(function(){
-        pct=Math.min(98,pct+.5);
-        const n=Math.floor(pct);
-        txt.textContent=n+'%';fill.style.width=n+'%';
-        progress.setAttribute('aria-valuenow',String(n));
-      },300);
-    }else{d=null;sessionStorage.removeItem('pioca_b20_creacion_handoff');}
-  }catch(_){d=null;}
-  window.piocaB20PanelListo=function(operativo){
-    if(!d)return;
-    if(timer!==null){clearInterval(timer);timer=null;}
-    if(operativo){
-      const n=Date.now()-Number(d.t0||Date.now());
-      try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.panel_full_ready_ms',Math.max(0,n),false)}catch(_){}
-      document.getElementById('b20PanelPct').textContent='100%';
-      document.getElementById('b20PanelRelleno').style.width='100%';
-      document.getElementById('b20PanelPista').setAttribute('aria-valuenow','100');
-    }else{
-      try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.panel_full_ready_failed',1,true)}catch(_){}
+    if(raw)handoff=JSON.parse(raw);
+    const codigo=new URLSearchParams(location.search).get('tracking')||
+      localStorage.getItem('pioca_tracking_code');
+    if(!handoff ||
+      String(handoff.codigo||'').toUpperCase()!==String(codigo||'').toUpperCase() ||
+      Date.now()-Number(handoff.creado||0)>=120000){
+      handoff=null;
+      sessionStorage.removeItem('pioca_b20_creacion_handoff');
     }
+  }catch(_){
+    handoff=null;
+    try{sessionStorage.removeItem('pioca_b20_creacion_handoff')}catch(__){}
+  }
+  window.piocaB20PanelListo=function(operativo){
+    if(!handoff)return;
+    try{
+      if(window.__piocaDiagMetric){
+        if(operativo){
+          const ms=Math.max(0,Date.now()-Number(handoff.t0||Date.now()));
+          window.__piocaDiagMetric('b20.panel_full_ready_ms',ms,false);
+        }else{
+          window.__piocaDiagMetric('b20.panel_full_ready_failed',1,true);
+        }
+      }
+    }catch(_){}
     try{sessionStorage.removeItem('pioca_b20_creacion_handoff')}catch(_){}
-    d=null;
-    setTimeout(function(){box.style.display='none';},operativo?220:0);
+    handoff=null;
   };
 })();
 </script>
-
 
 <div class="panel">
 
