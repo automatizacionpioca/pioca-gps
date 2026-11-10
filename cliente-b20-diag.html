@@ -3324,7 +3324,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     expected=now+1000;
   },1000);
   setInterval(p1Phase,5000);
-  metric('build.web_b20p1_9f359cd',1,0);
+  metric('build.web_b20p2_5319be9',1,0);
   p1Resume();
 
   // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
@@ -17042,6 +17042,10 @@ ocultarHoraLlegada();
     }
 
     function pasoR65(ahora){
+      const b20P2Medir=!!(window.PiocaDiag && typeof window.__piocaDiagMetric==='function');
+      const b20P2Inicio=b20P2Medir?performance.now():0;
+      let b20P2Fallo=0;
+      try{
       const progreso =
         Math.min(
           1,
@@ -17147,6 +17151,11 @@ ocultarHoraLlegada();
 
         animacionMarcadorId =
           null;
+      }
+    
+      }catch(b20P2Error){b20P2Fallo=1;throw b20P2Error;}
+      finally{
+        if(b20P2Medir){try{window.__piocaDiagMetric('anim.frame_r65_ms',Math.max(0,performance.now()-b20P2Inicio),b20P2Fallo);}catch(_){}}
       }
     }
 
@@ -18355,6 +18364,10 @@ ocultarHoraLlegada();
     let consumosProcesados = 0;
 
     function pasoRuta(ahora){
+      const b20P2Medir=!!(window.PiocaDiag && typeof window.__piocaDiagMetric==='function');
+      const b20P2Inicio=b20P2Medir?performance.now():0;
+      let b20P2Fallo=0;
+      try{
       const progreso = Math.min(1,(ahora - inicioMs) / duracionRuta);
 
       /*
@@ -18487,6 +18500,11 @@ ocultarHoraLlegada();
         );
         limpiarColaVerticesVisuales();
         animacionMarcadorId = null;
+      }
+    
+      }catch(b20P2Error){b20P2Fallo=1;throw b20P2Error;}
+      finally{
+        if(b20P2Medir){try{window.__piocaDiagMetric('anim.frame_route_ms',Math.max(0,performance.now()-b20P2Inicio),b20P2Fallo);}catch(_){}}
       }
     }
 
@@ -20503,16 +20521,6 @@ if(
     construirCurvaTangencialR65=function(){const t=performance.now();let err=0;
       try{return original.apply(this,arguments)}catch(e){err=1;throw e}
       finally{window.__piocaDiagMetric('anim.bezier_ms',performance.now()-t,err);}
-    };}
-  {const original=pasoR65;
-    pasoR65=function(){const t=performance.now();let err=0;
-      try{return original.apply(this,arguments)}catch(e){err=1;throw e}
-      finally{window.__piocaDiagMetric('anim.frame_r65_ms',performance.now()-t,err);}
-    };}
-  {const original=pasoRuta;
-    pasoRuta=function(){const t=performance.now();let err=0;
-      try{return original.apply(this,arguments)}catch(e){err=1;throw e}
-      finally{window.__piocaDiagMetric('anim.frame_route_ms',performance.now()-t,err);}
     };}
   {const original=actualizarZoomSegunEta;
     actualizarZoomSegunEta=function(){const t=performance.now();let err=0;

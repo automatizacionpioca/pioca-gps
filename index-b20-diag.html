@@ -635,7 +635,7 @@
     expected=now+1000;
   },1000);
   setInterval(p1Phase,5000);
-  metric('build.web_b20p1_9f359cd',1,0);
+  metric('build.web_b20p2_5319be9',1,0);
   p1Resume();
 
   // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
@@ -1995,99 +1995,42 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
 
   }
 
-  function mostrarFinalizado(
-    nombre
-  ){
+  // P2: same approved loading card; admin remains the only progress owner.
+  function b20P2MostrarCarga(){
+    if(document.getElementById('splashPioca'))return;
+    const style=document.createElement('style');
+    style.id='b20P2CargaCierreEstilo';
+    style.textContent="#splashPioca{\n      position:fixed;\n      inset:0;\n      z-index:99999;\n      display:flex;\n      align-items:center;\n      justify-content:center;\n      background:#f3f6f9;\n      opacity:1;\n      visibility:visible;\n      transition:opacity .25s ease, visibility .25s ease;\n      will-change:opacity,visibility;\n    }\n#splashPioca{\n      z-index:2147483001;\n      padding:16px;\n      font-family:system-ui,-apple-system,\"Segoe UI\",sans-serif;\n    }\n.b20CrearTarjeta{width:min(100%,420px);border:1px solid rgba(221,234,247,.92);border-radius:25px;background:linear-gradient(165deg,#fff 40%,#eff6fd);padding:27px 23px 24px;box-shadow:0 22px 65px rgba(4,25,59,.28);text-align:center}\n.b20CrearEyebrow{color:#6c8197;font-size:10px;font-weight:800;letter-spacing:1.55px;margin-bottom:6px}\n.b20CrearTitulo{color:#103865;font-size:19px;letter-spacing:.35px;font-weight:850}\n.b20CrearFase{margin-top:10px;min-height:20px;color:#506984;font-size:13px;font-weight:650}\n.b20CrearMeta{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:24px;color:#60758d;font-size:11px;font-weight:650}\n.b20CrearMeta strong{color:#1764b0;font-size:19px;font-variant-numeric:tabular-nums}\n.b20CrearPista{height:11px;border-radius:999px;background:#dce8f4;overflow:hidden;margin-top:8px;box-shadow:inset 0 1px 3px rgba(6,42,82,.1)}\n.b20CrearRelleno{height:100%;border-radius:999px;background:linear-gradient(90deg,#17449e,#258ddd 80%,#55c1eb);box-shadow:0 2px 9px rgba(34,122,211,.28);transition:width .11s linear}\n.b20CrearNota{margin-top:16px;font-size:11px;line-height:1.45;color:#7b8ea0}\n@media(max-width:420px){.b20CrearTarjeta{padding:25px 19px}.b20CrearTitulo{font-size:17px}}";
+    document.head.appendChild(style);
+    const shell=document.createElement('div');
+    shell.innerHTML="<div id=\"splashPioca\" role=\"status\" aria-live=\"polite\" aria-label=\"Cargando panel\">\n  <div class=\"b20CrearTarjeta\">\n    <div class=\"b20CrearEyebrow\">piOca® · GEOSEGUIMIENTO</div>\n    <div class=\"b20CrearTitulo\">CARGANDO PANEL</div>\n    <div id=\"b20PanelCargaFase\" class=\"b20CrearFase\">Iniciando aplicación...</div>\n    <div class=\"b20CrearMeta\">\n      <span>Progreso de carga</span>\n      <strong id=\"b20PanelCargaPorcentaje\">0%</strong>\n    </div>\n    <div id=\"b20PanelCargaPista\" class=\"b20CrearPista\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" aria-label=\"Progreso de carga del panel\">\n      <div id=\"b20PanelCargaRelleno\" class=\"b20CrearRelleno\" style=\"width:0%\"></div>\n    </div>\n    <div class=\"b20CrearNota\">Recuperando sesión y verificando seguimientos</div>\n  </div>\n</div>";
+    document.body.appendChild(shell.firstElementChild);
+  }
+  function b20P2IrAlPanel(){
+    const navegar=function(){window.location.replace('admin-b20-diag.html?b20p2=5319be9');};
+    if(document.visibilityState!=='visible'){navegar();return;}
+    // Allow the loading card to paint, without showing the finished screen.
+    requestAnimationFrame(function(){requestAnimationFrame(navegar);});
+  }
 
-    if(
-      seguimientoFinalizado
-    ){
-      return;
+  function mostrarFinalizado(nombre){
+    if(seguimientoFinalizado)return;
+    seguimientoFinalizado=true;
+    try{b20P2MostrarCarga();}catch(_){
+      try{if(window.__piocaDiagMetric)window.__piocaDiagMetric('b20.p2.close_loader_error',1,1);}catch(__){}
     }
-
-    seguimientoFinalizado =
-      true;
-
-    if(
-      watchId !== null
-    ){
-
-      try{
-
-        navigator.geolocation
-        .clearWatch(
-          watchId
-        );
-
-      }catch(e){}
-
-      watchId =
-        null;
+    if(watchId!==null){
+      try{navigator.geolocation.clearWatch(watchId);}catch(_){}
+      watchId=null;
     }
-
     detenerRelojes();
-
     detenerNativo();
-
-    clienteVistaFinal.textContent =
-      clienteFueVisualizado
-        ? "Visualizado por el cliente: SÍ"
-        : "Visualizado por el cliente: NO";
-
-    minutosSelector =
-      null;
-
+    minutosSelector=null;
     limpiarEstadoLocal();
-
-    bloqueGPS.style.display =
-      "none";
-
-    bloqueDenegado.style.display =
-      "none";
-
-    if(
-      estadoCabecera
-    ){
-      estadoCabecera.textContent =
-        "Rastreo detenido";
-
-      estadoCabecera.classList.add(
-        "estadoDetenido"
-      );
-    }
-
-    bloqueFinalizado.style.display =
-      "flex";
-
-    finalizadoTexto.textContent =
-
-      (
-        nombre
-          ? "El seguimiento de " +
-            nombre +
-            " ha finalizado. "
-          : "El seguimiento ha finalizado. "
-      ) +
-
-      "El cliente ya no puede ver la ubicación de la camioneta.";
-
-    /*
-      V10 - SALIDA AUTOMÁTICA DEL CONTROLADOR ETA
-
-      Cuando Supabase ya confirmó "finished", este controlador
-      deja de ser válido. Android puede mostrar su aviso de
-      finalización; el WebView vuelve automáticamente al panel.
-    */
-    setTimeout(
-      function(){
-
-        window.location.replace(
-          "admin-b20-diag.html"
-        );
-
-      },
-      350
-    );
+    bloqueGPS.style.display='none';
+    bloqueDenegado.style.display='none';
+    bloqueFinalizado.style.display='none';
+    b20P2IrAlPanel();
   }
 
   function formatearHora(
