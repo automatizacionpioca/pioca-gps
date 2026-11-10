@@ -10,11 +10,11 @@ ROOT = Path.cwd()
 
 # P1: bloquear sobrescritura de cambios web ajenos a esta base.
 import hashlib
-_P1_ALLOWED={'admin-b20-diag.html': ['06cac501fa99f126adc39958f6a49e9b54b81ac882ff43530acd7045a2e56f32', '4c3b4598de4d754f80b927274e0760d495949f2710f5dae25ce716f95ff64502'], 'index-b20-diag.html': ['240b3ac814cc4af19d54450797d39b3c57cff9859fda7a28d4dea87210986109', '921d103b2ae28fc0755f3169ad8bb2b37101701a8db4a6859a03c5d9ef9a9a28'], 'cliente-b20-diag.html': ['f0d89a58ba3641a8172059b486fa848e6328fc524140789e695b34a0e7083921', 'a04e37c9562d0698e8b45a2eb280ed9b81c45b3fbaa32cb020e29cf5bcc56609']}
+_P1_ALLOWED={'cliente-b20-diag.html': ['a04e37c9562d0698e8b45a2eb280ed9b81c45b3fbaa32cb020e29cf5bcc56609'], 'index-b20-diag.html': ['921d103b2ae28fc0755f3169ad8bb2b37101701a8db4a6859a03c5d9ef9a9a28'], 'admin-b20-diag.html': ['06cac501fa99f126adc39958f6a49e9b54b81ac882ff43530acd7045a2e56f32']}
 for _name,_hashes in _P1_ALLOWED.items():
     _path=ROOT/_name
     if not _path.is_file() or hashlib.sha256(_path.read_text('utf-8').rstrip().encode()).hexdigest() not in _hashes:
-        raise RuntimeError('B20 P1: '+_name+' difiere de GitHub 5319be9/P2; revisar nueva base antes de compilar')
+        raise RuntimeError('B20 P1: '+_name+' difiere de GitHub ef532ef/P3; revisar nueva base antes de compilar')
 
 
 
@@ -1263,3 +1263,23 @@ assert 'grid-template-columns:max-content minmax(0,1fr)' in _panel
 assert 'function b20P2MostrarCarga' in _panel and 'function b20P2IrAlPanel' in _panel
 assert "bloqueFinalizado.style.display='none'" in _panel
 print('B20 P2: diagnóstico local y cierre directo; panel, sesión, cartografía y P1 preservados')
+
+# ========================== B20 P3: RESTAURACION SILENCIOSA ==========================
+# Base publicada ef532ef1cbf966a7b065059b6704884f3aaf2beb; preserve all P2 web pages.
+_p3java=ROOT/'android-b20-diag/app/src/main/java/ar/com/pioca/seguimiento'
+_p3file=_p3java/'MainActivity.java'
+_p3source=_p3file.read_text('utf-8')
+_p3source=one(_p3source,'    private void showPendingEndDialog() {\n\n\n        SharedPreferences prefs =\n\n                getSharedPreferences(\n\n                        "pioca_tracking",\n\n                        MODE_PRIVATE\n                );\n\n\n        boolean pending =\n\n                prefs.getBoolean(\n\n                        "pending_finished_dialog",\n\n                        false\n                );\n\n\n        if (!pending) {\n\n\n\n      boolean dndAfterRealExpiry =\n              prefs.getBoolean(\n                      "dnd_restore_after_real_expiry",\n                      false\n              );\n\n      if (dndAfterRealExpiry) {\n\n          prefs.edit()\n                  .putBoolean(\n                          "dnd_restore_after_real_expiry",\n                          false\n                  )\n                  .apply();\n\n          showPendingDndRestoreDialog();\n      }\n\n            return;\n        }\n\n\n        String name =\n\n                prefs.getString(\n\n                        "finished_client_name",\n\n                        ""\n                );\n\n\n        String who =\n\n                name == null\n\n                || name.trim().isEmpty()\n\n                        ? "Este cliente"\n\n                        : name.trim();\n\n\n        prefs.edit()\n\n                .putBoolean(\n\n                        "pending_finished_dialog",\n\n                        false\n                )\n                          .putBoolean(\n                                  "dnd_restore_after_real_expiry",\n                                  false\n                          )\n\n                .apply();\n\n\n        new AlertDialog.Builder(this)\n\n                .setTitle(\n\n                        "Seguimiento finalizado"\n                )\n\n                .setMessage(\n\n                        "El seguimiento de "\n\n                        + who\n\n                        + " ya no está activo.\\n\\n"\n\n                        + "El cliente ya no puede ver la ubicación de la camioneta."\n                )\n\n                .setPositiveButton(\n\n        "ACEPTAR",\n\n        (d, which) -> showPendingDndRestoreDialog()\n    )\n\n    .show();\n}\n\n\n','    private void showPendingEndDialog() {\n        SharedPreferences prefs = getSharedPreferences("pioca_tracking", MODE_PRIVATE);\n        // P3: discard legacy completion notices silently; active recovery is independent.\n        boolean hadCompletion = prefs.getBoolean("pending_finished_dialog", false);\n        boolean dndAfterRealExpiry = prefs.getBoolean("dnd_restore_after_real_expiry", false);\n        prefs.edit()\n                .remove("pending_finished_dialog")\n                .remove("finished_client_name")\n                .remove("dnd_restore_after_real_expiry")\n                .apply();\n        if (hadCompletion || dndAfterRealExpiry) {\n            // Keep the existing user-controlled restoration of No molestar.\n            showPendingDndRestoreDialog();\n        }\n    }\n\n\n','P3 MainActivity.java')
+_p3file.write_text(_p3source,'utf-8')
+_p3file=_p3java/'TrackingService.java'
+_p3source=_p3file.read_text('utf-8')
+_p3source=one(_p3source,'        prefs.edit()\n\n                .putBoolean(\n\n                        "pending_finished_dialog",\n\n                        true\n                )\n\n                          .putBoolean(\n                                  "dnd_restore_after_real_expiry",\n                                  true\n                          )\n\n                .putString(\n\n                        "finished_client_name",\n\n                        clientName == null\n\n                                ? ""\n\n                                : clientName\n                )\n\n                .apply();','        prefs.edit()\n                .remove("pending_finished_dialog")\n                .remove("finished_client_name")\n                .putBoolean("dnd_restore_after_real_expiry", true)\n                .apply();','P3 TrackingService.java')
+_p3file.write_text(_p3source,'utf-8')
+_p3gradle=ROOT/'android-b20-diag/app/build.gradle'
+_p3text=_p3gradle.read_text('utf-8')
+_p3text=one(_p3text,'versionCode 23','versionCode 24','P3 versionCode')
+_p3text=one(_p3text,'0.20.3-DIAG-CIERRE-DIAGNOSTICO','0.20.4-DIAG-RESTAURACION-SILENCIOSA','P3 versionName')
+_p3gradle.write_text(_p3text,'utf-8')
+_p3file=_p3java/'DiagnosticTelemetry.java'
+_p3file.write_text(one(_p3file.read_text('utf-8'),'build.b20p2_5319be9','build.b20p3_ef532ef','P3 diagnostic version'),'utf-8')
+print('B20 P3: consulta y recuperación conservadas; avisos de finalización automáticos eliminados; No molestar preservado')
