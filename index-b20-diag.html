@@ -567,26 +567,76 @@
   try{
     if ('PerformanceObserver' in window){
       new PerformanceObserver(list=>{
-        for(const e of list.getEntries())metric('web.long_task',e.duration,0);
+        for(const e of list.getEntries()){metric('web.long_task',e.duration,0);metric(p1Prefix+'long_task_ms',e.duration,0);}
       }).observe({entryTypes:['longtask']});
     }
   }catch(_){}
-  let lastRaf=0;
-  function frame(t){
-    if(document.visibilityState==='visible' && lastRaf){
-      const d=t-lastRaf;
-      if(d>45 && d<120000)metric('web.frame_over_45ms',d,0);
+  // P1: attribute measurements without storing messages, URLs or user data.
+  const p1Page=/cliente-b20-diag\.html$/.test(location.pathname)?'cliente':
+    /admin-b20-diag\.html$/.test(location.pathname)?'admin':'panel';
+  const p1Prefix='web.p1.'+p1Page+'.';
+  function p1Visible(){return document.visibilityState==='visible' && !window.piocaB20PreviewAbierto;}
+  function p1Phase(){
+    let phase='background';
+    if(document.visibilityState==='visible'){
+      phase=window.piocaB20PreviewAbierto || (p1Page==='cliente' && /^(1|tecnico)$/.test(new URLSearchParams(location.search).get('preview')||''))
+        ?'preview':p1Page==='cliente'?'cliente':p1Page==='admin'?'admin':'panel';
     }
-    lastRaf=t;
-    requestAnimationFrame(frame);
+    try{if(typeof window.PiocaDiag.phase==='function')window.PiocaDiag.phase(phase);}catch(_){}
   }
-  requestAnimationFrame(frame);
+  function p1ErrorKind(error){
+    const name=error&&error.name;
+    return ['TypeError','ReferenceError','SyntaxError','RangeError','AbortError','SecurityError'].includes(name)?name.toLowerCase():'other';
+  }
+  window.addEventListener('error',function(event){
+    if(event.target && event.target!==window){
+      const tag=String(event.target.tagName||'').toLowerCase();
+      metric(p1Prefix+'resource_'+(['img','script','link'].includes(tag)?tag:'other'),1,1);
+      return;
+    }
+    metric(p1Prefix+'error_'+p1ErrorKind(event.error),1,1);
+    // Only line/column for this exact local page. Never save a URL or message.
+    try{
+      if(new URL(event.filename,location.href).pathname===location.pathname){
+        if(Number(event.lineno)>0)metric(p1Prefix+'error_line',Math.min(120000,Number(event.lineno)),1);
+        if(Number(event.colno)>0)metric(p1Prefix+'error_column',Math.min(120000,Number(event.colno)),1);
+      }else metric(p1Prefix+'error_external',1,1);
+    }catch(_){}
+  },true);
+  window.addEventListener('unhandledrejection',function(event){metric(p1Prefix+'rejection_'+p1ErrorKind(event.reason),1,1);});
+  window.__piocaP1Measure=function(name,fn){
+    const started=performance.now();
+    try{return fn();}finally{metric(p1Prefix+name,Math.max(0,performance.now()-started),0);}
+  };
+  let lastRaf=0;
   let expected=performance.now()+1000;
-  setInterval(()=>{
-    const now=performance.now(), lag=Math.max(0,now-expected);
-    if(lag>50&&lag<120000)metric('web.event_loop_lag',lag,0);
+  let p1FrameId=null;
+  function frame(t){
+    p1FrameId=null;
+    if(!p1Visible()){lastRaf=0;return;}
+    if(lastRaf){const d=t-lastRaf;if(d>45 && d<120000){metric('web.frame_over_45ms',d,0);metric(p1Prefix+'frame_gap_ms',d,0);}}
+    lastRaf=t;
+    p1FrameId=requestAnimationFrame(frame);
+  }
+  function p1Resume(){
+    lastRaf=0;expected=performance.now()+1000;p1Phase();
+    if(p1FrameId!==null){cancelAnimationFrame(p1FrameId);p1FrameId=null;}
+    if(p1Visible())p1FrameId=requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange',p1Resume);
+  window.addEventListener('pageshow',p1Resume);
+  window.addEventListener('pioca-b20-preview',p1Resume);
+  setInterval(function(){
+    const now=performance.now();
+    if(p1Visible()){
+      const lag=Math.max(0,now-expected);
+      if(lag>50 && lag<120000){metric('web.event_loop_lag',lag,0);metric(p1Prefix+'loop_lag_ms',lag,0);}
+    }
     expected=now+1000;
   },1000);
+  setInterval(p1Phase,5000);
+  metric('build.web_b20p1_9f359cd',1,0);
+  p1Resume();
 
   // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
   if(typeof window.fetch==='function'){
@@ -3046,6 +3096,7 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
     const inicio=performance.now();
     piocaB20PreviewActivo=false;
     window.piocaB20PreviewAbierto=false;
+    window.dispatchEvent(new Event('pioca-b20-preview'));
     if(piocaB20PreviewMarco){
       piocaB20PreviewMarco.remove();
       piocaB20PreviewMarco=null;
@@ -3065,6 +3116,7 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
     const t0=performance.now();
     piocaB20PreviewActivo=true;
     window.piocaB20PreviewAbierto=true;
+    window.dispatchEvent(new Event('pioca-b20-preview'));
     const capa=document.createElement('div');
     capa.id='piocaB20PreviewOverlay';
     capa.style.cssText='position:fixed;inset:0;z-index:2147483640;background:#0d1117;display:block;overflow:hidden';
@@ -4297,4 +4349,3 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
 
 </body>
 </html>
-

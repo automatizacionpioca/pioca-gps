@@ -3256,26 +3256,76 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   try{
     if ('PerformanceObserver' in window){
       new PerformanceObserver(list=>{
-        for(const e of list.getEntries())metric('web.long_task',e.duration,0);
+        for(const e of list.getEntries()){metric('web.long_task',e.duration,0);metric(p1Prefix+'long_task_ms',e.duration,0);}
       }).observe({entryTypes:['longtask']});
     }
   }catch(_){}
-  let lastRaf=0;
-  function frame(t){
-    if(document.visibilityState==='visible' && lastRaf){
-      const d=t-lastRaf;
-      if(d>45 && d<120000)metric('web.frame_over_45ms',d,0);
+  // P1: attribute measurements without storing messages, URLs or user data.
+  const p1Page=/cliente-b20-diag\.html$/.test(location.pathname)?'cliente':
+    /admin-b20-diag\.html$/.test(location.pathname)?'admin':'panel';
+  const p1Prefix='web.p1.'+p1Page+'.';
+  function p1Visible(){return document.visibilityState==='visible' && !window.piocaB20PreviewAbierto;}
+  function p1Phase(){
+    let phase='background';
+    if(document.visibilityState==='visible'){
+      phase=window.piocaB20PreviewAbierto || (p1Page==='cliente' && /^(1|tecnico)$/.test(new URLSearchParams(location.search).get('preview')||''))
+        ?'preview':p1Page==='cliente'?'cliente':p1Page==='admin'?'admin':'panel';
     }
-    lastRaf=t;
-    requestAnimationFrame(frame);
+    try{if(typeof window.PiocaDiag.phase==='function')window.PiocaDiag.phase(phase);}catch(_){}
   }
-  requestAnimationFrame(frame);
+  function p1ErrorKind(error){
+    const name=error&&error.name;
+    return ['TypeError','ReferenceError','SyntaxError','RangeError','AbortError','SecurityError'].includes(name)?name.toLowerCase():'other';
+  }
+  window.addEventListener('error',function(event){
+    if(event.target && event.target!==window){
+      const tag=String(event.target.tagName||'').toLowerCase();
+      metric(p1Prefix+'resource_'+(['img','script','link'].includes(tag)?tag:'other'),1,1);
+      return;
+    }
+    metric(p1Prefix+'error_'+p1ErrorKind(event.error),1,1);
+    // Only line/column for this exact local page. Never save a URL or message.
+    try{
+      if(new URL(event.filename,location.href).pathname===location.pathname){
+        if(Number(event.lineno)>0)metric(p1Prefix+'error_line',Math.min(120000,Number(event.lineno)),1);
+        if(Number(event.colno)>0)metric(p1Prefix+'error_column',Math.min(120000,Number(event.colno)),1);
+      }else metric(p1Prefix+'error_external',1,1);
+    }catch(_){}
+  },true);
+  window.addEventListener('unhandledrejection',function(event){metric(p1Prefix+'rejection_'+p1ErrorKind(event.reason),1,1);});
+  window.__piocaP1Measure=function(name,fn){
+    const started=performance.now();
+    try{return fn();}finally{metric(p1Prefix+name,Math.max(0,performance.now()-started),0);}
+  };
+  let lastRaf=0;
   let expected=performance.now()+1000;
-  setInterval(()=>{
-    const now=performance.now(), lag=Math.max(0,now-expected);
-    if(lag>50&&lag<120000)metric('web.event_loop_lag',lag,0);
+  let p1FrameId=null;
+  function frame(t){
+    p1FrameId=null;
+    if(!p1Visible()){lastRaf=0;return;}
+    if(lastRaf){const d=t-lastRaf;if(d>45 && d<120000){metric('web.frame_over_45ms',d,0);metric(p1Prefix+'frame_gap_ms',d,0);}}
+    lastRaf=t;
+    p1FrameId=requestAnimationFrame(frame);
+  }
+  function p1Resume(){
+    lastRaf=0;expected=performance.now()+1000;p1Phase();
+    if(p1FrameId!==null){cancelAnimationFrame(p1FrameId);p1FrameId=null;}
+    if(p1Visible())p1FrameId=requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange',p1Resume);
+  window.addEventListener('pageshow',p1Resume);
+  window.addEventListener('pioca-b20-preview',p1Resume);
+  setInterval(function(){
+    const now=performance.now();
+    if(p1Visible()){
+      const lag=Math.max(0,now-expected);
+      if(lag>50 && lag<120000){metric('web.event_loop_lag',lag,0);metric(p1Prefix+'loop_lag_ms',lag,0);}
+    }
     expected=now+1000;
   },1000);
+  setInterval(p1Phase,5000);
+  metric('build.web_b20p1_9f359cd',1,0);
+  p1Resume();
 
   // Instrumenta solicitudes sin cambiar ni el valor devuelto ni su contenido.
   if(typeof window.fetch==='function'){
@@ -5184,7 +5234,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         const altoMapa=Number(mapa.getSize().y)||0;
         const anchoMapa=Number(mapa.getSize().x)||0;
         const altoPanel=piocaTrayectoPanel
-          ? piocaTrayectoPanel.getBoundingClientRect().height : 0;
+          ? b20P1Dimension(piocaTrayectoPanel,'height') : 0;
         const offsetY=Math.max(0,Math.min(altoPanel*0.50,altoMapa*0.32));
         const rumbo=Number(typeof gm.getHeading==='function'?gm.getHeading():0)||0;
         const centro=calcularCentroPuntoEnPantallaConRumbo(
@@ -7328,8 +7378,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   function restablecerVisualEtaSinDato(){
 
     if(piocaEtaMinutos){
-      piocaEtaMinutos.textContent =
-        "--";
+      b20P1Text(piocaEtaMinutos,"--");
 
       piocaEtaMinutos.classList.remove(
         "proximo"
@@ -7337,8 +7386,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     if(piocaEtaHora){
-      piocaEtaHora.textContent =
-        "--:-- hs";
+      b20P1Text(piocaEtaHora,"--:-- hs");
 
       piocaEtaHora.classList.remove(
         "proximo"
@@ -7346,13 +7394,11 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     }
 
     if(piocaHoraEtapa3){
-      piocaHoraEtapa3.textContent =
-        "";
+      b20P1Text(piocaHoraEtapa3,"");
     }
 
     if(piocaHoraEtapa4){
-      piocaHoraEtapa4.textContent =
-        "";
+      b20P1Text(piocaHoraEtapa4,"");
     }
 
     tramoZoomEtaActual =
@@ -7402,6 +7448,39 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
   }
 
 
+  // P1: reuse dimensions until a real resize, preserving the existing geometry.
+  const b20P1Rects=new WeakMap();
+  let b20P1LayoutEpoch=0;
+  const b20P1Resize=typeof ResizeObserver==='function' ? new ResizeObserver(function(entries){
+    for(const entry of entries)b20P1Rects.delete(entry.target);
+  }) : null;
+  function b20P1InvalidateLayout(){b20P1LayoutEpoch++;}
+  window.addEventListener('resize',b20P1InvalidateLayout,{passive:true});
+  window.addEventListener('orientationchange',b20P1InvalidateLayout,{passive:true});
+  document.addEventListener('visibilitychange',b20P1InvalidateLayout);
+  function b20P1Dimension(element,axis){
+    if(!element)return 0;
+    // Without ResizeObserver, retain the original measurement semantics.
+    if(!b20P1Resize)return Number(element.getBoundingClientRect()[axis])||0;
+    let saved=b20P1Rects.get(element);
+    if(!saved || saved.epoch!==b20P1LayoutEpoch){
+      const rect=element.getBoundingClientRect();
+      saved={height:Number(rect.height)||0,width:Number(rect.width)||0,epoch:b20P1LayoutEpoch};
+      if(saved.height>0 && saved.width>0)b20P1Rects.set(element,saved);
+      b20P1Resize.observe(element);
+      if(window.__piocaDiagMetric)window.__piocaDiagMetric('web.p1.cliente.layout_read',1,0);
+    }
+    return saved[axis];
+  }
+  function b20P1Style(style,name,value,priority){
+    priority=priority||'';value=String(value);
+    if(style.getPropertyValue(name)===value && style.getPropertyPriority(name)===priority)return;
+    style.setProperty(name,value,priority);
+  }
+  function b20P1Text(element,value){
+    if(element && element.textContent!==String(value))element.textContent=String(value);
+  }
+
   function actualizarAnclajeRefrescar(){
 
     if(
@@ -7412,13 +7491,10 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     const alto =
       Math.ceil(
-        piocaTrayectoPanel
-        .getBoundingClientRect()
-        .height
+        b20P1Dimension(piocaTrayectoPanel,'height')
       );
 
-    document.documentElement.style.setProperty(
-      "--pioca-panel-height",
+    b20P1Style(document.documentElement.style,"--pioca-panel-height",
       (
         alto +
         8
@@ -7485,9 +7561,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     const anchoTrayecto =
       piocaTrayectoPanel &&
       piocaCamionetaProgreso.parentElement
-        ? piocaCamionetaProgreso.parentElement
-            .getBoundingClientRect()
-            .width
+        ? b20P1Dimension(piocaCamionetaProgreso.parentElement,'width')
         : 0;
 
     const desplazamientoCamionetaPx =
@@ -7505,13 +7579,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       desplazamientoCamionetaPx +
       "px,0,0)";
 
-    piocaCamionetaProgreso.style.setProperty(
+    b20P1Style(piocaCamionetaProgreso.style,
       "-webkit-transform",
       transformCamioneta,
       "important"
     );
 
-    piocaCamionetaProgreso.style.setProperty(
+    b20P1Style(piocaCamionetaProgreso.style,
       "transform",
       transformCamioneta,
       "important"
@@ -7537,13 +7611,13 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       escalaProgreso +
       ") translateZ(0)";
 
-    piocaLineaProgreso.style.setProperty(
+    b20P1Style(piocaLineaProgreso.style,
       "-webkit-transform",
       transformLinea,
       "important"
     );
 
-    piocaLineaProgreso.style.setProperty(
+    b20P1Style(piocaLineaProgreso.style,
       "transform",
       transformLinea,
       "important"
@@ -7679,9 +7753,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     ){
       altoPanel =
         Math.ceil(
-          piocaTrayectoPanel
-            .getBoundingClientRect()
-            .height
+          b20P1Dimension(piocaTrayectoPanel,'height')
         );
     }
 
@@ -8703,9 +8775,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
     const anchoRefrescar =
       Math.ceil(
-        btnRefrescarPosicion
-          .getBoundingClientRect()
-          .width
+        b20P1Dimension(btnRefrescarPosicion,'width')
       );
 
     if(
@@ -8900,6 +8970,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
 
 
   function actualizarPanelTrayecto(){
+    const p1Start=performance.now();
+    try{
 
     if(
       terminado
@@ -8947,10 +9019,9 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       faltanMin
     );
 
-    piocaEtaHora.textContent =
-      formatearHoraTrayecto(
+    b20P1Text(piocaEtaHora,formatearHoraTrayecto(
         llegadaClienteMs
-      );
+      ));
 
     if(piocaEtaMinutos){
       const minutosRestantes =
@@ -8958,8 +9029,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
           ? 0
           : Math.ceil(faltanMin);
 
-      piocaEtaMinutos.textContent =
-        minutosRestantes + " min";
+      b20P1Text(piocaEtaMinutos,minutosRestantes + " min");
 
       piocaEtaMinutos.classList.remove(
         "proximo"
@@ -8972,8 +9042,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       );
     }
 
-    piocaHoraEtapa3.textContent = "";
-    piocaHoraEtapa4.textContent = "";
+    b20P1Text(piocaHoraEtapa3,"");
+    b20P1Text(piocaHoraEtapa4,"");
 
     pintarEtapaTrayecto(
       estadoAlgoritmo.progresoEta.etapa,
@@ -8986,6 +9056,8 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
     requestAnimationFrame(
       actualizarAnclajeRefrescar
     );
+    }finally{if(window.__piocaDiagMetric)window.__piocaDiagMetric('web.p1.cliente.panel_render_ms',Math.max(0,performance.now()-p1Start),0);}
+
   }
 
 
@@ -10230,9 +10302,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
       ){
         altoPanel =
           Math.ceil(
-            piocaTrayectoPanel
-              .getBoundingClientRect()
-              .height
+            b20P1Dimension(piocaTrayectoPanel,'height')
           );
       }
 
@@ -10751,9 +10821,7 @@ body.seguimientoFinalizadoVisual #btnVolverPanelPreviewFinal:active{
         piocaTrayectoPanel
       ){
         altoPanel =
-          piocaTrayectoPanel
-            .getBoundingClientRect()
-            .height;
+          b20P1Dimension(piocaTrayectoPanel,'height');
       }
 
       const offsetY =
@@ -18494,9 +18562,7 @@ ocultarHoraLlegada();
         piocaTrayectoPanel
       ){
         altoPanel =
-          piocaTrayectoPanel
-          .getBoundingClientRect()
-          .height;
+          b20P1Dimension(piocaTrayectoPanel,'height');
       }
 
       const altoMapa =
@@ -18650,9 +18716,7 @@ ocultarHoraLlegada();
       piocaTrayectoPanel
     ){
       altoPanel =
-        piocaTrayectoPanel
-        .getBoundingClientRect()
-        .height;
+        b20P1Dimension(piocaTrayectoPanel,'height');
     }
 
     const altoMapa =
