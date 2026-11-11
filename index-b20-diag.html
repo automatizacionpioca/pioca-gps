@@ -3034,9 +3034,50 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
   function piocaB20Metrica(nombre,valor,fallo){
     try{if(window.__piocaDiagMetric)window.__piocaDiagMetric(nombre,valor,fallo?1:0)}catch(_){}
   }
+  // P4 diagnostic only: keep panel, map and tracking behavior unchanged.
+  let p4Cycle=0,p4Current=0;
+  const p4Timers=new Set();
+  function p4Metric(name,value){try{if(window.PiocaDiag)window.PiocaDiag.metric(name,value,0);}catch(_){}}
+  function p4Snapshot(stage,cycle){
+    if(!cycle)return;
+    const prefix='p4.c'+cycle+'.'+stage;
+    p4Metric(prefix+'.visible',document.visibilityState==='visible'?1:0);
+    p4Metric(prefix+'.frames',document.querySelectorAll('#piocaB20PreviewOverlay iframe').length);
+    try{if(window.PiocaDiag&&typeof window.PiocaDiag.previewMemory==='function')window.PiocaDiag.previewMemory(cycle,stage);}catch(_){}
+    try{
+      const frame=document.querySelector('#piocaB20PreviewOverlay iframe');
+      const get=frame&&frame.contentWindow.piocaP4Recursos;
+      if(typeof get==='function'){
+        const values=get();
+        for(const key of Object.keys(values))p4Metric(prefix+'.'+key,Math.min(120000,Math.max(0,Number(values[key])||0)));
+      }
+    }catch(_){p4Metric(prefix+'.unavailable',1);}
+  }
+  function p4Later(ms,fn){const id=setTimeout(function(){p4Timers.delete(id);fn();},ms);p4Timers.add(id);}
+  function p4Opening(){
+    if(!window.PiocaDiag)return;
+    for(const id of p4Timers)clearTimeout(id);p4Timers.clear();
+    p4Current=++p4Cycle<=10?p4Cycle:0;
+    p4Snapshot('before',p4Current);
+    const cycle=p4Current;
+    p4Later(30000,function during(){
+      if(!cycle||p4Current!==cycle||!piocaB20PreviewActivo)return;
+      p4Snapshot('during',cycle);p4Later(30000,during);
+    });
+  }
+  function p4Closing(cycle){
+    for(const id of p4Timers)clearTimeout(id);p4Timers.clear();
+    p4Snapshot('closed',cycle);
+    for(const seconds of [5,15,30])p4Later(seconds*1000,function(){
+      if(!piocaB20PreviewActivo&&p4Current===cycle)p4Snapshot('after'+seconds,cycle);
+    });
+  }
+
   function piocaB20CerrarPreview(){
     if(!piocaB20PreviewActivo)return;
     const inicio=performance.now();
+    const p4ClosingCycle=p4Current;
+    p4Snapshot('beforeclose',p4ClosingCycle);
     piocaB20PreviewActivo=false;
     window.piocaB20PreviewAbierto=false;
     window.dispatchEvent(new Event('pioca-b20-preview'));
@@ -3044,6 +3085,7 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
       piocaB20PreviewMarco.remove();
       piocaB20PreviewMarco=null;
     }
+    p4Closing(p4ClosingCycle);
     try{sessionStorage.removeItem('pioca_preview_retorno_panel')}catch(_){}
     piocaB20Metrica('ui.preview_close_ms',performance.now()-inicio,false);
     // Sin navegar ni solicitar una reconstruccion del documento.
@@ -3057,6 +3099,7 @@ body{background:#edf2f8;font-family:system-ui,-apple-system,"Segoe UI",Arial,san
       return;
     }
     const t0=performance.now();
+    p4Opening();
     piocaB20PreviewActivo=true;
     window.piocaB20PreviewAbierto=true;
     window.dispatchEvent(new Event('pioca-b20-preview'));

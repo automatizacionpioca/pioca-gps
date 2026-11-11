@@ -12686,6 +12686,13 @@ ocultarHoraLlegada();
   }
   const r67SectoresMemoria = new Map();
   const r67SectoresEnCurso = new Map();
+  if(window.PiocaDiag)window.piocaP4Recursos=function(){
+    let segments=0;for(const sector of r67SectoresMemoria.values())segments+=sector.segmentos.length;
+    return {sectors:r67SectoresMemoria.size,segments:segments,cells:r67IndiceEspacial.size,
+      inflight:r67SectoresEnCurso.size,queued:r67ColaSolicitudes.length,
+      animation:animacionMarcadorId===null?0:1};
+  };
+
   let r67SolicitudesActivas = 0;
   const r67ColaSolicitudes = [];
   let r67TimerPrecarga = null;
